@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "purpose": "Canonical identity and alias registry specification for deterministic evaluator seeds.",
+  "sources": [
+    "Kill My SaaS Research Vault/Attachments/Kill My SaaS Evals Repository/fixtures/sample-data.json",
+    "Kill My SaaS Research Vault/Attachments/Kill My SaaS Evals Repository/fixtures/speakers.csv",
+    "Kill My SaaS Research Vault/Attachments/Kill My SaaS Evals Repository/specs/*.yaml"
+  ],
+  "rules": {
+    "canonical_person_key_is_stable": true,
+    "email_matching": "trim then Unicode case-fold; persist original spelling for evidence",
+    "alias_uniqueness": "one normalized email resolves to exactly one canonical person",
+    "aliases_grant_roles": false,
+    "roles_come_from": "organization and event memberships only",
+    "runtime_override": "evalconfig personaEmails or credentials.<persona>.email becomes the evaluator-facing login email and an alias of that persona's canonical person",
+    "runtime_override_collision": "fail the seed before creating identities or memberships",
+    "credential_policy": "passwords and live inbox addresses are supplied through evaluator configuration/secrets and never copied into this registry",
+    "seed_behavior": "deterministic, idempotent, evaluation-environment gated",
+    "crm_duplicate_policy": "intentional CRM duplicate candidates remain separate people until the CRM merge scenario executes"
+  },
+  "event": {
+    "name": "DevFlow Conf 2027",
+    "starts_on": "2027-05-12",
+    "ends_on": "2027-05-14",
+    "location": "Moscone West, San Francisco, CA",
+    "timezone": "America/Los_Angeles",
+    "tracks": ["AI Engineering", "Platform & Infra", "Developer Experience"],
+    "formats": ["Keynote (45 min)", "Talk (30 min)", "Lightning Talk (10 min)", "Workshop (120 min)", "Panel (45 min)"],
+    "rooms": ["Main Stage", "Room 2A", "Room 2B", "Workshop Lab"]
+  },
+  "personas": [
+    {
+      "persona": "organizer",
+      "canonical_person_key": "fixture-person-jordan-alvarez",
+      "name": "Jordan Alvarez",
+      "canonical_email": "jordan.organizer@sbek-test.example.com",
+      "aliases": ["sbek-organizer@example.com"],
+      "memberships": [{"scope": "organization", "role": "organizer"}, {"scope": "event", "role": "organizer"}],
+      "login_required": true
+    },
+    {
+      "persona": "speaker",
+      "canonical_person_key": "fixture-person-priya-raman",
+      "name": "Priya Raman",
+      "canonical_email": "priya.speaker@sbek-test.example.com",
+      "aliases": ["sbek-speaker@example.com"],
+      "memberships": [{"scope": "event", "role": "speaker"}],
+      "login_required": true
+    },
+    {
+      "persona": "speaker2",
+      "canonical_person_key": "fixture-person-marcus-okafor",
+      "name": "Marcus Okafor",
+      "canonical_email": "marcus.speaker@sbek-test.example.com",
+      "aliases": ["sbek-speaker2@example.com"],
+      "memberships": [{"scope": "event", "role": "speaker"}],
+      "login_required": true
+    },
+    {
+      "persona": "reviewer",
+      "canonical_person_key": "fixture-person-sam-whitfield",
+      "name": "Sam Whitfield",
+      "canonical_email": "sam.reviewer@sbek-test.example.com",
+      "aliases": ["sbek-reviewer@example.com"],
+      "memberships": [{"scope": "event", "role": "reviewer"}],
+      "login_required": true
+    },
+    {
+      "persona": "reviewer2",
+      "canonical_person_key": "fixture-person-reviewer-two",
+      "name": "Evaluator-controlled second reviewer",
+      "canonical_email": null,
+      "aliases": [],
+      "memberships": [{"scope": "event", "role": "reviewer"}],
+      "login_required": true,
+      "runtime_email_required_for": ["MAN-03"]
+    },
+    {
+      "persona": "attendee",
+      "canonical_person_key": null,
+      "name": "Anonymous attendee",
+      "canonical_email": null,
+      "aliases": ["alex.attendee@sbek-test.example.com"],
+      "memberships": [],
+      "login_required": false,
+      "note": "The fixture email may be used only as calendar/export input; it must not create or require an attendee account."
+    }
+  ],
+  "import_only_people": [
+    {"canonical_person_key": "fixture-person-dana-kowalski", "name": "Dana Kowalski", "canonical_email": "dana.speaker@sbek-test.example.com", "aliases": [], "source": "fixtures/speakers.csv"}
+  ],
+  "intentional_duplicate_candidates": [
+    {"scenario": "CRM-S1", "name": "Priya Raman", "email": "priya.raman.alt@sbek-test.example.com", "must_not_be_preseeded_as_alias": true, "merge_target": "fixture-person-priya-raman"}
+  ],
+  "required_evaluator_config_personas": ["organizer", "speaker", "speaker2", "reviewer"],
+  "manual_evidence_config_personas": ["reviewer2"]
+}

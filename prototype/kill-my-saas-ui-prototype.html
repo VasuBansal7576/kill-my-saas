@@ -1,0 +1,554 @@
+<!doctype html>
+<!--
+  LOCKED UI PROTOTYPE — not production code.
+  Decision: a real event-operations workspace using the Cursor-inspired charcoal palette,
+  hairline borders, muted type and semantic accents. All discarded variants have been removed.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ProgramFlow — Locked Product Prototype</title>
+  <style>
+    :root {
+      --ink: #17212b;
+      --muted: #687480;
+      --soft: #f3f6f4;
+      --paper: #fbfcfa;
+      --line: #dfe6e1;
+      --blue: #2d63e2;
+      --blue-soft: #edf3ff;
+      --green: #168565;
+      --green-soft: #eaf7f2;
+      --amber: #ae6a16;
+      --amber-soft: #fff5e6;
+      --red: #b54747;
+      --red-soft: #fff0ef;
+      --violet: #7657d8;
+      --shadow: 0 14px 40px rgba(24, 42, 31, .09);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--paper); color: var(--ink); font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+    .prototype-note { position: fixed; z-index: 80; left: 16px; bottom: 16px; padding: 8px 11px; border-radius: 999px; background: rgba(23,33,43,.84); color: #fff; font-size: 11px; letter-spacing: .02em; backdrop-filter: blur(10px); }
+    .app { min-height: 100vh; }
+    .topbar { height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); background: rgba(251,252,250,.9); backdrop-filter: blur(14px); padding: 0 24px; position: sticky; top: 0; z-index: 30; }
+    .brand { display: flex; align-items: center; gap: 11px; font-weight: 760; letter-spacing: -.02em; white-space: nowrap; }
+    .brandmark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--ink); color: #fff; font-size: 13px; }
+    .event-switch { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 11px; color: var(--ink); }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--blue-soft); color: var(--blue); font-weight: 750; font-size: 12px; }
+    .quiet { color: var(--muted); }
+    .btn { border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 10px; padding: 9px 13px; font-weight: 650; }
+    .btn:hover { border-color: #b9c6bd; }
+    .btn.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+    .btn.blue { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+    .icon-btn { width: 38px; height: 38px; border: 1px solid var(--line); background: #fff; border-radius: 10px; color: var(--muted); display: grid; place-items: center; }
+    .layout { min-height: calc(100vh - 68px); }
+    .sidebar { width: 232px; border-right: 1px solid var(--line); background: #f7f9f6; padding: 22px 14px 90px; position: fixed; left: 0; top: 68px; bottom: 0; overflow: auto; }
+    .nav-group { margin-bottom: 22px; }
+    .nav-label { padding: 0 10px 7px; text-transform: uppercase; font-size: 10px; letter-spacing: .12em; color: #8b958e; font-weight: 800; }
+    .nav-item { width: 100%; border: 0; background: transparent; color: #53605a; padding: 9px 10px; border-radius: 9px; display: flex; align-items: center; gap: 10px; text-align: left; margin: 2px 0; }
+    .nav-item:hover { background: #eef2ee; color: var(--ink); }
+    .nav-item.active { background: #fff; color: var(--ink); box-shadow: 0 1px 0 rgba(0,0,0,.05), 0 4px 16px rgba(32,50,38,.06); font-weight: 700; }
+    .nav-icon { width: 20px; color: #7b8780; font-size: 12px; font-weight: 800; text-align: center; }
+    .nav-count { margin-left: auto; min-width: 21px; padding: 2px 6px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 10px; font-weight: 800; text-align: center; }
+    .main { padding: 34px 38px 100px; }
+    .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 26px; }
+    .eyebrow { color: var(--blue); font-size: 11px; text-transform: uppercase; letter-spacing: .11em; font-weight: 800; margin-bottom: 8px; }
+    h1 { margin: 0; font-size: clamp(27px, 3vw, 39px); line-height: 1.08; letter-spacing: -.035em; }
+    h2 { margin: 0; font-size: 18px; letter-spacing: -.02em; }
+    h3 { margin: 0; font-size: 14px; }
+    p { color: var(--muted); line-height: 1.55; }
+    .subtitle { margin: 8px 0 0; max-width: 700px; }
+    .head-actions { display: flex; gap: 9px; flex-wrap: wrap; justify-content: flex-end; }
+    .grid { display: grid; gap: 16px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; box-shadow: 0 1px 0 rgba(0,0,0,.02); }
+    .card.flat { box-shadow: none; }
+    .card.soft { background: var(--soft); border-color: transparent; }
+    .card.selected { border: 2px solid var(--blue); padding: 17px; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+    .metric { padding: 17px; min-height: 118px; }
+    .metric-label { color: var(--muted); font-size: 12px; font-weight: 650; }
+    .metric-value { font-size: 29px; font-weight: 780; letter-spacing: -.04em; margin: 10px 0 6px; }
+    .metric-note { font-size: 11px; color: var(--muted); }
+    .progress { height: 6px; border-radius: 999px; background: #edf0ed; overflow: hidden; }
+    .progress > i { display: block; height: 100%; background: var(--green); border-radius: inherit; }
+    .pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 5px 8px; font-size: 10px; line-height: 1; font-weight: 800; background: var(--soft); color: var(--muted); white-space: nowrap; }
+    .pill.green { background: var(--green-soft); color: var(--green); }
+    .pill.amber { background: var(--amber-soft); color: var(--amber); }
+    .pill.red { background: var(--red-soft); color: var(--red); }
+    .pill.blue { background: var(--blue-soft); color: var(--blue); }
+    .pill.violet { background: #f1edff; color: var(--violet); }
+    .list { display: grid; }
+    .row { display: grid; grid-template-columns: minmax(210px,1.5fr) minmax(110px,.8fr) minmax(100px,.7fr) minmax(90px,.6fr) 34px; gap: 14px; align-items: center; min-height: 56px; border-top: 1px solid #edf1ee; font-size: 12px; }
+    .row:first-child { border-top: 0; }
+    .row.header { min-height: 35px; text-transform: uppercase; letter-spacing: .07em; font-size: 9px; color: #8b968f; font-weight: 800; }
+    .person { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .person .avatar { flex: 0 0 auto; width: 32px; height: 32px; background: var(--soft); color: var(--ink); }
+    .name { font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
+    .split { display: grid; grid-template-columns: minmax(0,1.7fr) minmax(280px,.8fr); gap: 18px; }
+    .stack { display: grid; gap: 13px; }
+    .attention { display: flex; gap: 12px; align-items: flex-start; padding: 14px 0; border-top: 1px solid #edf1ee; }
+    .attention:first-child { border-top: 0; }
+    .attention-dot { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--amber); flex: 0 0 auto; }
+    .attention-dot.red { background: var(--red); }
+    .attention-dot.green { background: var(--green); }
+    .attention-body { flex: 1; }
+    .attention-title { font-size: 12px; font-weight: 720; }
+    .attention-copy { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .link-btn { border: 0; background: transparent; color: var(--blue); padding: 0; font-weight: 700; font-size: 11px; }
+    .field { display: grid; gap: 6px; }
+    .field label { font-size: 11px; font-weight: 700; color: #4f5b55; }
+    .field input, .field select, .field textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 11px; background: #fff; color: var(--ink); outline: none; }
+    .field textarea { min-height: 90px; resize: vertical; }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: #8dacfa; box-shadow: 0 0 0 3px var(--blue-soft); }
+    .form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+    .full { grid-column: 1 / -1; }
+    .builder-field { border: 1px solid var(--line); border-radius: 12px; padding: 13px; display: flex; align-items: center; gap: 12px; background: #fff; }
+    .drag { color: #abb4ae; letter-spacing: -2px; }
+    .builder-copy { flex: 1; }
+    .builder-type { color: var(--muted); font-size: 10px; margin-top: 3px; }
+    .toggle { width: 34px; height: 20px; border-radius: 999px; background: #c9d1cc; padding: 3px; }
+    .toggle.on { background: var(--green); }
+    .toggle::after { content: ""; display: block; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+    .toggle.on::after { margin-left: 14px; }
+    .tabs { display: flex; gap: 4px; padding: 4px; background: var(--soft); width: fit-content; border-radius: 10px; margin-bottom: 18px; }
+    .tab { border: 0; border-radius: 7px; padding: 7px 11px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .tab.active { background: #fff; color: var(--ink); box-shadow: 0 1px 5px rgba(0,0,0,.07); }
+    .round { border: 1px solid var(--line); background: #fff; border-radius: 13px; padding: 14px; display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; }
+    .round .progress { grid-column: 1 / -1; }
+    .score { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: var(--green-soft); color: var(--green); font-weight: 800; }
+    .schedule-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+    .schedule { min-width: 760px; display: grid; grid-template-columns: 74px repeat(3,1fr); }
+    .schedule > div { border-right: 1px solid #edf1ee; border-bottom: 1px solid #edf1ee; min-height: 62px; padding: 8px; font-size: 10px; }
+    .schedule .time { color: var(--muted); text-align: right; padding-right: 12px; }
+    .schedule .room { min-height: 38px; background: var(--soft); font-weight: 750; font-size: 11px; }
+    .session { background: var(--blue-soft); border-left: 3px solid var(--blue); border-radius: 8px; padding: 7px; color: #254d9f; line-height: 1.3; }
+    .session.green { background: var(--green-soft); border-color: var(--green); color: #17624f; }
+    .session.violet { background: #f2efff; border-color: var(--violet); color: #5942a4; }
+    .session.conflict { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+    .mapping { display: grid; grid-template-columns: 1fr 28px 1fr; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid #edf1ee; font-size: 11px; }
+    .mapping:first-child { border-top: 0; }
+    .kanban { display: grid; grid-template-columns: repeat(4,minmax(190px,1fr)); gap: 12px; overflow: auto; }
+    .column { background: var(--soft); border-radius: 14px; padding: 12px; min-height: 330px; }
+    .column-head { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 800; margin-bottom: 10px; }
+    .contact-card { background: #fff; border: 1px solid var(--line); border-radius: 11px; padding: 11px; margin-bottom: 8px; font-size: 11px; }
+    .public-preview { background: #f5f4ef; border-radius: 18px; padding: 20px; }
+    .public-card { background: #fff; border: 1px solid #e1dfd8; border-radius: 14px; padding: 15px; }
+    .speaker-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 11px; }
+    .speaker-tile { border: 1px solid var(--line); border-radius: 13px; overflow: hidden; background: #fff; }
+    .speaker-photo { height: 90px; display: grid; place-items: center; background: linear-gradient(145deg,#dbe6ff,#eef3ff); font-size: 24px; font-weight: 800; color: #5570a8; }
+    .speaker-copy { padding: 10px; }
+    .check { display: flex; gap: 9px; align-items: flex-start; font-size: 11px; padding: 9px 0; }
+    .checkmark { width: 18px; height: 18px; flex: 0 0 auto; border-radius: 6px; display: grid; place-items: center; background: var(--green-soft); color: var(--green); font-size: 10px; font-weight: 900; }
+    .empty-space { padding: 40px; border: 1px dashed #cbd4ce; border-radius: 14px; text-align: center; color: var(--muted); }
+    .screen-picker { max-width: 180px; border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 9px; padding: 8px 10px; }
+
+    /* Locked Cursor-inspired palette. */
+    body.locked-product {
+      --ink: #e7e7e7;
+      --muted: #8f8f8f;
+      --soft: #1b1b1b;
+      --paper: #0e0e0e;
+      --line: #2a2a2a;
+      --blue: #6c94f9;
+      --blue-soft: rgba(108,148,249,.13);
+      --green: #4bb982;
+      --green-soft: rgba(75,185,130,.13);
+      --amber: #d6a24c;
+      --amber-soft: rgba(214,162,76,.13);
+      --red: #e3616c;
+      --red-soft: rgba(227,97,108,.13);
+      --violet: #8c7cf6;
+      background: #0e0e0e;
+      color: #e7e7e7;
+    }
+    body.locked-product .prototype-note { background: rgba(31,31,31,.92); color: #777; border: 1px solid #333; }
+
+    /* Locked real-product workspace. */
+    .product-sidebar { position: fixed; z-index: 50; left: 0; top: 0; bottom: 0; width: 228px; background: #141414; border-right: 1px solid #292929; padding: 0 9px 82px; overflow: auto; }
+    .product-brand { height: 50px; display: flex; align-items: center; gap: 9px; padding: 0 8px; border-bottom: 1px solid #292929; color: #e5e5e5; font-size: 12px; font-weight: 700; }
+    .product-brandmark { width: 25px; height: 25px; display: grid; place-items: center; border: 1px solid #3a3a3a; border-radius: 7px; background: #1d1d1d; font-size: 9px; }
+    .product-event { margin: 11px 3px 15px; padding: 10px; border: 1px solid #2c2c2c; border-radius: 8px; background: #1a1a1a; }
+    .product-event-top { display: flex; justify-content: space-between; align-items: center; color: #d0d0d0; font-size: 10px; font-weight: 650; }
+    .product-event-meta { display: flex; justify-content: space-between; margin-top: 7px; color: #707070; font-size: 9px; }
+    .product-event-progress { height: 3px; margin-top: 8px; background: #292929; border-radius: 4px; overflow: hidden; }
+    .product-event-progress i { display: block; width: 88%; height: 100%; background: #4bb982; }
+    .product-nav-group { margin: 0 0 14px; }
+    .product-nav-label { padding: 0 8px 4px; color: #606060; font-size: 8px; text-transform: uppercase; letter-spacing: .11em; font-weight: 800; }
+    .product-nav-item { width: 100%; height: 31px; border: 0; border-radius: 7px; background: transparent; color: #888; display: flex; align-items: center; gap: 9px; padding: 0 8px; font-size: 10px; text-align: left; }
+    .product-nav-item:hover { background: #1d1d1d; color: #c7c7c7; }
+    .product-nav-item.active { background: #282828; color: #eee; }
+    .product-nav-dot { width: 7px; height: 7px; border-radius: 2px; background: var(--tone); opacity: .82; box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 10%, transparent); }
+    .product-nav-count { margin-left: auto; min-width: 16px; text-align: right; color: #686868; font-size: 9px; }
+    .product-account { position: fixed; left: 0; bottom: 0; width: 228px; height: 58px; padding: 9px 12px; display: flex; align-items: center; gap: 9px; background: #141414; border-top: 1px solid #292929; }
+    .product-account .avatar { width: 29px; height: 29px; background: #252525; color: #bdbdbd; }
+    .product-account strong { color: #bbb; font-size: 10px; }
+    .product-account span { color: #666; font-size: 9px; }
+    .product-topbar { position: fixed; z-index: 48; left: 228px; right: 0; top: 0; height: 50px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 18px; background: rgba(15,15,15,.94); border-bottom: 1px solid #292929; backdrop-filter: blur(14px); }
+    .product-history { display: flex; align-items: center; gap: 10px; color: #777; font-size: 11px; white-space: nowrap; }
+    .product-history strong { color: #cfcfcf; font-weight: 620; }
+    .product-command { height: 30px; width: min(480px,42vw); display: flex; align-items: center; justify-content: space-between; border: 1px solid #303030; border-radius: 7px; padding: 0 10px; background: #191919; color: #717171; font-size: 10px; }
+    .product-command kbd { border: 1px solid #333; border-radius: 4px; color: #676767; padding: 1px 4px; font: inherit; }
+    .product-top-actions { display: flex; align-items: center; gap: 6px; }
+    .product-top-button { height: 30px; border: 1px solid #303030; border-radius: 7px; background: #191919; color: #888; padding: 0 9px; font-size: 10px; }
+    .product-top-button:hover { color: #ddd; border-color: #444; }
+    .product-screen-picker { width: 132px; height: 30px; border: 1px solid #303030; border-radius: 7px; background: #191919; color: #aaa; padding: 0 7px; font-size: 10px; }
+    .layout-e { min-height: 100vh; background: #0e0e0e; }
+    .layout-e .main { margin-left: 228px; padding: 76px 30px 100px; max-width: 1500px; }
+    .layout-e .page-head { padding-bottom: 19px; margin-bottom: 20px; border-bottom: 1px solid #262626; }
+    .layout-e h1 { color: #ededed; font-size: 31px; font-weight: 660; }
+    .layout-e h2, .layout-e h3, .layout-e strong, .layout-e .name { color: #dedede; }
+    .layout-e p, .layout-e .meta, .layout-e .metric-note, .layout-e .metric-label, .layout-e .quiet { color: #858585; }
+    .layout-e .eyebrow { color: var(--screen-tone, #8c7cf6); }
+    .layout-e .card, .layout-e .public-card, .layout-e .speaker-tile, .layout-e .contact-card, .layout-e .round, .layout-e .schedule-wrap, .layout-e .builder-field { background: #151515; border-color: #292929; border-radius: 8px; box-shadow: none; }
+    .layout-e .card.soft, .layout-e .column, .layout-e .public-preview { background: #121212; border: 1px solid #272727; border-radius: 8px; }
+    .layout-e .card.selected { border-color: var(--screen-tone, #8c7cf6); }
+    .layout-e .btn, .layout-e .icon-btn { background: #1b1b1b; border-color: #303030; color: #aaa; border-radius: 7px; }
+    .layout-e .btn:hover, .layout-e .icon-btn:hover { color: #eee; border-color: #494949; }
+    .layout-e .btn.primary { background: #e7e7e7; border-color: #e7e7e7; color: #111; }
+    .layout-e .btn.blue { background: var(--screen-tone, #6c94f9); border-color: transparent; color: #101010; }
+    .layout-e .next-action { border-radius: 8px; background: #171717; border: 1px solid #2b2b2b; border-left: 2px solid var(--screen-tone, #8c7cf6); }
+    .layout-e .next-action p { color: #767676; }
+    .layout-e .field label { color: #999; }
+    .layout-e .field input, .layout-e .field select, .layout-e .field textarea { background: #111; color: #d1d1d1; border-color: #303030; border-radius: 7px; }
+    .layout-e .tabs { background: #171717; border: 1px solid #292929; border-radius: 8px; }
+    .layout-e .tab { color: #777; }
+    .layout-e .tab.active { background: #292929; color: #e4e4e4; box-shadow: none; }
+    .layout-e .row, .layout-e .attention, .layout-e .mapping { border-color: #292929; }
+    .layout-e .row.header { color: #656565; }
+    .layout-e .person .avatar { background: #252525; color: #cfcfcf; }
+    .layout-e .progress { background: #262626; }
+    .layout-e .progress > i { background: var(--screen-tone, #4bb982); }
+    .layout-e .schedule > div { border-color: #292929; }
+    .layout-e .schedule .room { background: #191919; }
+    .layout-e .session { background: rgba(108,148,249,.12); color: #9bb4f5; }
+    .layout-e .session.green { background: rgba(75,185,130,.12); color: #83cfa8; }
+    .layout-e .session.violet { background: rgba(140,124,246,.12); color: #ad9ff8; }
+    .layout-e .session.conflict { background: rgba(227,97,108,.12); color: #ef8991; }
+    .layout-e .speaker-photo { background: linear-gradient(145deg,#242424,#181818); color: #7d7d7d; }
+    .product-home-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding-bottom: 23px; border-bottom: 1px solid #272727; }
+    .product-home-head h1 { margin-top: 4px; }
+    .product-home-head p { margin: 7px 0 0; }
+    .product-resume { min-width: 230px; display: flex; align-items: center; gap: 11px; border: 1px solid #333; border-radius: 8px; background: #191919; color: #aaa; padding: 10px 12px; text-align: left; }
+    .product-resume i { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; background: rgba(140,124,246,.14); color: #8c7cf6; font-style: normal; }
+    .product-resume strong { display: block; font-size: 10px; }
+    .product-resume span { color: #707070; font-size: 9px; }
+    .product-workspace { display: grid; grid-template-columns: minmax(0,1.6fr) minmax(280px,.72fr); min-height: 540px; }
+    .product-queue { padding: 24px 26px 20px 0; }
+    .product-pulse { padding: 24px 0 20px 26px; border-left: 1px solid #272727; }
+    .product-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .product-section-head h2 { font-size: 14px; }
+    .product-filter { color: #6f6f6f; font-size: 9px; }
+    .work-item { display: grid; grid-template-columns: 30px minmax(0,1fr) auto; align-items: center; gap: 11px; min-height: 67px; border-top: 1px solid #272727; padding: 9px 4px; }
+    .work-item:first-of-type { border-top: 0; }
+    .work-icon { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 7px; color: var(--tone); background: color-mix(in srgb, var(--tone) 12%, transparent); font-size: 10px; font-weight: 800; }
+    .work-title { color: #d5d5d5; font-size: 11px; font-weight: 650; }
+    .work-copy { color: #707070; font-size: 9px; margin-top: 4px; }
+    .work-action { border: 1px solid #303030; border-radius: 6px; background: #1a1a1a; color: #979797; padding: 6px 8px; font-size: 9px; }
+    .work-action:hover { color: #eee; border-color: #4b4b4b; }
+    .product-quick { width: 100%; border: 1px solid #303030; border-radius: 7px; background: #191919; color: #a8a8a8; padding: 8px 9px; text-align: left; font-size: 10px; }
+    .product-quick:hover { border-color: #444; color: #ddd; }
+    .pulse-stage { position: relative; padding: 0 0 19px 22px; }
+    .pulse-stage::before { content: ""; position: absolute; left: 5px; top: 11px; bottom: -4px; width: 1px; background: #303030; }
+    .pulse-stage:last-child::before { display: none; }
+    .pulse-stage::after { content: ""; position: absolute; left: 1px; top: 5px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid #151515; background: var(--tone); box-shadow: 0 0 0 1px #383838; }
+    .pulse-stage strong { display: block; color: #c9c9c9; font-size: 10px; }
+    .pulse-stage span { color: #707070; font-size: 9px; }
+    .pulse-stage em { float: right; color: #999; font-style: normal; }
+    .activity-line { display: flex; gap: 10px; padding: 9px 0; border-top: 1px solid #262626; }
+    .activity-line:first-of-type { border-top: 0; }
+    .activity-line i { width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: var(--tone); }
+    .activity-line div { color: #8a8a8a; font-size: 9px; line-height: 1.45; }
+    .activity-line strong { display: block; color: #bcbcbc; font-size: 10px; }
+
+    @media (max-width: 980px) {
+      .grid.four { grid-template-columns: repeat(2,1fr); }
+      .grid.three { grid-template-columns: repeat(2,1fr); }
+      .split { grid-template-columns: 1fr; }
+      .speaker-grid { grid-template-columns: repeat(2,1fr); }
+      .product-workspace { grid-template-columns: 1fr; }
+      .product-pulse { border-left: 0; border-top: 1px solid #272727; padding-left: 0; }
+    }
+    @media (max-width: 760px) {
+      .main { padding: 23px 16px 95px; }
+      .page-head { display: grid; }
+      .head-actions { justify-content: flex-start; }
+      .grid.two, .grid.three, .grid.four, .form-grid { grid-template-columns: 1fr; }
+      .row { grid-template-columns: minmax(180px,1fr) 90px 34px; }
+      .row > :nth-child(3), .row > :nth-child(4) { display: none; }
+      .speaker-grid { grid-template-columns: 1fr 1fr; }
+      .product-sidebar { width: 54px; padding-left: 5px; padding-right: 5px; }
+      .product-brand { padding: 0; justify-content: center; }
+      .product-brand > span:last-child, .product-event, .product-nav-label, .product-nav-item span:not(.product-nav-dot), .product-account > div { display: none; }
+      .product-nav-item { justify-content: center; padding: 0; }
+      .product-account { width: 54px; justify-content: center; padding: 9px 0; }
+      .product-topbar { left: 54px; padding: 0 10px; }
+      .product-history, .product-command, .product-top-button { display: none; }
+      .layout-e .main { margin-left: 54px; padding: 72px 16px 95px; }
+      .product-home-head { display: grid; }
+      .prototype-note { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div class="prototype-note">Locked product direction · prototype data only</div>
+  <script>
+    const screens = [
+      { key: 'dashboard', label: 'Dashboard', short: 'DB', group: 'Operate', count: 7 },
+      { key: 'event', label: 'Event setup', short: 'EV', group: 'Configure' },
+      { key: 'cfp', label: 'CFP form', short: 'CF', group: 'Program' },
+      { key: 'submissions', label: 'Submissions', short: 'SB', group: 'Program', count: 24 },
+      { key: 'reviews', label: 'Evaluations', short: 'RV', group: 'Program', count: 5 },
+      { key: 'speakers', label: 'Speakers', short: 'SP', group: 'People', count: 3 },
+      { key: 'content', label: 'Tasks & files', short: 'CT', group: 'People', count: 8 },
+      { key: 'agenda', label: 'Agenda', short: 'AG', group: 'Publish', count: 2 },
+      { key: 'communications', label: 'Communications', short: 'CM', group: 'People' },
+      { key: 'resources', label: 'Portal resources', short: 'RS', group: 'People' },
+      { key: 'publish', label: 'Public program', short: 'PB', group: 'Publish' },
+      { key: 'accelevents', label: 'Accelevents', short: 'AC', group: 'Publish', count: 1 },
+      { key: 'crm', label: 'Speaker CRM', short: 'CR', group: 'Optional' },
+      { key: 'speaker', label: 'Speaker portal', short: 'PS', group: 'Other roles' },
+      { key: 'reviewer', label: 'Reviewer portal', short: 'PR', group: 'Other roles' },
+      { key: 'public', label: 'Attendee view', short: 'AT', group: 'Other roles' }
+    ];
+    const params = new URLSearchParams(location.search);
+    let currentScreen = screens.some(s => s.key === params.get('screen')) ? params.get('screen') : 'dashboard';
+
+    const screenTones = {
+      dashboard: '#d6a24c', event: '#6c94f9', cfp: '#d6a24c', submissions: '#e3616c',
+      reviews: '#8c7cf6', speakers: '#4bb982', content: '#d6a24c', agenda: '#8c7cf6',
+      communications: '#6c94f9', resources: '#4bb982', publish: '#4bb982', accelevents: '#6c94f9',
+      crm: '#e3616c', speaker: '#d6a24c', reviewer: '#8c7cf6', public: '#4bb982'
+    };
+    const screenTone = key => screenTones[key] || '#8c7cf6';
+
+    const status = (text, kind='') => `<span class="pill ${kind}">${text}</span>`;
+    const avatar = initials => `<span class="avatar">${initials}</span>`;
+    const action = (label, type='') => `<button class="btn ${type}">${label}</button>`;
+    const field = (label, value, type='text', full='') => `<div class="field ${full}"><label>${label}</label>${type === 'textarea' ? `<textarea>${value}</textarea>` : type === 'select' ? `<select><option>${value}</option></select>` : `<input value="${value}" type="${type}" />`}</div>`;
+    const pageHead = (eyebrow, title, copy, primary, secondary='') => `
+      <div class="page-head">
+        <div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p class="subtitle">${copy}</p></div>
+        <div class="head-actions">${secondary ? action(secondary) : ''}${primary ? action(primary,'primary') : ''}</div>
+      </div>`;
+    const nextAction = (title, copy, label) => `<div class="next-action"><div><strong>${title}</strong><p>${copy}</p></div>${action(label,'blue')}</div>`;
+
+    function dashboard() {
+      return pageHead('Sunday, 9 August', 'Your event at a glance', 'Only the things that need attention—everything else stays quiet.', 'View readiness') +
+      nextAction('Finish speaker onboarding', 'Three speakers are blocking program readiness.', 'Review speakers') + `
+      <div class="grid four">
+        <div class="card metric"><div class="metric-label">Submissions</div><div class="metric-value">64</div><div class="metric-note">24 awaiting review</div></div>
+        <div class="card metric"><div class="metric-label">Reviews complete</div><div class="metric-value">78%</div><div class="progress"><i style="width:78%"></i></div></div>
+        <div class="card metric"><div class="metric-label">Speaker ready</div><div class="metric-value">31/34</div><div class="metric-note">3 need attention</div></div>
+        <div class="card metric"><div class="metric-label">Agenda readiness</div><div class="metric-value">92%</div><div class="metric-note">2 conflicts remaining</div></div>
+      </div>
+      <div class="split" style="margin-top:18px">
+        <div class="card">
+          <div class="card-head"><div><h2>Needs attention</h2><div class="meta">Prioritized by deadline and impact</div></div>${status('7 actions','amber')}</div>
+          <div class="attention"><span class="attention-dot red"></span><div class="attention-body"><div class="attention-title">2 agenda conflicts</div><div class="attention-copy">Priya Raman is double-booked at 10:00 · Room 2A has an overlap.</div></div><button class="link-btn" data-screen="agenda">Resolve</button></div>
+          <div class="attention"><span class="attention-dot"></span><div class="attention-body"><div class="attention-title">3 speakers have overdue tasks</div><div class="attention-copy">Headshots and slides are due today.</div></div><button class="link-btn" data-screen="content">Review</button></div>
+          <div class="attention"><span class="attention-dot"></span><div class="attention-body"><div class="attention-title">5 reviews are incomplete</div><div class="attention-copy">Round 2 closes tomorrow at 18:00.</div></div><button class="link-btn" data-screen="reviews">Remind</button></div>
+          <div class="attention"><span class="attention-dot green"></span><div class="attention-body"><div class="attention-title">Public program is healthy</div><div class="attention-copy">All approved content is published and consistent.</div></div><button class="link-btn" data-screen="publish">Preview</button></div>
+        </div>
+        <div class="stack">
+          <div class="card"><div class="card-head"><h2>Program lifecycle</h2>${status('On track','green')}</div>
+            ${['CFP closed|100','Reviews|78','Onboarding|91','Content approved|84','Agenda|92'].map(x=>{const [a,b]=x.split('|');return `<div style="margin:12px 0"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px"><strong>${a}</strong><span class="quiet">${b}%</span></div><div class="progress"><i style="width:${b}%"></i></div></div>`}).join('')}
+          </div>
+          <div class="card soft"><h3>Next milestone</h3><div style="font-weight:760;margin:8px 0">Publish final agenda</div><div class="meta">Tomorrow · 18:00 PT</div></div>
+        </div>
+      </div>`;
+    }
+
+    function eventSetup() {
+      return pageHead('Configure', 'Event setup', 'The essentials first; advanced settings stay out of the way until needed.', 'Save changes') +
+      nextAction('Confirm dates and location', 'These values drive the CFP, agenda and public program.', 'Save event') + `
+      <div class="split"><div class="card"><div class="card-head"><h2>Event details</h2>${status('Saved','green')}</div>
+        <div class="form-grid">${field('Event name','AI Engineer World’s Fair 2027')}${field('Event URL','ai-engineer-worlds-fair')}${field('Event type','Conference','select')}${field('Website','https://ai.engineer')}${field('Starts','2027-05-12','date')}${field('Ends','2027-05-14','date')}${field('Timezone','America/Los_Angeles','select')}${field('Location','Moscone West, San Francisco')}${field('Description','Three days of practical AI engineering.','textarea','full')}</div>
+      </div><div class="stack"><div class="card"><h2>Brand</h2><div class="empty-space" style="margin-top:14px">Drop event logo or background</div><div class="form-grid" style="margin-top:14px">${field('Primary color','#2D63E2','color')}${field('Theme','Light','select')}</div></div><div class="card"><h2>Visibility</h2><div class="check"><span class="checkmark">✓</span><div><strong>Public CFP</strong><div class="meta">Anyone can view the call</div></div></div><div class="check"><span class="checkmark">✓</span><div><strong>Public program</strong><div class="meta">Only approved sessions appear</div></div></div></div></div></div>`;
+    }
+
+    function cfp() {
+      const fields = [
+        ['Session title','Short text','Required'], ['Abstract','Long text','Required'], ['Track','Dropdown','Routes reviewers'], ['Format','Dropdown','Conditional'], ['Co-speakers','Participants','1–4 speakers'], ['Experience level','Dropdown','Optional']
+      ];
+      return pageHead('Call for speakers', 'CFP form', 'Build the public application in one place, then preview exactly what speakers will see.', 'Publish changes','Preview form') +
+      nextAction('Complete the CFP close behavior', 'The form is ready; verify the closed state before publishing.', 'Preview closed state') + `
+      <div class="tabs"><button class="tab active">Questions</button><button class="tab">Welcome</button><button class="tab">Rules</button><button class="tab">Success</button><button class="tab">Emails</button></div>
+      <div class="split"><div class="card"><div class="card-head"><div><h2>Submission questions</h2><div class="meta">Form type: Abstract · Participant collection on</div></div>${action('+ Add field')}</div>
+        <div class="stack">${fields.map((f,i)=>`<div class="builder-field"><span class="drag">••</span><div class="builder-copy"><strong style="font-size:12px">${f[0]}</strong><div class="builder-type">${f[1]} · ${f[2]}</div></div>${i===3?status('2 conditions','violet'):''}<button class="icon-btn">···</button></div>`).join('')}</div>
+      </div><div class="stack"><div class="card"><h2>Form settings</h2><div class="form-grid" style="margin-top:14px">${field('Closes','2027-01-30','date')}${field('Submission limit','3','number')}${field('Minimum speakers','1','number')}${field('Maximum speakers','4','number')}</div><div class="check"><span class="toggle on"></span><div><strong>Allow multiple drafts</strong><div class="meta">Drafts count toward the limit</div></div></div><div class="check"><span class="toggle on"></span><div><strong>Send confirmation email</strong><div class="meta">Template: CFP received</div></div></div></div><div class="card soft"><h3>Conditional logic</h3><p style="font-size:11px;margin-bottom:0">Show “Workshop requirements” when Format equals Workshop; route Platform submissions to the Platform reviewer pool.</p></div></div></div>`;
+    }
+
+    function submissions() {
+      const rows = [
+        ['Taming 40-Minute CI','Priya Raman','Platform & Infra','Accepted','8.7'],
+        ['Your AI Pair Programmer Is Lying','Marcus Okafor','AI Engineering','Review','8.3'],
+        ['Docs That Answer Back','Dana Kowalski','Developer Experience','Pending','—'],
+        ['Evaluation Without Vibes','Leah Park','AI Engineering','Accepted','9.1'],
+        ['The Stateful Edge','Tom Becker','Platform & Infra','Declined','6.2']
+      ];
+      return pageHead('Program', 'Submissions', 'A single queue for proposals, decisions and the accepted-session handoff.', 'Add manually','Export') +
+      nextAction('Decide 3 reviewed proposals', 'Their aggregate scores are ready.', 'Open decision queue') + `
+      <div class="tabs"><button class="tab active">All 64</button><button class="tab">Pending 12</button><button class="tab">In review 24</button><button class="tab">Accepted 21</button><button class="tab">Declined 7</button></div>
+      <div class="card"><div class="card-head"><div class="command" style="min-width:260px">⌕ Search title, speaker or track</div><div style="display:flex;gap:8px">${action('Filters')}${action('Assign reviewers')}</div></div>
+        <div class="row header"><div>Submission</div><div>Track</div><div>Status</div><div>Score</div><div></div></div>
+        ${rows.map(r=>`<div class="row"><div class="person">${avatar(r[1].split(' ').map(x=>x[0]).join(''))}<div><div class="name">${r[0]}</div><div class="meta">${r[1]}</div></div></div><div>${r[2]}</div><div>${status(r[3],r[3]==='Accepted'?'green':r[3]==='Declined'?'red':r[3]==='Review'?'blue':'amber')}</div><div><strong>${r[4]}</strong></div><button class="icon-btn">›</button></div>`).join('')}
+      </div>`;
+    }
+
+    function reviews() {
+      return pageHead('Evaluations', 'Review plans', 'Rounds, scorecards and assignment progress without exposing unrelated organizer controls to reviewers.', 'New round','Export scores') +
+      nextAction('Round 2 closes tomorrow', 'Five assigned reviews are still incomplete.', 'Send reminders') + `
+      <div class="split"><div class="stack">
+        <div class="round"><div><div class="meta">ROUND 1 · COMPLETE</div><h2 style="margin-top:4px">Eligibility & fit</h2><div class="meta">5 criteria · 8 reviewers · Blind</div></div>${status('64/64','green')}<div class="progress"><i style="width:100%"></i></div></div>
+        <div class="round"><div><div class="meta">ROUND 2 · CLOSES TOMORROW</div><h2 style="margin-top:4px">Program committee</h2><div class="meta">3 criteria · 12 reviewers · Author visible</div></div>${status('91/96','amber')}<div class="progress"><i style="width:94%"></i></div></div>
+        <div class="card"><div class="card-head"><h2>Reviewer progress</h2>${action('Auto-distribute')}</div>
+          ${[['Sam Whitfield','12 / 12','100'],['Ava Brooks','9 / 12','75'],['Noah Chen','10 / 12','83'],['Riley Jones','12 / 12','100']].map(x=>`<div style="display:grid;grid-template-columns:1fr auto;gap:7px;margin:13px 0"><div class="person">${avatar(x[0].split(' ').map(y=>y[0]).join(''))}<div class="name">${x[0]}</div></div><strong style="font-size:11px">${x[1]}</strong><div class="progress full"><i style="width:${x[2]}%"></i></div></div>`).join('')}
+        </div>
+      </div><div class="stack"><div class="card"><div class="card-head"><h2>Round 2 scorecard</h2>${action('Edit')}</div>${[['Technical depth','Numeric · 40%'],['Audience value','Dropdown · 35%'],['Reviewer note','Long text · 25%']].map(x=>`<div class="builder-field" style="margin-top:9px"><div class="builder-copy"><strong style="font-size:11px">${x[0]}</strong><div class="builder-type">${x[1]}</div></div></div>`).join('')}</div><div class="card soft"><h3>Scoping check</h3><p style="font-size:11px">Sam sees exactly 12 assigned submissions and no organizer navigation.</p>${status('Verified','green')}</div></div></div>`;
+    }
+
+    function speakers() {
+      const rows = [['Priya Raman','Staff Engineer · Northstar','Ready','100%'],['Marcus Okafor','Principal Developer Advocate','Needs slides','75%'],['Dana Kowalski','Engineering Manager · Atlas','Overdue','50%'],['Leah Park','Research Lead · Basis','Ready','100%']];
+      return pageHead('People', 'Speakers', 'Profiles, assignments and onboarding progress in one searchable roster.', 'Add speaker','Import CSV') +
+      nextAction('Three speakers need attention', 'Filter the roster and send a targeted reminder.', 'Show incomplete') + `
+      <div class="grid three"><div class="card metric"><div class="metric-label">Total speakers</div><div class="metric-value">34</div><div class="metric-note">Across 28 sessions</div></div><div class="card metric"><div class="metric-label">Onboarding complete</div><div class="metric-value">91%</div><div class="progress"><i style="width:91%"></i></div></div><div class="card metric"><div class="metric-label">Overdue</div><div class="metric-value" style="color:var(--red)">3</div><div class="metric-note">Send reminders</div></div></div>
+      <div class="card" style="margin-top:18px"><div class="card-head"><div class="command">⌕ Search speakers</div>${action('Filters')}</div><div class="row header"><div>Speaker</div><div>Status</div><div>Progress</div><div>Sessions</div><div></div></div>${rows.map((r,i)=>`<div class="row"><div class="person">${avatar(r[0].split(' ').map(x=>x[0]).join(''))}<div><div class="name">${r[0]}</div><div class="meta">${r[1]}</div></div></div><div>${status(r[2],r[2]==='Ready'?'green':r[2]==='Overdue'?'red':'amber')}</div><div><strong>${r[3]}</strong></div><div>${i+1}</div><button class="icon-btn">›</button></div>`).join('')}</div>`;
+    }
+
+    function content() {
+      return pageHead('Onboarding', 'Tasks & deliverables', 'See what is missing, request it once and keep every uploaded version.', 'New task','Download ZIP') +
+      nextAction('Eight deliverables need attention', 'Three are overdue and five await review.', 'Open work queue') + `
+      <div class="tabs"><button class="tab active">Overview</button><button class="tab">Tasks</button><button class="tab">Files</button><button class="tab">Approvals</button></div>
+      <div class="grid four"><div class="card metric"><div class="metric-label">Requested</div><div class="metric-value">68</div></div><div class="card metric"><div class="metric-label">Submitted</div><div class="metric-value">60</div></div><div class="card metric"><div class="metric-label">Overdue</div><div class="metric-value" style="color:var(--red)">3</div></div><div class="card metric"><div class="metric-label">Awaiting review</div><div class="metric-value">5</div></div></div>
+      <div class="card" style="margin-top:18px"><div class="row header"><div>Speaker / task</div><div>Due</div><div>Status</div><div>Version</div><div></div></div>
+        ${[['Priya Raman','Upload final slides','12 Aug','Submitted','v2'],['Marcus Okafor','Upload headshot','9 Aug','Overdue','—'],['Dana Kowalski','Sign release form','9 Aug','Overdue','—'],['Leah Park','Upload slides','13 Aug','Approved','v3']].map(r=>`<div class="row"><div class="person">${avatar(r[0].split(' ').map(x=>x[0]).join(''))}<div><div class="name">${r[0]}</div><div class="meta">${r[1]}</div></div></div><div>${r[2]}</div><div>${status(r[3],r[3]==='Approved'?'green':r[3]==='Overdue'?'red':'blue')}</div><div>${r[4]}</div><button class="icon-btn">›</button></div>`).join('')}
+      </div>`;
+    }
+
+    function agenda() {
+      return pageHead('Schedule', 'Agenda', 'Place sessions visually, see conflicts immediately and publish only when the program is clean.', 'Publish agenda','Auto-place 6') +
+      nextAction('Resolve two conflicts before publishing', 'One speaker and one room overlap remain.', 'Show conflicts') + `
+      <div class="tabs"><button class="tab active">Day</button><button class="tab">Week</button><button class="tab">List</button><button class="tab">Track</button><button class="tab">Room</button></div>
+      <div class="card" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><strong>Wednesday, 12 May</strong><div class="meta">24 scheduled · 6 unscheduled</div></div><div style="display:flex;gap:8px">${status('2 conflicts','red')}${action('Rooms & tracks')}</div></div>
+      <div class="schedule-wrap"><div class="schedule"><div class="room"></div><div class="room">Main Stage</div><div class="room">Room 2A</div><div class="room">Room 2B</div>
+        <div class="time">9:00</div><div><div class="session violet"><strong>Opening keynote</strong><br>AI Engineering</div></div><div></div><div></div>
+        <div class="time">10:00</div><div><div class="session"><strong>Taming 40-Minute CI</strong><br>Priya Raman</div></div><div><div class="session conflict"><strong>Pair Programmer Is Lying</strong><br>Priya Raman · conflict</div></div><div><div class="session green"><strong>Docs That Answer Back</strong><br>Developer Experience</div></div>
+        <div class="time">11:00</div><div></div><div><div class="session green"><strong>Stateful Edge</strong><br>Platform</div></div><div></div>
+        <div class="time">12:00</div><div></div><div></div><div></div>
+        <div class="time">13:00</div><div><div class="session"><strong>Evaluation Without Vibes</strong><br>AI Engineering</div></div><div></div><div><div class="session violet"><strong>Agent UX</strong><br>Developer Experience</div></div>
+      </div></div>`;
+    }
+
+    function communications() {
+      return pageHead('Engage', 'Communications', 'Reusable templates, precise audiences and visible delivery status.', 'Compose message','New template') +
+      nextAction('Three overdue speakers need a reminder', 'The audience is already filtered for you.', 'Review & send') + `
+      <div class="split"><div class="card"><div class="card-head"><h2>Recent sends</h2>${action('View log')}</div>
+        ${[['Slides due tomorrow','3 recipients','Delivered','Today, 09:00'],['Round 2 reviewer reminder','5 recipients','Delivered','Yesterday'],['Speaker welcome','34 recipients','32 delivered · 2 bounced','6 Aug'],['Decision: Accepted','21 recipients','Delivered','4 Aug']].map(r=>`<div class="attention"><span class="attention-dot ${r[2].includes('bounced')?'red':'green'}"></span><div class="attention-body"><div class="attention-title">${r[0]}</div><div class="attention-copy">${r[1]} · ${r[3]}</div></div>${status(r[2],r[2]==='Delivered'?'green':'amber')}</div>`).join('')}
+      </div><div class="stack"><div class="card"><h2>Templates</h2>${[['Submission received','CFP'],['Accepted','Decision'],['Portal invitation','Onboarding'],['Task reminder','Automation']].map(x=>`<div class="builder-field" style="margin-top:9px"><div class="builder-copy"><strong style="font-size:11px">${x[0]}</strong><div class="builder-type">${x[1]} · Uses merge fields</div></div><button class="icon-btn">›</button></div>`).join('')}</div><div class="card soft"><h3>Calendar delivery</h3><p style="font-size:11px">All accepted speakers receive a valid .ics invitation when their session is scheduled.</p>${status('Active','green')}</div></div></div>`;
+    }
+
+    function resources() {
+      return pageHead('Speaker portal', 'Resources & wiki', 'Keep reference material beside speaker tasks without sending another email.', 'New page','Preview portal') + `
+      <div class="split"><div class="card"><div class="card-head"><h2>Published pages</h2>${status('4 live','green')}</div>
+        ${[['Speaker handbook','Arrival, AV and conduct','Updated today'],['Slide guidelines','Aspect ratio, fonts and templates','Updated 2 days ago'],['Venue map','Rooms and backstage access','Updated 4 Aug'],['AV check scheduler','Embedded external booking tool','HTML embed']].map((x,i)=>`<div class="builder-field ${i===0?'selected':''}" style="margin-top:10px"><div class="builder-copy"><strong style="font-size:12px">${x[0]}</strong><div class="builder-type">${x[1]} · ${x[2]}</div></div><button class="icon-btn">›</button></div>`).join('')}
+      </div><div class="card"><div class="card-head"><h2>Speaker handbook</h2>${action('Edit')}</div><div class="field"><label>Visible to</label><select><option>All accepted speakers</option></select></div><div style="margin-top:20px"><h2>Welcome to AI Engineer</h2><p>Everything you need for a smooth session is collected here.</p><h3>Before you arrive</h3><div class="check"><span class="checkmark">✓</span><span>Upload final slides by 12 August</span></div><div class="check"><span class="checkmark">✓</span><span>Accept your calendar invitation</span></div></div></div></div>`;
+    }
+
+    function publish() {
+      return pageHead('Deliver', 'Public program', 'Five connected public views powered by the same approved schedule.', 'Publish updates','Embed settings') +
+      nextAction('Your public program is ready', 'All approved sessions are consistent across five views.', 'Open public site') + `
+      <div class="tabs"><button class="tab active">Sessions</button><button class="tab">Speakers</button><button class="tab">Agenda</button><button class="tab">Itinerary</button><button class="tab">Gallery</button></div>
+      <div class="split"><div class="public-preview"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div><strong>AI Engineer World’s Fair</strong><div class="meta">Public Sessions List</div></div>${status('Live','green')}</div><div class="grid two"><div class="public-card"><div style="display:flex;gap:6px;margin-bottom:9px">${status('Platform','blue')}${status('Talk')}</div><h2>Taming 40-Minute CI</h2><p style="font-size:11px">A practical playbook for bringing feedback loops back under control…</p><div class="meta">12 May · 10:00 · Main Stage</div><div class="person" style="margin-top:11px">${avatar('PR')}<div><div class="name">Priya Raman</div><div class="meta">Staff Engineer · Northstar</div></div></div></div><div class="public-card"><div style="display:flex;gap:6px;margin-bottom:9px">${status('AI Engineering','violet')}${status('Panel')}</div><h2>Evaluation Without Vibes</h2><p style="font-size:11px">A rigorous approach to measuring agent performance…</p><div class="meta">12 May · 13:00 · Main Stage</div><div class="person" style="margin-top:11px">${avatar('LP')}<div><div class="name">Leah Park</div><div class="meta">Research Lead · Basis</div></div></div></div></div></div>
+      <div class="stack"><div class="card"><h2>Readiness</h2>${[['Sessions list','24 sessions'],['Speakers list','34 speakers'],['Agenda','3 days'],['Itinerary','24 sessions'],['Gallery','34 profiles']].map(x=>`<div class="check"><span class="checkmark">✓</span><div><strong>${x[0]}</strong><div class="meta">${x[1]} · Public</div></div></div>`).join('')}</div><div class="card soft"><h3>Consistency</h3><p style="font-size:11px">No differences between organizer records and public views.</p>${status('Verified','green')}</div></div></div>`;
+    }
+
+    function accelevents() {
+      return pageHead('Integration', 'Accelevents', 'One-way publishing with clear mappings, previews and retryable failures.', 'Sync approved records','Edit mapping') +
+      nextAction('One record needs attention', 'A session is missing its Accelevents track mapping.', 'Review issue') + `
+      <div class="grid three"><div class="card metric"><div class="metric-label">Last sync</div><div class="metric-value" style="font-size:20px">10:42</div><div class="metric-note">Today · 46 records</div></div><div class="card metric"><div class="metric-label">Synced</div><div class="metric-value">45</div><div class="metric-note">Sessions and speakers</div></div><div class="card metric"><div class="metric-label">Needs attention</div><div class="metric-value" style="color:var(--red)">1</div><div class="metric-note">Missing track mapping</div></div></div>
+      <div class="split" style="margin-top:18px"><div class="card"><div class="card-head"><h2>Field mapping</h2>${status('One way','blue')}</div>${[['Session title','Name'],['Abstract','Description'],['Start / end','Schedule time'],['Room','Location'],['Track','Category'],['Speakers','Presenters']].map(x=>`<div class="mapping"><span>${x[0]}</span><span class="quiet">→</span><strong>${x[1]}</strong></div>`).join('')}</div><div class="card"><h2>Sync rules</h2><div class="check"><span class="checkmark">✓</span><div><strong>Approved content only</strong><div class="meta">Drafts never leave ProgramFlow</div></div></div><div class="check"><span class="checkmark">✓</span><div><strong>Update existing records</strong><div class="meta">Match by stable external ID</div></div></div><div class="check"><span class="checkmark">✓</span><div><strong>Keep an audit log</strong><div class="meta">Every record and error is visible</div></div></div></div></div>`;
+    }
+
+    function crm() {
+      return pageHead('Optional extra credit', 'Speaker CRM', 'A focused cross-event speaker database—not a generic sales CRM.', 'Add contact','Import CSV') + `
+      <div class="tabs"><button class="tab active">Pipeline</button><button class="tab">Directory</button><button class="tab">Segments</button><button class="tab">Analytics</button></div>
+      <div class="kanban">${[['Researching',[['Mina Patel','AI infrastructure'],['Joel Park','Developer tools']]],['Contacted',[['Sofia Reyes','LLM evaluation'],['Eric Lin','Open source']]],['Interested',[['Alana Cho','AI safety'],['Theo Brooks','Platform']]],['Confirmed',[['Priya Raman','DevFlow Conf 2027'],['Leah Park','AI Engineer 2027']]]].map(col=>`<div class="column"><div class="column-head"><span>${col[0]}</span>${status(col[1].length)}</div>${col[1].map(c=>`<div class="contact-card"><strong>${c[0]}</strong><div class="meta">${c[1]}</div><div style="margin-top:8px">${status('AI','violet')}</div></div>`).join('')}</div>`).join('')}</div>`;
+    }
+
+    function speakerPortal() {
+      return pageHead('Speaker portal', 'Welcome, Priya', 'Your session, tasks and resources—nothing from other speakers or organizer administration.', 'View session') +
+      nextAction('Upload final slides', 'Due 12 August · PPTX or PDF up to 100 MB.', 'Upload slides') + `
+      <div class="grid three"><div class="card metric"><div class="metric-label">Onboarding</div><div class="metric-value">75%</div><div class="progress"><i style="width:75%"></i></div></div><div class="card metric"><div class="metric-label">Session status</div><div class="metric-value" style="font-size:20px">Accepted</div>${status('Scheduled','green')}</div><div class="card metric"><div class="metric-label">Next deadline</div><div class="metric-value" style="font-size:20px">12 Aug</div><div class="metric-note">Final slides</div></div></div>
+      <div class="split" style="margin-top:18px"><div class="card"><div class="card-head"><h2>Your tasks</h2>${status('3 of 4 done','amber')}</div>${[['Complete speaker profile','Complete','green'],['Accept calendar invite','Complete','green'],['Upload headshot','Complete','green'],['Upload final slides','Due 12 Aug','amber']].map(x=>`<div class="check"><span class="checkmark">${x[2]==='green'?'✓':'○'}</span><div style="flex:1"><strong>${x[0]}</strong><div class="meta">${x[1]}</div></div>${x[2]==='amber'?action('Open'):''}</div>`).join('')}</div><div class="stack"><div class="card"><h2>Your session</h2><div style="margin:14px 0 6px;font-weight:760">Taming 40-Minute CI</div><div class="meta">12 May · 10:00–10:30 · Main Stage</div><div style="margin-top:12px">${status('Platform','blue')} ${status('Talk')}</div></div><div class="card soft"><h3>Resources</h3><p style="font-size:11px">Speaker handbook, slide guidelines and venue map.</p><button class="link-btn">Open resources →</button></div></div></div>`;
+    }
+
+    function reviewerPortal() {
+      return pageHead('Reviewer portal', 'Round 2 assignments', 'Only your assigned submissions and scorecard are visible.', 'Continue reviewing') +
+      nextAction('Two reviews remaining', 'Round 2 closes tomorrow at 18:00.', 'Open next submission') + `
+      <div class="grid three"><div class="card metric"><div class="metric-label">Assigned</div><div class="metric-value">12</div></div><div class="card metric"><div class="metric-label">Completed</div><div class="metric-value">10</div></div><div class="card metric"><div class="metric-label">Remaining</div><div class="metric-value">2</div></div></div>
+      <div class="split" style="margin-top:18px"><div class="card"><div class="card-head"><h2>Your queue</h2>${status('Scoped','green')}</div>${[['Evaluation Without Vibes','Completed','8.8'],['Taming 40-Minute CI','Completed','9.1'],['The Stateful Edge','In progress','—'],['Agent UX Is Product UX','Not started','—']].map(x=>`<div class="attention"><span class="attention-dot ${x[1]==='Completed'?'green':''}"></span><div class="attention-body"><div class="attention-title">${x[0]}</div><div class="attention-copy">${x[1]}</div></div><strong>${x[2]}</strong></div>`).join('')}</div><div class="card"><div class="card-head"><h2>Scorecard</h2>${status('Blind review','violet')}</div>${field('Technical depth','8','number')}${field('Audience value','Excellent','select')}<div style="height:10px"></div>${field('Reviewer note','Strong practical examples with a clear takeaway.','textarea')}</div></div>`;
+    }
+
+    function publicView() {
+      return pageHead('Public event website', 'Explore the program', 'No account required; fast, searchable and mobile-friendly.', '') + `
+      <div class="public-preview"><div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px"><div><strong>AI Engineer World’s Fair 2027</strong><div class="meta">12–14 May · Moscone West</div></div><div class="tabs" style="margin:0"><button class="tab active">Sessions</button><button class="tab">Speakers</button><button class="tab">Agenda</button><button class="tab">My itinerary</button></div></div><div class="form-grid" style="margin-bottom:14px">${field('Search','Taming')}${field('Track','All tracks','select')}</div><div class="grid two"><div class="public-card"><div>${status('Platform','blue')} ${status('Talk')}</div><h2 style="margin-top:12px">Taming 40-Minute CI</h2><p style="font-size:11px">A practical playbook for bringing feedback loops back under control.</p><div class="meta">12 May · 10:00–10:30 · Main Stage</div><div class="person" style="margin-top:12px">${avatar('PR')}<div><div class="name">Priya Raman</div><div class="meta">Staff Engineer · Northstar</div></div></div></div><div class="public-card"><div>${status('AI Engineering','violet')} ${status('Panel')}</div><h2 style="margin-top:12px">Evaluation Without Vibes</h2><p style="font-size:11px">How to measure agent quality without relying on anecdotes.</p><div class="meta">12 May · 13:00–13:45 · Main Stage</div><div class="person" style="margin-top:12px">${avatar('LP')}<div><div class="name">Leah Park</div><div class="meta">Research Lead · Basis</div></div></div></div></div></div>`;
+    }
+
+    const renderers = { dashboard, event: eventSetup, cfp, submissions, reviews, speakers, content, agenda, communications, resources, publish, accelevents, crm, speaker: speakerPortal, reviewer: reviewerPortal, public: publicView };
+
+    function productSidebar() {
+      const groups = [...new Set(screens.map(s=>s.group))];
+      return `<aside class="product-sidebar"><div class="product-brand"><span class="product-brandmark">PF</span><span>ProgramFlow</span></div><div class="product-event"><div class="product-event-top"><span>AI Engineer World’s Fair</span><span>⌄</span></div><div class="product-event-meta"><span>12–14 May</span><span>88% ready</span></div><div class="product-event-progress"><i></i></div></div>${groups.map(g=>`<div class="product-nav-group"><div class="product-nav-label">${g}</div>${screens.filter(s=>s.group===g).map(s=>`<button class="product-nav-item ${s.key===currentScreen?'active':''}" style="--tone:${screenTone(s.key)}" data-screen="${s.key}"><span class="product-nav-dot"></span><span>${s.label}</span>${s.count?`<span class="product-nav-count">${s.count}</span>`:''}</button>`).join('')}</div>`).join('')}</aside><div class="product-account"><span class="avatar">JA</span><div><strong>Jamie Allen</strong><br><span>Event owner · Settings</span></div></div>`;
+    }
+
+    function productTopbar() {
+      const s = screens.find(x=>x.key===currentScreen);
+      return `<header class="product-topbar"><div class="product-history"><span>‹</span><span>›</span><strong>${s.label}</strong></div><div class="product-command"><span>⌕ Search anything or jump to…</span><kbd>⌘ K</kbd></div><div class="product-top-actions"><button class="product-top-button">Invite</button><button class="product-top-button">?</button><select class="screen-picker product-screen-picker" aria-label="Choose prototype screen">${screens.map(x=>`<option value="${x.key}" ${x.key===s.key?'selected':''}>${x.label}</option>`).join('')}</select></div></header>`;
+    }
+
+    function productHome() {
+      const work = [
+        ['#e3616c','AG','Resolve 2 agenda conflicts','Priya is double-booked · Room 2A overlaps','Open scheduler'],
+        ['#8c7cf6','RV','Finish 5 reviewer assignments','Round 2 closes tomorrow at 18:00','Open review desk'],
+        ['#d6a24c','CT','Collect 3 overdue speaker files','Headshots and slides are due today','Review speakers'],
+        ['#4bb982','PB','Publish the final program','All approved content is consistent','Preview & publish']
+      ];
+      return `<div class="product-home-head"><div><div class="eyebrow">Sunday, 9 August</div><h1>Good evening, Jamie.</h1><p>Your event is healthy; four things need your attention.</p></div><button class="product-resume" data-screen="agenda"><i>↗</i><span><strong>Continue where you left off</strong>Agenda · resolving Room 2A conflict</span></button></div><div class="product-workspace"><section class="product-queue"><div class="product-section-head"><h2>Your work</h2><span class="product-filter">Sorted by impact · Today</span></div>${work.map(x=>`<div class="work-item" style="--tone:${x[0]}"><span class="work-icon">${x[1]}</span><div><div class="work-title">${x[2]}</div><div class="work-copy">${x[3]}</div></div><button class="work-action">${x[4]} →</button></div>`).join('')}<div class="product-section-head" style="margin-top:28px"><h2>Recent activity</h2><span class="product-filter">View all</span></div><div class="activity-line" style="--tone:#4bb982"><i></i><div><strong>Priya uploaded final slides</strong>Speaker portal · 8 minutes ago</div></div><div class="activity-line" style="--tone:#6c94f9"><i></i><div><strong>Marcus updated a submission abstract</strong>Submissions · 24 minutes ago</div></div><div class="activity-line" style="--tone:#8c7cf6"><i></i><div><strong>Leah completed four reviews</strong>Evaluations · 1 hour ago</div></div></section><aside class="product-pulse"><div class="product-section-head"><h2>Event pulse</h2><span class="pill green">On track</span></div><div class="pulse-stage" style="--tone:#4bb982"><strong>CFP closed <em>100%</em></strong><span>64 submissions received</span></div><div class="pulse-stage" style="--tone:#8c7cf6"><strong>Reviews <em>78%</em></strong><span>5 decisions need attention</span></div><div class="pulse-stage" style="--tone:#d6a24c"><strong>Speaker onboarding <em>91%</em></strong><span>3 files overdue</span></div><div class="pulse-stage" style="--tone:#6c94f9"><strong>Program content <em>84%</em></strong><span>6 sessions awaiting edits</span></div><div class="pulse-stage" style="--tone:#e3616c"><strong>Agenda <em>92%</em></strong><span>2 conflicts remaining</span></div><div class="pulse-stage" style="--tone:#4bb982"><strong>Publish <em>Ready</em></strong><span>Next milestone · Tomorrow 18:00</span></div><button class="product-quick" style="margin-top:6px">Open full readiness report →</button></aside></div>`;
+    }
+
+    function render() {
+      const content = (renderers[currentScreen] || dashboard)();
+      const chrome = productSidebar() + productTopbar() + `<div class="layout layout-e" style="--screen-tone:${screenTone(currentScreen)}"><main class="main">${currentScreen==='dashboard'?productHome():content}</main></div>`;
+      document.body.classList.add('locked-product');
+      document.getElementById('root').innerHTML = `<div class="app">${chrome}</div>`;
+      bind();
+    }
+
+    function updateUrl() {
+      const url = new URL(location.href);
+      url.searchParams.delete('variant');
+      url.searchParams.set('screen', currentScreen);
+      history.replaceState({}, '', url);
+    }
+    function goScreen(key) { if (screens.some(s=>s.key===key)) { currentScreen = key; updateUrl(); render(); window.scrollTo(0,0); } }
+    function bind() {
+      document.querySelectorAll('[data-screen]').forEach(el => el.addEventListener('click', () => goScreen(el.dataset.screen)));
+      const picker = document.querySelector('.screen-picker'); if (picker) picker.addEventListener('change', e => goScreen(e.target.value));
+    }
+    if (params.has('variant')) updateUrl();
+    render();
+  </script>
+</body>
+</html>
