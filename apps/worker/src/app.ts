@@ -6,6 +6,10 @@ import type { Env } from "./env";
 import { requestContext } from "./http/middleware/request-context";
 import { eventConfigurationRoutes } from "./modules/event-configuration/routes";
 import {
+  filesDeliverablesOrganizerRoutes,
+  filesDeliverablesSpeakerRoutes,
+} from "./modules/files-deliverables";
+import {
   organizerFormsSubmissionsRoutes,
   publicFormsSubmissionsRoutes,
   speakerFormsSubmissionsRoutes,
@@ -15,6 +19,10 @@ import type { Actor, ActorContext } from "./modules/identity-access/actor";
 import { resolveActor } from "./modules/identity-access/resolve-actor";
 import { decideSubmission } from "./modules/program/acceptance";
 import {
+  communicationsOrganizerRoutes,
+  communicationsProviderRoutes,
+} from "./modules/communications";
+import {
   createOrganizerReviewsDecisionsRoutes,
   createReviewerReviewsDecisionsRoutes,
 } from "./modules/reviews-decisions";
@@ -22,6 +30,7 @@ import {
   speakerOperationsOrganizerRoutes,
   speakerOperationsPortalRoutes,
 } from "./modules/speaker-operations";
+import { schedulingOrganizerRoutes } from "./modules/scheduling";
 
 type WorkerContext = { Bindings: Env } & ActorContext;
 
@@ -57,10 +66,15 @@ export function createApp() {
     }),
   }));
   app.route("/api/v1/organizer", speakerOperationsOrganizerRoutes);
+  app.route("/api/v1/organizer", filesDeliverablesOrganizerRoutes);
+  app.route("/api/v1/organizer", communicationsOrganizerRoutes);
+  app.route("/api/v1/organizer", schedulingOrganizerRoutes);
   app.route("/api/v1/reviewer/events", createReviewerReviewsDecisionsRoutes());
   app.route("/api/v1/speaker", speakerFormsSubmissionsRoutes);
   app.route("/api/v1/speaker", speakerOperationsPortalRoutes);
+  app.route("/api/v1/speaker", filesDeliverablesSpeakerRoutes);
   app.route("/api/v1/public/cfp", publicFormsSubmissionsRoutes);
+  app.route("/api/v1/providers/webhooks", communicationsProviderRoutes);
 
   app.get("/api/v1/health/live", (context) =>
     context.json({ status: "ok", service: "programflow" } as const),

@@ -1,6 +1,7 @@
 import { createDatabase } from "@programflow/database";
 import { Hono, type Context } from "hono";
 import type { Env } from "../../env";
+import { claimAndEnqueueOutbox } from "../../outbox";
 import type { ActorContext } from "../identity-access/actor";
 import { BrevoEmailAdapter, type ProviderOutcome } from "./brevo-adapter";
 import {
@@ -50,21 +51,27 @@ communicationsOrganizerRoutes.put("/events/:eventSlug/communications/templates",
 communicationsOrganizerRoutes.post("/events/:eventSlug/communications", async (context) => {
   const parsed = QueueOrganizerCommunicationSchema.safeParse(await context.req.json().catch(() => null));
   if (!parsed.success) return invalid(context, "invalid_communication", parsed.error.flatten().fieldErrors);
-  return run(context, async (database) => context.json(await queueOrganizerCommunication(
-    database, context.get("actor"), context.req.param("eventSlug"), parsed.data,
-  ), 202));
+  return run(context, async (database) => {
+    const result = await queueOrganizerCommunication(database, context.get("actor"), context.req.param("eventSlug"), parsed.data);
+    context.executionCtx.waitUntil(claimAndEnqueueOutbox(context.env, result.outboxEventIds));
+    return context.json(result, 202);
+  });
 });
 
 communicationsOrganizerRoutes.post("/events/:eventSlug/communications/deliveries/:recipientId/retry", async (context) => {
   const parsed = RetryDeliverySchema.safeParse(await context.req.json().catch(() => null));
   if (!parsed.success) return invalid(context, "invalid_delivery_retry", parsed.error.flatten().fieldErrors);
-  return run(context, async (database) => context.json(await retryDelivery(
-    database,
-    context.get("actor"),
-    context.req.param("eventSlug"),
-    context.req.param("recipientId"),
-    parsed.data.idempotencyKey,
-  ), 202));
+  return run(context, async (database) => {
+    const result = await retryDelivery(
+      database,
+      context.get("actor"),
+      context.req.param("eventSlug"),
+      context.req.param("recipientId"),
+      parsed.data.idempotencyKey,
+    );
+    if (result.outboxEventId) context.executionCtx.waitUntil(claimAndEnqueueOutbox(context.env, [result.outboxEventId]));
+    return context.json(result, 202);
+  });
 });
 
 communicationsOrganizerRoutes.post("/events/:eventSlug/communications/deliveries/:recipientId/poll", async (context) =>
@@ -78,9 +85,11 @@ communicationsOrganizerRoutes.post("/events/:eventSlug/communications/deliveries
 communicationsOrganizerRoutes.post("/events/:eventSlug/communications/calendar-artifacts", async (context) => {
   const parsed = CreatePlacementCalendarSchema.safeParse(await context.req.json().catch(() => null));
   if (!parsed.success) return invalid(context, "invalid_calendar_artifact", parsed.error.flatten().fieldErrors);
-  return run(context, async (database) => context.json(await createPlacementCalendarArtifacts(
-    database, context.get("actor"), context.req.param("eventSlug"), parsed.data,
-  ), 201));
+  return run(context, async (database) => {
+    const result = await createPlacementCalendarArtifacts(database, context.get("actor"), context.req.param("eventSlug"), parsed.data);
+    if (result.communication) context.executionCtx.waitUntil(claimAndEnqueueOutbox(context.env, result.communication.outboxEventIds));
+    return context.json(result, 201);
+  });
 });
 
 communicationsProviderRoutes.post("/brevo", async (context) => {

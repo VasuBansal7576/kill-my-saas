@@ -3,6 +3,9 @@ export interface Env {
   APP_ENV: "local" | "preview" | "evaluation" | "production";
   ASSETS: Fetcher;
   BREVO_API_KEY?: string;
+  BREVO_SENDER_EMAIL?: string;
+  BREVO_SENDER_NAME?: string;
+  BREVO_WEBHOOK_TOKEN?: string;
   DATABASE_URL?: string;
   FILES: R2Bucket;
   GIT_COMMIT_SHA?: string;

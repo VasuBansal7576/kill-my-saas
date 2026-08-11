@@ -33,7 +33,8 @@ eventConfigurationRoutes.put("/:eventSlug/configuration", async (context) => {
 
 function eventError(context: Context<{ Bindings: Env } & ActorContext>, error: unknown) {
   if (error instanceof EventConfigurationError) {
-    return context.json({ error: { code: error.code, message: error.message } }, error.code === "event_not_found" ? 404 : 403);
+    const status = error.code === "event_not_found" ? 404 : error.code === "catalog_in_use" ? 409 : 403;
+    return context.json({ error: { code: error.code, message: error.message } }, status);
   }
   throw error;
 }

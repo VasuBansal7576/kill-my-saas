@@ -1,22 +1,32 @@
 import { createApp } from "./app";
 import type { Env } from "./env";
+import { claimAndEnqueueOutbox, markOutboxFailed, parseOutboxJob, processOutboxJob } from "./outbox";
 
 const app = createApp();
 
 export default {
   fetch: app.fetch,
-  async queue(batch: MessageBatch): Promise<void> {
+  async queue(batch: MessageBatch, environment: Env): Promise<void> {
     for (const message of batch.messages) {
-      console.warn(JSON.stringify({
-        level: "warn",
-        operation: "queue_message_deferred",
-        messageId: message.id,
-        reason: "No production job dispatcher is registered for this message yet.",
-      }));
-      message.retry({ delaySeconds: 60 });
+      let job;
+      try {
+        job = parseOutboxJob(message.body);
+        await processOutboxJob(environment, job);
+        message.ack();
+      } catch (error) {
+        if (job) await markOutboxFailed(environment, job.outboxEventId, error);
+        console.error(JSON.stringify({
+          level: "error",
+          operation: "outbox_job",
+          messageId: message.id,
+          reason: error instanceof Error ? error.message : "Outbox processing failed.",
+        }));
+        message.ack();
+      }
     }
   },
-  async scheduled() {
-    console.info(JSON.stringify({ level: "info", operation: "scheduled_maintenance" }));
+  async scheduled(_controller, environment) {
+    const result = await claimAndEnqueueOutbox(environment);
+    console.info(JSON.stringify({ level: "info", operation: "scheduled_outbox_dispatch", enqueued: result.enqueued }));
   },
 } satisfies ExportedHandler<Env>;

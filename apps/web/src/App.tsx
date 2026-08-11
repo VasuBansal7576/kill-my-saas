@@ -14,6 +14,10 @@ const SpeakerPortalPage = lazy(async () => ({ default: (await import("./features
 const SpeakerResourcesPage = lazy(async () => ({ default: (await import("./features/speaker-operations")).SpeakerResourcesPage }));
 const SpeakerTasksPage = lazy(async () => ({ default: (await import("./features/speaker-operations")).SpeakerTasksPage }));
 const SpeakersPage = lazy(async () => ({ default: (await import("./features/speaker-operations")).SpeakersPage }));
+const OrganizerFilesPage = lazy(async () => ({ default: (await import("./features/files-deliverables")).OrganizerFilesPage }));
+const SpeakerFilesPage = lazy(async () => ({ default: (await import("./features/files-deliverables")).SpeakerFilesPage }));
+const CommunicationsPage = lazy(async () => ({ default: (await import("./features/communications")).CommunicationsPage }));
+const AgendaPage = lazy(async () => ({ default: (await import("./features/scheduling")).AgendaPage }));
 
 const navigation = [
   ["Dashboard", "/organizer/events/devflow-conf-2027/dashboard"],
@@ -22,6 +26,8 @@ const navigation = [
   ["Submissions", "/organizer/events/devflow-conf-2027/submissions"],
   ["Evaluations", "/organizer/events/devflow-conf-2027/evaluations"],
   ["Speakers", "/organizer/events/devflow-conf-2027/speakers"],
+  ["Files", "/organizer/events/devflow-conf-2027/files"],
+  ["Communications", "/organizer/events/devflow-conf-2027/communications"],
   ["Agenda", "/organizer/events/devflow-conf-2027/agenda"],
   ["Publish", "/organizer/events/devflow-conf-2027/publish"],
 ] as const;
@@ -33,6 +39,7 @@ export function App() {
       <Route path="/cfp/:eventSlug" element={<StandalonePage><PublicCfpPage /></StandalonePage>} />
       <Route path="/reviewer/events/:eventSlug/reviews" element={<StandalonePage><ReviewerQueuePage /></StandalonePage>} />
       <Route path="/speaker/events/:eventSlug/submissions" element={<StandalonePage><SpeakerSubmissionsPage /></StandalonePage>} />
+      <Route path="/speaker/events/:eventSlug/files" element={<StandalonePage><SpeakerFilesPage /></StandalonePage>} />
       <Route path="/speaker/events/:eventSlug" element={<StandalonePage><SpeakerPortalPage /></StandalonePage>} />
       <Route path="*" element={<ProductShell />} />
     </Routes>
@@ -84,6 +91,9 @@ function ProductShell() {
           <Route path="/organizer/events/:eventSlug/speakers" element={<Suspense fallback={<p className="muted">Loading speakers…</p>}><SpeakersPage /></Suspense>} />
           <Route path="/organizer/events/:eventSlug/speakers/tasks" element={<Suspense fallback={<p className="muted">Loading speaker tasks…</p>}><SpeakerTasksPage /></Suspense>} />
           <Route path="/organizer/events/:eventSlug/speakers/resources" element={<Suspense fallback={<p className="muted">Loading speaker resources…</p>}><SpeakerResourcesPage /></Suspense>} />
+          <Route path="/organizer/events/:eventSlug/files" element={<Suspense fallback={<p className="muted">Loading files…</p>}><OrganizerFilesPage /></Suspense>} />
+          <Route path="/organizer/events/:eventSlug/communications" element={<Suspense fallback={<p className="muted">Loading communications…</p>}><CommunicationsPage /></Suspense>} />
+          <Route path="/organizer/events/:eventSlug/agenda" element={<Suspense fallback={<p className="muted">Loading agenda…</p>}><AgendaPage /></Suspense>} />
           <Route path="*" element={<FoundationPage readiness={readiness} />} />
         </Routes>
       </main>
