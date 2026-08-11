@@ -1,6 +1,13 @@
 import { createApp } from "./app";
 import type { Env } from "./env";
-import { claimAndEnqueueOutbox, consumeCrmOutreachHandoffs, markOutboxFailed, parseOutboxJob, processOutboxJob } from "./outbox";
+import {
+  claimAndEnqueueOutbox,
+  consumeCrmOutreachHandoffs,
+  markOutboxFailed,
+  parseOutboxJob,
+  processOutboxJob,
+  queueScheduledTaskReminders,
+} from "./outbox";
 
 const app = createApp();
 
@@ -27,7 +34,8 @@ export default {
   },
   async scheduled(_controller, environment) {
     const crm = await consumeCrmOutreachHandoffs(environment);
+    const taskReminders = await queueScheduledTaskReminders(environment);
     const result = await claimAndEnqueueOutbox(environment);
-    console.info(JSON.stringify({ level: "info", operation: "scheduled_outbox_dispatch", enqueued: result.enqueued, crm }));
+    console.info(JSON.stringify({ level: "info", operation: "scheduled_outbox_dispatch", enqueued: result.enqueued, crm, taskReminders }));
   },
 } satisfies ExportedHandler<Env>;

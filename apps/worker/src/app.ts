@@ -21,6 +21,7 @@ import { decideSubmission } from "./modules/program/acceptance";
 import {
   communicationsOrganizerRoutes,
   communicationsProviderRoutes,
+  createReviewReminderPort,
 } from "./modules/communications";
 import {
   createOrganizerReviewsDecisionsRoutes,
@@ -36,6 +37,7 @@ import { publishingOrganizerRoutes, publishingPublicRoutes } from "./modules/pub
 import { speakerCrmRoutes } from "./modules/speaker-crm";
 import { dashboardOrganizerRoutes } from "./modules/dashboard";
 import { publicApiRoutes } from "./modules/public-api";
+import { claimAndEnqueueOutbox } from "./outbox";
 
 type WorkerContext = { Bindings: Env } & ActorContext;
 
@@ -69,6 +71,17 @@ export function createApp() {
         });
       },
     }),
+    reviewReminderPortFactory: (environment) => {
+      if (!environment.DATABASE_URL) throw new Error("Database configuration is required.");
+      const port = createReviewReminderPort(createDatabase(environment.DATABASE_URL));
+      return {
+        async remindOutstanding(input) {
+          const result = await port.remindOutstanding(input);
+          await claimAndEnqueueOutbox(environment, result.outboxEventIds);
+          return result;
+        },
+      };
+    },
   }));
   app.route("/api/v1/organizer", speakerOperationsOrganizerRoutes);
   app.route("/api/v1/organizer", filesDeliverablesOrganizerRoutes);

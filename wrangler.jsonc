@@ -29,12 +29,36 @@
     "evaluation": {
       "name": "programflow-evaluation",
       "vars": { "APP_ENV": "evaluation" },
-      "ai": { "binding": "AI", "remote": true }
+      "ai": { "binding": "AI", "remote": true },
+      "r2_buckets": [
+        { "binding": "FILES", "bucket_name": "programflow-files-evaluation" }
+      ],
+      "queues": {
+        "producers": [
+          { "binding": "JOBS", "queue": "programflow-jobs-evaluation" }
+        ],
+        "consumers": [
+          { "queue": "programflow-jobs-evaluation", "max_batch_size": 10, "max_batch_timeout": 5 }
+        ]
+      },
+      "triggers": { "crons": ["*/5 * * * *"] }
     },
     "production": {
       "name": "programflow-production",
       "vars": { "APP_ENV": "production" },
-      "ai": { "binding": "AI", "remote": true }
+      "ai": { "binding": "AI", "remote": true },
+      "r2_buckets": [
+        { "binding": "FILES", "bucket_name": "programflow-files-production" }
+      ],
+      "queues": {
+        "producers": [
+          { "binding": "JOBS", "queue": "programflow-jobs-production" }
+        ],
+        "consumers": [
+          { "queue": "programflow-jobs-production", "max_batch_size": 10, "max_batch_timeout": 5 }
+        ]
+      },
+      "triggers": { "crons": ["*/5 * * * *"] }
     }
   }
 }
