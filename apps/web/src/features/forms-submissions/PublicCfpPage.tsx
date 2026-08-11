@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import "./forms-submissions.css";
 import { fieldIsVisible, readApi, type FormField, type ParticipantRole, type PublicForm, type SubmissionRecord } from "./model";
@@ -17,31 +17,33 @@ export function PublicCfpPage() {
   const [message, setMessage] = useState<string | null>(null);
   const submissionId = searchParams.get("submission");
 
-  const load = useCallback(async () => {
-    try {
-      const form = await readApi<PublicForm>(await fetch(`/api/v1/public/cfp/${eventSlug}`));
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const form = await readApi<PublicForm>(await fetch(`/api/v1/public/cfp/${eventSlug}`));
+        if (!active) return;
       setPublicForm(form);
       const speakerResponse = await fetch(`/api/v1/speaker/events/${eventSlug}/submissions`);
+        if (!active) return;
       if (speakerResponse.ok) {
         const speakerData = await readApi<{ submissions: SubmissionRecord[] }>(speakerResponse);
+          if (!active) return;
         setSubmissions(speakerData.submissions);
+          const submission = speakerData.submissions.find((candidate) => candidate.id === submissionId);
+          setTitle(submission?.title ?? "");
+          setAnswers(submission?.answers ?? {});
+          setParticipants(submission?.participants.map(({ name, email, role }) => ({ name, email, role })) ?? []);
       }
       setState("idle");
-    } catch (error) {
+      } catch (error) {
+        if (!active) return;
       setMessage(error instanceof Error ? error.message : "The call for speakers could not be loaded.");
       setState("error");
-    }
-  }, [eventSlug]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  useEffect(() => {
-    const submission = submissions.find((candidate) => candidate.id === submissionId);
-    if (!submission) return;
-    setTitle(submission.title);
-    setAnswers(submission.answers);
-    setParticipants(submission.participants.map(({ name, email, role }) => ({ name, email, role })));
-  }, [submissionId, submissions]);
+      }
+    })();
+    return () => { active = false; };
+  }, [eventSlug, submissionId]);
 
   const selected = submissions.find((candidate) => candidate.id === submissionId) ?? null;
   const definition = publicForm?.form.definition;

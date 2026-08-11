@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import "./forms-submissions.css";
 import { readApi, type FieldType, type FormField, type FormWorkspace } from "./model";
@@ -12,19 +12,20 @@ export function CfpBuilderPage() {
   const [state, setState] = useState<"loading" | "idle" | "saving" | "publishing" | "saved" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const result = await readApi<FormWorkspace>(await fetch(`/api/v1/organizer/events/${eventSlug}/cfp`));
+  useEffect(() => {
+    let active = true;
+    void fetch(`/api/v1/organizer/events/${eventSlug}/cfp`).then((response) => readApi<FormWorkspace>(response)).then((result) => {
+      if (!active) return;
       setWorkspace(result);
       setForm(result.form ?? emptyForm());
       setState("idle");
-    } catch (error) {
+    }).catch((error: unknown) => {
+      if (!active) return;
       setMessage(error instanceof Error ? error.message : "The CFP form could not be loaded.");
       setState("error");
-    }
+    });
+    return () => { active = false; };
   }, [eventSlug]);
-
-  useEffect(() => { void load(); }, [load]);
 
   const persist = async () => {
     setState("saving");
