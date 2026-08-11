@@ -5,7 +5,8 @@ import { eventSpeakers, speakerProfiles, speakerTaskAssignments } from "./speake
 
 export const fileVerificationStatus = pgEnum("file_verification_status", ["quarantined", "verified", "rejected"]);
 export const deliverableStatus = pgEnum("deliverable_status", ["pending", "submitted", "changes_requested", "approved"]);
-export const fileBundleStatus = pgEnum("file_bundle_status", ["pending", "ready", "failed"]);
+export const fileUploadStatus = pgEnum("file_upload_status", ["authorized", "uploaded", "finalized", "rejected", "blocked_external", "expired"]);
+export const fileBundleStatus = pgEnum("file_bundle_status", ["pending", "building", "ready", "failed", "blocked_external"]);
 
 export const fileObjects = pgTable("file_objects", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -41,6 +42,30 @@ export const deliverables = pgTable("deliverables", {
   index("deliverables_event_status_idx").on(table.eventId, table.status, table.dueAt),
 ]);
 
+/**
+ * A persisted authorization for one immutable quarantine object. The browser
+ * never chooses an R2 key and finalization can only consume the reservation
+ * once. `blocked_external` records a truthful missing/unavailable R2 boundary.
+ */
+export const fileUploadAuthorizations = pgTable("file_upload_authorizations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventId: uuid("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  deliverableId: uuid("deliverable_id").notNull().references(() => deliverables.id, { onDelete: "cascade" }),
+  requestedByPersonId: uuid("requested_by_person_id").notNull().references(() => people.id),
+  fileObjectId: uuid("file_object_id").notNull().references(() => fileObjects.id),
+  status: fileUploadStatus("status").notNull().default("authorized"),
+  idempotencyKey: text("idempotency_key").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  failureCode: text("failure_code"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
+  finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+}, (table) => [
+  uniqueIndex("file_upload_authorizations_event_idempotency_unique").on(table.eventId, table.idempotencyKey),
+  uniqueIndex("file_upload_authorizations_file_object_unique").on(table.fileObjectId),
+  index("file_upload_authorizations_expiry_idx").on(table.status, table.expiresAt),
+]);
+
 export const deliverableVersions = pgTable("deliverable_versions", {
   id: uuid("id").primaryKey().defaultRandom(),
   deliverableId: uuid("deliverable_id").notNull().references(() => deliverables.id, { onDelete: "cascade" }),
@@ -58,6 +83,16 @@ export const fileComments = pgTable("file_comments", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [index("file_comments_version_created_idx").on(table.deliverableVersionId, table.createdAt)]);
 
+export const deliverableTransitions = pgTable("deliverable_transitions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  deliverableId: uuid("deliverable_id").notNull().references(() => deliverables.id, { onDelete: "cascade" }),
+  fromStatus: deliverableStatus("from_status"),
+  toStatus: deliverableStatus("to_status").notNull(),
+  actorPersonId: uuid("actor_person_id").notNull().references(() => people.id),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [index("deliverable_transitions_deliverable_created_idx").on(table.deliverableId, table.createdAt)]);
+
 export const speakerProfileVersions = pgTable("speaker_profile_versions", {
   id: uuid("id").primaryKey().defaultRandom(),
   speakerProfileId: uuid("speaker_profile_id").notNull().references(() => speakerProfiles.id, { onDelete: "cascade" }),
@@ -72,7 +107,7 @@ export const fileBundleExports = pgTable("file_bundle_exports", {
   eventId: uuid("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   requestedByPersonId: uuid("requested_by_person_id").notNull().references(() => people.id),
   status: fileBundleStatus("status").notNull().default("pending"),
-  selection: jsonb("selection").$type<{ deliverableIds: string[] }>().notNull(),
+  selection: jsonb("selection").$type<{ deliverableIds: string[]; grouping: "session" | "speaker" | "flat" }>().notNull(),
   storageKey: text("storage_key"),
   manifest: jsonb("manifest").$type<Record<string, unknown>>(),
   failureCode: text("failure_code"),
