@@ -46,8 +46,6 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
 
   useEffect(() => {
     let active = true;
-    setProgram(null);
-    setError(null);
     void publicProgramRequest<PublishedProgram>(`/api/v1/public/program/${encodeURIComponent(eventSlug)}`)
       .then((result) => {
         if (!active) return;

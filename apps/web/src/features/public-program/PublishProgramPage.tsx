@@ -50,9 +50,18 @@ export function PublishProgramPage() {
 
   useEffect(() => {
     let active = true;
-    void load().catch((caught: unknown) => { if (active) setError(message(caught)); });
+    void publicProgramRequest<PublishingWorkspace>(`/api/v1/organizer/events/${encodeURIComponent(eventSlug)}/publish`)
+      .then((result) => {
+        if (!active) return;
+        setWorkspace(result);
+        const currentRevisionId = result.publication?.scheduleRevisionId
+          ?? [...result.revisions].reverse().find((revision) => revision.status === "ready")?.id
+          ?? "";
+        setSelectedRevisionId(currentRevisionId);
+      })
+      .catch((caught: unknown) => { if (active) setError(message(caught)); });
     return () => { active = false; };
-  }, [load]);
+  }, [eventSlug]);
 
   const selectedRevision = useMemo(() => workspace?.revisions.find((revision) => revision.id === selectedRevisionId) ?? null, [selectedRevisionId, workspace]);
   const liveOrigin = typeof window !== "undefined" && window.location.protocol === "https:" && !["localhost", "127.0.0.1"].includes(window.location.hostname);
