@@ -1,12 +1,27 @@
 import { ReadinessResponseSchema, type ReadinessResponse } from "@programflow/contracts";
+import { createDatabase } from "@programflow/database";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import type { Env } from "./env";
 import { requestContext } from "./http/middleware/request-context";
-import { proxyAuthRequest } from "./modules/identity-access/auth-proxy";
-import type { ActorContext } from "./modules/identity-access/actor";
-import { resolveActor } from "./modules/identity-access/resolve-actor";
 import { eventConfigurationRoutes } from "./modules/event-configuration/routes";
+import {
+  organizerFormsSubmissionsRoutes,
+  publicFormsSubmissionsRoutes,
+  speakerFormsSubmissionsRoutes,
+} from "./modules/forms-submissions/routes";
+import { proxyAuthRequest } from "./modules/identity-access/auth-proxy";
+import type { Actor, ActorContext } from "./modules/identity-access/actor";
+import { resolveActor } from "./modules/identity-access/resolve-actor";
+import { decideSubmission } from "./modules/program/acceptance";
+import {
+  createOrganizerReviewsDecisionsRoutes,
+  createReviewerReviewsDecisionsRoutes,
+} from "./modules/reviews-decisions";
+import {
+  speakerOperationsOrganizerRoutes,
+  speakerOperationsPortalRoutes,
+} from "./modules/speaker-operations";
 
 type WorkerContext = { Bindings: Env } & ActorContext;
 
@@ -18,7 +33,34 @@ export function createApp() {
 
   app.all("/api/auth/*", proxyAuthRequest);
   app.use("/api/v1/organizer/*", resolveActor);
+  app.use("/api/v1/reviewer/*", resolveActor);
+  app.use("/api/v1/speaker/*", resolveActor);
   app.route("/api/v1/organizer/events", eventConfigurationRoutes);
+  app.route("/api/v1/organizer/events", organizerFormsSubmissionsRoutes);
+  app.route("/api/v1/organizer/events", createOrganizerReviewsDecisionsRoutes({
+    acceptancePortFactory: (environment) => ({
+      accept: (input) => {
+        if (!environment.DATABASE_URL) throw new Error("Database configuration is required.");
+        const actor: Actor = {
+          identityId: "reviews-acceptance-port",
+          personId: input.decidedByPersonId,
+          organizationRoles: [],
+          eventRoles: [{ eventId: input.eventId, role: "organizer" }],
+        };
+        return decideSubmission(createDatabase(environment.DATABASE_URL), actor, {
+          submissionId: input.submissionId,
+          outcome: "accepted",
+          reason: input.reason,
+          idempotencyKey: input.idempotencyKey,
+        });
+      },
+    }),
+  }));
+  app.route("/api/v1/organizer", speakerOperationsOrganizerRoutes);
+  app.route("/api/v1/reviewer/events", createReviewerReviewsDecisionsRoutes());
+  app.route("/api/v1/speaker", speakerFormsSubmissionsRoutes);
+  app.route("/api/v1/speaker", speakerOperationsPortalRoutes);
+  app.route("/api/v1/public/cfp", publicFormsSubmissionsRoutes);
 
   app.get("/api/v1/health/live", (context) =>
     context.json({ status: "ok", service: "programflow" } as const),

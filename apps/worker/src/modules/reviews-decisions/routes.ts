@@ -59,7 +59,10 @@ const DecisionSchema = z.object({
   idempotencyKey: z.string().trim().min(12).max(200),
 });
 
-export function createOrganizerReviewsDecisionsRoutes(dependencies: { acceptancePort?: AcceptancePort; reviewReminderPort?: ReviewReminderPort } = {}) {
+export function createOrganizerReviewsDecisionsRoutes(dependencies: {
+  acceptancePortFactory?: (environment: Env) => AcceptancePort;
+  reviewReminderPortFactory?: (environment: Env) => ReviewReminderPort;
+} = {}) {
   const routes = new Hono<ReviewsContext>();
 
   routes.get("/:eventSlug/evaluations", async (context) => run(context, async (service) =>
@@ -162,9 +165,9 @@ export function createOrganizerReviewsDecisionsRoutes(dependencies: { acceptance
       : undefined;
     return new ReviewsDecisionsService(
       new ReviewsDecisionsRepository(createDatabase(databaseUrl)),
-      dependencies.acceptancePort,
+      dependencies.acceptancePortFactory?.(context.env),
       aiPort,
-      dependencies.reviewReminderPort,
+      dependencies.reviewReminderPortFactory?.(context.env),
     );
   }
 

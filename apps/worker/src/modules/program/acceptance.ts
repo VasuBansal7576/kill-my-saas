@@ -25,6 +25,7 @@ export interface DecideSubmissionCommand {
   submissionId: string;
   outcome: "accepted" | "rejected";
   idempotencyKey: string;
+  reason?: string;
 }
 
 export class AcceptanceError extends Error {
@@ -87,6 +88,7 @@ export async function decideSubmission(
     const decision = existingDecision ?? (await transaction.insert(decisions).values({
       submissionId: submission.id,
       outcome: command.outcome,
+      reason: command.reason?.trim() ?? "",
       idempotencyKey: command.idempotencyKey,
       decidedByPersonId: actor.personId,
     }).returning())[0];
