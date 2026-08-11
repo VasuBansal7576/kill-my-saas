@@ -15,6 +15,7 @@ export function PublicCfpPage() {
   const [participants, setParticipants] = useState<ParticipantInput[]>([]);
   const [state, setState] = useState<"loading" | "idle" | "saving" | "submitted" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
+  const [authenticated, setAuthenticated] = useState(false);
   const submissionId = searchParams.get("submission");
 
   useEffect(() => {
@@ -27,6 +28,7 @@ export function PublicCfpPage() {
       const speakerResponse = await fetch(`/api/v1/speaker/events/${eventSlug}/submissions`);
         if (!active) return;
       if (speakerResponse.ok) {
+        setAuthenticated(true);
         const speakerData = await readApi<{ submissions: SubmissionRecord[] }>(speakerResponse);
           if (!active) return;
         setSubmissions(speakerData.submissions);
@@ -98,7 +100,10 @@ export function PublicCfpPage() {
               {submissions.map((submission) => <button type="button" key={submission.id} className={submission.id === selected?.id ? "active" : ""} onClick={() => setSearchParams({ submission: submission.id })}><span>{submission.title}</span><em>{submission.state}</em></button>)}
               <button type="button" onClick={() => { setSearchParams({}); setTitle(""); setAnswers({}); setParticipants([]); }}>+ Start another proposal</button>
             </div>
-          ) : <p className="cfp-signin-note">Sign in with your speaker account to save a draft, submit, and return to your proposals.</p>}
+          ) : <p className="cfp-signin-note">{authenticated
+            ? "Your submitted proposals will appear here."
+            : <>Sign in to save and return to proposals. <Link to={`/login?event=${encodeURIComponent(eventSlug)}&next=${encodeURIComponent(`/cfp/${eventSlug}`)}`}>Sign in</Link> or <Link to={`/login?mode=signup&event=${encodeURIComponent(eventSlug)}&next=${encodeURIComponent(`/cfp/${eventSlug}`)}`}>create a speaker account</Link>.</>}
+          </p>}
         </section>
 
         <section className="cfp-public-card cfp-proposal-form">
