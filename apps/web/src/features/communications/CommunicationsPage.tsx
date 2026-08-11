@@ -41,7 +41,13 @@ export function CommunicationsPage() {
   }
 
   useEffect(() => {
-    void Promise.all([loadWorkspace(), loadAudience()]).catch((reason: Error) => setError(reason.message));
+    Promise.all([
+      getCommunications(eventSlug),
+      getAudienceSpeakers(eventSlug, { search: "", status: "", taskStatus: "all" }),
+    ]).then(([nextWorkspace, nextSpeakers]) => {
+      setWorkspace(nextWorkspace);
+      setSpeakers(nextSpeakers);
+    }).catch((reason: Error) => setError(reason.message));
   }, [eventSlug]);
 
   const selectedSpeakers = useMemo(() => speakers.filter((speaker) => selected.has(speaker.personId)), [selected, speakers]);

@@ -44,7 +44,8 @@ function parseCalendar(source: string) {
     else if (line === "END:VEVENT") insideEvent = false;
     else if (insideEvent) {
       const separator = line.indexOf(":");
-      if (separator > 0) event[line.slice(0, separator).split(";")[0]] = line.slice(separator + 1);
+      const property = line.slice(0, separator).split(";")[0];
+      if (separator > 0 && property) event[property] = line.slice(separator + 1);
     }
   }
   for (const required of ["UID", "DTSTAMP", "DTSTART", "DTEND", "SEQUENCE", "STATUS", "SUMMARY"]) {

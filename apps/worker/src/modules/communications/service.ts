@@ -566,7 +566,9 @@ export async function queueDueTaskReminders(database: Database, input: {
       textTemplate: "Hello {{first_name}}, you have {{incomplete_task_count}} outstanding task(s). Next: {{next_task_title}}, due {{next_due_date}}.",
       mergeDataByPersonId: Object.fromEntries([...grouped].map(([personId, tasks]) => {
         const ordered = [...tasks].sort((left, right) => left.dueAt.getTime() - right.dueAt.getTime());
-        return [personId, { incomplete_task_count: tasks.length, next_task_title: ordered[0].taskTitle, next_due_date: ordered[0].dueAt.toISOString() }];
+        const nextTask = ordered[0];
+        if (!nextTask) throw new CommunicationsError("invalid_recipient", "Outstanding-task reminder has no task details.");
+        return [personId, { incomplete_task_count: tasks.length, next_task_title: nextTask.taskTitle, next_due_date: nextTask.dueAt.toISOString() }];
       })),
       idempotencyKey: input.idempotencyKey,
     },
@@ -658,10 +660,11 @@ export async function consumeCommunicationOutboxEvent(database: Database, outbox
     const eventSpeakerIds = arrayOfStrings(payload.eventSpeakerIds);
     const speakerRows = await database.select({ eventId: eventSpeakers.eventId, personId: eventSpeakers.personId })
       .from(eventSpeakers).where(inArray(eventSpeakers.id, eventSpeakerIds));
-    if (!speakerRows.length) throw new CommunicationsError("invalid_recipient", "Portal invitation has no event speakers.");
+    const firstSpeaker = speakerRows[0];
+    if (!firstSpeaker) throw new CommunicationsError("invalid_recipient", "Portal invitation has no event speakers.");
     return queueCommunication(database, {
       command: {
-        eventId: speakerRows[0].eventId,
+        eventId: firstSpeaker.eventId,
         kind: "transactional",
         recipientPersonIds: speakerRows.map((speaker) => speaker.personId),
         subjectTemplate: "Your {{ event_name }} speaker portal",

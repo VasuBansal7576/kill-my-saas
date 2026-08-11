@@ -18,7 +18,7 @@ describe("Brevo transactional adapter boundary", () => {
     });
 
     expect(result.providerMessageId).toBe("<provider-42@brevo>");
-    const init = request.mock.calls[0][1] as RequestInit;
+    const init = request.mock.calls[0]?.[1] as RequestInit;
     const payload = JSON.parse(String(init.body));
     expect(payload.headers["Idempotency-Key"]).toBe("recipient-attempt-1");
     expect(payload.attachment[0].name).toBe("session.ics");

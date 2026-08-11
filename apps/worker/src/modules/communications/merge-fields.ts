@@ -9,7 +9,10 @@ export class MergeFieldError extends Error {
 export function findMergeFields(...templates: ReadonlyArray<string>): string[] {
   const fields = new Set<string>();
   for (const template of templates) {
-    for (const match of template.matchAll(MERGE_FIELD)) fields.add(match[1]);
+    for (const match of template.matchAll(MERGE_FIELD)) {
+      const field = match[1];
+      if (field) fields.add(field);
+    }
   }
   return [...fields].sort();
 }
