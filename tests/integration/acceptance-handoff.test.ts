@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Database } from "@programflow/database";
 import {
+  cfpFormVersions,
   cfpForms,
   decisions,
   eventMemberships,
@@ -33,6 +34,7 @@ integration("atomic acceptance handoff", () => {
     event: randomUUID(),
     organizer: randomUUID(),
     form: randomUUID(),
+    formVersion: randomUUID(),
     submission: randomUUID(),
   };
   const tooling = createToolingDatabase(databaseUrl!);
@@ -60,10 +62,37 @@ integration("atomic acceptance handoff", () => {
     await tooling.database.insert(people).values({ id: ids.organizer, stableKey: `organizer-${ids.organizer}`, displayName: "Organizer" });
     await tooling.database.insert(eventMemberships).values({ eventId: ids.event, personId: ids.organizer, role: "organizer" });
     await tooling.database.insert(cfpForms).values({ id: ids.form, eventId: ids.event, name: "CFP", target: "session", status: "published" });
+    await tooling.database.insert(cfpFormVersions).values({
+      id: ids.formVersion,
+      formId: ids.form,
+      version: 1,
+      publishedByPersonId: ids.organizer,
+      definition: {
+        target: "session",
+        opensAt: null,
+        closesAt: null,
+        welcomeCopy: "",
+        instructionsCopy: "",
+        successCopy: "Submitted",
+        allowDrafts: true,
+        allowMultipleDrafts: true,
+        draftsCountTowardLimit: false,
+        allowSubmittedEdits: true,
+        confirmationEmailEnabled: true,
+        draftReminderEnabled: true,
+        draftReminderLeadHours: 48,
+        maxSubmissionsPerPerson: null,
+        minimumParticipants: 1,
+        maximumParticipants: 4,
+        participantRoleLabels: { author: "Primary author", co_author: "Co-author", presenter: "Presenter" },
+        fields: [],
+      },
+    });
     await tooling.database.insert(submissions).values({
       id: ids.submission,
       eventId: ids.event,
       formId: ids.form,
+      formVersionId: ids.formVersion,
       title: "Reliable systems without re-entry",
       state: "submitted",
       submittedAt: new Date(),
