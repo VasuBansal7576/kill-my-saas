@@ -1,0 +1,50 @@
+.rd-scorecard-editor {
+  margin-top: 15px;
+}
+
+.rd-scorecard-editor > strong {
+  font-size: 11px;
+}
+
+.rd-scorecard-editor > div {
+  align-items: end;
+  border-top: 1px solid #292927;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 2fr 1.2fr 0.7fr auto;
+  padding: 8px 0;
+}
+
+.rd-scorecard-editor footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+@media (max-width: 560px) {
+  .rd-scorecard-editor > div {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rd-ai-override {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 110px minmax(180px, 1fr) auto;
+  margin-top: 10px;
+}
+
+.rd-ai-override input {
+  border: 1px solid #32322f;
+  background: #181817;
+  color: #e6e6e2;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.rd-specific-assignment {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(180px, 2fr) minmax(160px, 1fr) auto;
+}
