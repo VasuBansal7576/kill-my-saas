@@ -1,4 +1,5 @@
-import { index, integer, pgEnum, pgTable, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { check, index, integer, pgEnum, pgTable, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { eventRooms, events } from "./foundation";
 import { sessions } from "./program";
 
@@ -25,5 +26,6 @@ export const placements = pgTable("placements", {
 }, (table) => [
   uniqueIndex("placement_revision_session_unique").on(table.revisionId, table.sessionId),
   index("placements_revision_time_idx").on(table.revisionId, table.startsAt, table.endsAt),
+  index("placements_revision_room_time_idx").on(table.revisionId, table.roomId, table.startsAt, table.endsAt),
+  check("placements_positive_interval", sql`${table.endsAt} > ${table.startsAt}`),
 ]);
-
