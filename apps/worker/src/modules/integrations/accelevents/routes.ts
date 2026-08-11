@@ -71,8 +71,8 @@ async function execute<T>(context: Context<AcceleventsContext>, operation: (serv
 }
 
 function token(context: Context<AcceleventsContext>): string | undefined {
-  const value = (context.env as unknown as Record<string, unknown>).ACCELEVENTS_API_TOKEN;
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  const value = context.env.ACCELEVENTS_API_TOKEN;
+  return value?.trim() || undefined;
 }
 
 function integrationError(context: Context<AcceleventsContext>, error: unknown) {

@@ -1,5 +1,12 @@
 import type { Database } from "@programflow/database";
 import {
+  acceleventsConfigurations,
+  acceleventsFieldMappings,
+  acceleventsRecordAttempts,
+  acceleventsRecordLinks,
+  acceleventsReferenceMappings,
+  acceleventsSyncRecords,
+  acceleventsSyncRuns,
   eventFormats,
   eventRooms,
   eventSpeakers,
@@ -13,15 +20,6 @@ import {
   speakerProfiles,
 } from "@programflow/database";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
-import {
-  acceleventsConfigurations,
-  acceleventsFieldMappings,
-  acceleventsRecordAttempts,
-  acceleventsRecordLinks,
-  acceleventsReferenceMappings,
-  acceleventsSyncRecords,
-  acceleventsSyncRuns,
-} from "../../../../../../packages/database/src/schema/accelevents";
 import { defaultAcceleventsMappings } from "./mapping";
 import type {
   AcceleventsConfiguration,

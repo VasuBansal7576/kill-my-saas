@@ -1,4 +1,5 @@
 export interface Env {
+  ACCELEVENTS_API_TOKEN?: string;
   AI?: Ai;
   AIRTABLE_TOKEN?: string;
   APP_ENV: "local" | "preview" | "evaluation" | "production";

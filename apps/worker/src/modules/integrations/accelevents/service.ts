@@ -121,31 +121,6 @@ export class AcceleventsIntegrationService {
     timezone: string,
     counters: RunCounters,
   ) {
-    if (!externalReady || !provider || !configuration.externalEventUrl) {
-      const missing = readiness(configuration, Boolean(provider)).missing;
-      const message = `Accelevents is blocked: ${missing.join(", ")}.`;
-      const fingerprint = `blocked:${canonical.entityType}:${canonical.canonicalId}`;
-      const record = await this.repository.createSyncRecord({
-        runId,
-        entityType: canonical.entityType,
-        canonicalId: canonical.canonicalId,
-        operation: "validate",
-        fingerprint,
-        idempotencyKey: fingerprint,
-        requestMetadata: { payloadFields: [], dryRun: false },
-      });
-      await this.repository.finishSyncRecord(record.id, { status: "blocked_external", errorCode: "accelevents_not_configured", errorMessage: message });
-      await this.repository.appendAttempt(record.id, {
-        status: "blocked_external",
-        providerResponded: false,
-        errorCode: "accelevents_not_configured",
-        errorMessage: message,
-        requestMetadata: { missing },
-      });
-      counters.failed += 1;
-      counters.blocked += 1;
-      return;
-    }
     const mapped = await mapCanonicalRecord(canonical, configuration, links, timezone);
     const record = await this.repository.createSyncRecord({
       runId,
@@ -192,6 +167,31 @@ export class AcceleventsIntegrationService {
     externalReady: boolean,
     counters: RunCounters,
   ) {
+    if (!externalReady || !provider || !configuration.externalEventUrl) {
+      const missing = readiness(configuration, Boolean(provider)).missing;
+      const message = `Accelevents is blocked: ${missing.join(", ")}.`;
+      const fingerprint = `blocked:${canonical.entityType}:${canonical.canonicalId}`;
+      const record = await this.repository.createSyncRecord({
+        runId,
+        entityType: canonical.entityType,
+        canonicalId: canonical.canonicalId,
+        operation: "validate",
+        fingerprint,
+        idempotencyKey: fingerprint,
+        requestMetadata: { payloadFields: [], dryRun: false },
+      });
+      await this.repository.finishSyncRecord(record.id, { status: "blocked_external", errorCode: "accelevents_not_configured", errorMessage: message });
+      await this.repository.appendAttempt(record.id, {
+        status: "blocked_external",
+        providerResponded: false,
+        errorCode: "accelevents_not_configured",
+        errorMessage: message,
+        requestMetadata: { missing },
+      });
+      counters.failed += 1;
+      counters.blocked += 1;
+      return;
+    }
     const mapped = await mapCanonicalRecord(canonical, configuration, links, timezone);
     const record = await this.repository.createSyncRecord({
       runId,

@@ -32,7 +32,7 @@ import {
   speakerOperationsPortalRoutes,
 } from "./modules/speaker-operations";
 import { schedulingOrganizerRoutes } from "./modules/scheduling";
-import { integrationsOrganizerRoutes } from "./modules/integrations";
+import { acceleventsOrganizerRoutes, integrationsOrganizerRoutes } from "./modules/integrations";
 import { publishingOrganizerRoutes, publishingPublicRoutes } from "./modules/publishing";
 import { speakerCrmRoutes } from "./modules/speaker-crm";
 import { dashboardOrganizerRoutes } from "./modules/dashboard";
@@ -91,6 +91,7 @@ export function createApp() {
   app.route("/api/v1/organizer", communicationsOrganizerRoutes);
   app.route("/api/v1/organizer", schedulingOrganizerRoutes);
   app.route("/api/v1/organizer", integrationsOrganizerRoutes);
+  app.route("/api/v1/organizer", acceleventsOrganizerRoutes);
   app.route("/api/v1/organizer", publishingOrganizerRoutes);
   app.route("/api/v1/organizer", speakerCrmRoutes);
   app.route("/api/v1/organizer", dashboardOrganizerRoutes);

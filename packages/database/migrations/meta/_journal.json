@@ -43,6 +43,13 @@
       "when": 1786477608349,
       "tag": "0005_jittery_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786479699444,
+      "tag": "0006_youthful_reavers",
+      "breakpoints": true
     }
   ]
 }

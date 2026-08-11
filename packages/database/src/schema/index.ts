@@ -9,3 +9,4 @@ export * from "./speaker-crm";
 export * from "./program";
 export * from "./scheduling";
 export * from "./publishing";
+export * from "./accelevents";
