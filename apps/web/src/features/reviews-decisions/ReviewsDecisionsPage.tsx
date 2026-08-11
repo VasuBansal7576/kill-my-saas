@@ -43,12 +43,20 @@ export function ReviewsDecisionsPage() {
     }
   }, [eventSlug]);
 
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    let active = true;
+    void reviewsRequest<ReviewsWorkspace>(`/api/v1/organizer/events/${eventSlug}/evaluations`).then((next) => {
+      if (!active) return;
+      setWorkspace(next);
+      setError(null);
+    }).catch((caught: unknown) => {
+      if (active) setError(message(caught));
+    });
+    return () => { active = false; };
+  }, [eventSlug]);
 
   const rounds = useMemo(() => workspace?.plans.flatMap((plan) => plan.rounds) ?? [], [workspace]);
-  useEffect(() => {
-    if (!assignmentRoundId && rounds[0]) setAssignmentRoundId(rounds[0].id);
-  }, [assignmentRoundId, rounds]);
+  const activeAssignmentRoundId = assignmentRoundId || rounds[0]?.id || "";
 
   async function createPlan() {
     setBusy(true);
@@ -76,12 +84,12 @@ export function ReviewsDecisionsPage() {
   }
 
   async function distribute() {
-    if (!assignmentRoundId || selectedSubmissions.length === 0) return;
+    if (!activeAssignmentRoundId || selectedSubmissions.length === 0) return;
     setBusy(true);
     setError(null);
     try {
       const result = await reviewsRequest<{ created: number }>(
-        `/api/v1/organizer/events/${eventSlug}/evaluations/rounds/${assignmentRoundId}/distribute`,
+        `/api/v1/organizer/events/${eventSlug}/evaluations/rounds/${activeAssignmentRoundId}/distribute`,
         jsonRequest("POST", { submissionIds: selectedSubmissions }),
       );
       setSelectedSubmissions([]);
@@ -95,11 +103,11 @@ export function ReviewsDecisionsPage() {
   }
 
   async function assignSpecificReviewer() {
-    if (!assignmentRoundId || !specificSubmissionId || !specificReviewerId) return;
+    if (!activeAssignmentRoundId || !specificSubmissionId || !specificReviewerId) return;
     setBusy(true);
     setError(null);
     try {
-      await reviewsRequest(`/api/v1/organizer/events/${eventSlug}/evaluations/rounds/${assignmentRoundId}/assignments`, jsonRequest("POST", {
+      await reviewsRequest(`/api/v1/organizer/events/${eventSlug}/evaluations/rounds/${activeAssignmentRoundId}/assignments`, jsonRequest("POST", {
         submissionId: specificSubmissionId,
         reviewerPersonId: specificReviewerId,
       }));
@@ -202,9 +210,9 @@ export function ReviewsDecisionsPage() {
       {tab === "rounds" ? <RoundsPanel plans={workspace.plans} busy={busy} remind={(roundId) => void remindOutstanding(roundId)} /> : null}
       {tab === "assignments" ? (
         <section className="rd-panel">
-          <div className="rd-panel-head"><div><h2>Conflict-aware distribution</h2><p>Every proposal is assigned only to a reviewer in this round’s pool with capacity and no declared conflict.</p></div><button className="primary-action" disabled={busy || !assignmentRoundId || selectedSubmissions.length === 0} onClick={() => void distribute()}>Assign selected</button></div>
-          <label className="rd-field">Review round<select value={assignmentRoundId} onChange={(event) => setAssignmentRoundId(event.target.value)}>{rounds.map((round) => <option key={round.id} value={round.id}>{round.name} · {round.reviewers.length} reviewers</option>)}</select></label>
-          <div className="rd-specific-assignment"><label className="rd-field">Proposal<select value={specificSubmissionId} onChange={(event) => setSpecificSubmissionId(event.target.value)}><option value="">Choose proposal…</option>{workspace.submissions.map((submission) => <option key={submission.submissionId} value={submission.submissionId}>{submission.title}</option>)}</select></label><label className="rd-field">Specific reviewer<select value={specificReviewerId} onChange={(event) => setSpecificReviewerId(event.target.value)}><option value="">Choose reviewer…</option>{rounds.find((round) => round.id === assignmentRoundId)?.reviewers.map((reviewer) => <option key={reviewer.personId} value={reviewer.personId}>{reviewer.name}</option>)}</select></label><button className="rd-secondary" disabled={busy || !specificSubmissionId || !specificReviewerId} onClick={() => void assignSpecificReviewer()}>Assign reviewer</button></div>
+          <div className="rd-panel-head"><div><h2>Conflict-aware distribution</h2><p>Every proposal is assigned only to a reviewer in this round’s pool with capacity and no declared conflict.</p></div><button className="primary-action" disabled={busy || !activeAssignmentRoundId || selectedSubmissions.length === 0} onClick={() => void distribute()}>Assign selected</button></div>
+          <label className="rd-field">Review round<select value={activeAssignmentRoundId} onChange={(event) => setAssignmentRoundId(event.target.value)}>{rounds.map((round) => <option key={round.id} value={round.id}>{round.name} · {round.reviewers.length} reviewers</option>)}</select></label>
+          <div className="rd-specific-assignment"><label className="rd-field">Proposal<select value={specificSubmissionId} onChange={(event) => setSpecificSubmissionId(event.target.value)}><option value="">Choose proposal…</option>{workspace.submissions.map((submission) => <option key={submission.submissionId} value={submission.submissionId}>{submission.title}</option>)}</select></label><label className="rd-field">Specific reviewer<select value={specificReviewerId} onChange={(event) => setSpecificReviewerId(event.target.value)}><option value="">Choose reviewer…</option>{rounds.find((round) => round.id === activeAssignmentRoundId)?.reviewers.map((reviewer) => <option key={reviewer.personId} value={reviewer.personId}>{reviewer.name}</option>)}</select></label><button className="rd-secondary" disabled={busy || !specificSubmissionId || !specificReviewerId} onClick={() => void assignSpecificReviewer()}>Assign reviewer</button></div>
           <div className="rd-check-list">{workspace.submissions.map((submission) => <label key={submission.submissionId}><input type="checkbox" checked={selectedSubmissions.includes(submission.submissionId)} onChange={() => setSelectedSubmissions(toggle(selectedSubmissions, submission.submissionId))} /><span><strong>{submission.title}</strong><small>{submission.track ?? "No track"}</small></span></label>)}</div>
         </section>
       ) : null}

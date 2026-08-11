@@ -87,6 +87,7 @@ export async function decideSubmission(
     const decision = existingDecision ?? (await transaction.insert(decisions).values({
       submissionId: submission.id,
       outcome: command.outcome,
+      idempotencyKey: command.idempotencyKey,
       decidedByPersonId: actor.personId,
     }).returning())[0];
 
