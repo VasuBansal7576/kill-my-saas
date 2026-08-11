@@ -50,6 +50,7 @@ const navigation = [
 export function App() {
   return (
     <Routes>
+      <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<Suspense fallback={<div className="login-page">Loading sign in…</div>}><LoginPage /></Suspense>} />
       <Route path="/cfp/:eventSlug" element={<StandalonePage><PublicCfpPage /></StandalonePage>} />
       <Route path="/reviewer/events/:eventSlug/reviews" element={<RolePage label="Reviewer workspace"><ReviewerQueuePage /></RolePage>} />
@@ -61,9 +62,20 @@ export function App() {
       <Route path="/program/:eventSlug/agenda" element={<StandalonePage><PublicAgendaPage /></StandalonePage>} />
       <Route path="/program/:eventSlug/itinerary" element={<StandalonePage><PublicItineraryPage /></StandalonePage>} />
       <Route path="/program/:eventSlug/speaker-gallery" element={<StandalonePage><PublicSpeakerGalleryPage /></StandalonePage>} />
-      <Route path="*" element={<ProductShell />} />
+      <Route path="/events/:eventSlug/sessions" element={<StandalonePage><PublicSessionsPage /></StandalonePage>} />
+      <Route path="/events/:eventSlug/speakers" element={<StandalonePage><PublicSpeakersPage /></StandalonePage>} />
+      <Route path="/events/:eventSlug/agenda" element={<StandalonePage><PublicAgendaPage /></StandalonePage>} />
+      <Route path="/events/:eventSlug/itinerary" element={<StandalonePage><PublicItineraryPage /></StandalonePage>} />
+      <Route path="/events/:eventSlug/gallery" element={<StandalonePage><PublicSpeakerGalleryPage /></StandalonePage>} />
+      <Route path="/organizer/*" element={<ProductShell />} />
+      <Route path="*" element={<HomePage />} />
     </Routes>
   );
+}
+
+function HomePage() {
+  const eventSlug = "devflow-conf-2027";
+  return <main className="home-page"><section className="home-card"><div className="brand"><span>PF</span>ProgramFlow</div><p className="eyebrow">DevFlow Conf 2027</p><h1>Build the program. Share the experience.</h1><p>Submit a session, manage the conference, or explore the published agenda from one canonical program.</p><div className="home-actions"><NavLink className="home-primary" to="/login">Sign in to your workspace</NavLink><NavLink to={`/cfp/${eventSlug}`}>Call for speakers</NavLink><NavLink to={`/program/${eventSlug}/sessions`}>Browse sessions</NavLink><NavLink to={`/program/${eventSlug}/speakers`}>Meet the speakers</NavLink><NavLink to={`/program/${eventSlug}/agenda`}>View agenda</NavLink><NavLink to={`/program/${eventSlug}/itinerary`}>Build an itinerary</NavLink></div></section></main>;
 }
 
 function StandalonePage({ children }: { children: React.ReactNode }) {
