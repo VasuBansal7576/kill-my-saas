@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { jsonRequest, requestJson } from "./api";
 import styles from "./speaker-operations.module.css";
@@ -12,11 +12,17 @@ export function SpeakerPortalPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
 
-  const load = useCallback(async () => {
-    try { setPortal(await requestJson<SpeakerPortal>(`/api/v1/speaker/events/${eventSlug}`)); setMessage(null); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Your portal could not be loaded."); }
+  useEffect(() => {
+    let active = true;
+    void requestJson<SpeakerPortal>(`/api/v1/speaker/events/${eventSlug}`).then((next) => {
+      if (!active) return;
+      setPortal(next);
+      setMessage(null);
+    }).catch((error: unknown) => {
+      if (active) setMessage(error instanceof Error ? error.message : "Your portal could not be loaded.");
+    });
+    return () => { active = false; };
   }, [eventSlug]);
-  useEffect(() => { void load(); }, [load]);
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = new FormData(event.currentTarget);

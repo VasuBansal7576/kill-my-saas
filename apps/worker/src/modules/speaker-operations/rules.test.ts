@@ -4,7 +4,7 @@ import { sanitizeSpeakerResourceHtml } from "./resource-sanitizer";
 
 describe("speaker CSV import", () => {
   it("parses quoted fixture fields without splitting embedded punctuation", () => {
-    const rows = parseSpeakerCsv('name,email,title,company,bio\nPriya Raman,priya@example.com,Principal Engineer,Latticework,"Builds tools; writes \"\"Fast CI\"\"."');
+    const rows = parseSpeakerCsv('name,email,title,company,bio\nPriya Raman,priya@example.com,Principal Engineer,Latticework,"Builds tools; writes ""Fast CI""."');
     expect(rows).toHaveLength(1);
     expect(rows[0]?.input).toMatchObject({ displayName: "Priya Raman", email: "priya@example.com", biography: 'Builds tools; writes "Fast CI".' });
   });

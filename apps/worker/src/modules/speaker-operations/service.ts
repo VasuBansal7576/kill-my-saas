@@ -331,7 +331,14 @@ export async function getSpeakerPortal(database: Database, actor: Actor, eventSl
     event,
     speaker: detail,
     resources: resources.filter((resource) => resource.visibleToStatuses.includes(speaker.status as "invited" | "onboarding" | "ready"))
-      .map(({ visibleToStatuses: _visibleToStatuses, ...resource }) => resource),
+      .map((resource) => ({
+        id: resource.id,
+        slug: resource.slug,
+        title: resource.title,
+        summary: resource.summary,
+        contentHtml: resource.contentHtml,
+        revision: resource.revision,
+      })),
   };
 }
 

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { Database } from "@programflow/database";
 import {
   eventMemberships,
@@ -34,7 +33,7 @@ const databaseUrl = process.env.DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
 
 integration("speaker operations persisted role round trip", () => {
-  const ids = { organization: randomUUID(), event: randomUUID(), organizer: randomUUID() };
+  const ids = { organization: crypto.randomUUID(), event: crypto.randomUUID(), organizer: crypto.randomUUID() };
   const slug = `speaker-operations-${ids.event}`;
   const tooling = createToolingDatabase(databaseUrl!);
   const database = tooling.database as unknown as Database;

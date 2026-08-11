@@ -31,7 +31,22 @@ export function SpeakersPage() {
     }
   }, [eventSlug, search, status, taskStatus]);
 
-  useEffect(() => { void loadRoster(); }, [loadRoster]);
+  useEffect(() => {
+    let active = true;
+    const query = new URLSearchParams({ search, taskStatus });
+    if (status) query.set("status", status);
+    void requestJson<RosterSpeaker[]>(`/api/v1/organizer/events/${eventSlug}/speakers?${query}`).then((rows) => {
+      if (!active) return;
+      setSpeakers(rows);
+      setMessage(null);
+      setLoading(false);
+    }).catch((error: unknown) => {
+      if (!active) return;
+      setMessage(error instanceof Error ? error.message : "The speaker roster could not be loaded.");
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, [eventSlug, search, status, taskStatus]);
 
   async function openSpeaker(id: string) {
     try {

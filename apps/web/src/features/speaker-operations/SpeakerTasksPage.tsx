@@ -22,7 +22,21 @@ export function SpeakerTasksPage() {
       setTasks(taskRows); setSpeakers(rosterRows); setMessage(null);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Tasks could not be loaded."); }
   }, [eventSlug]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+    void Promise.all([
+      requestJson<SpeakerTask[]>(`/api/v1/organizer/events/${eventSlug}/tasks`),
+      requestJson<RosterSpeaker[]>(`/api/v1/organizer/events/${eventSlug}/speakers?taskStatus=all&search=`),
+    ]).then(([taskRows, rosterRows]) => {
+      if (!active) return;
+      setTasks(taskRows);
+      setSpeakers(rosterRows);
+      setMessage(null);
+    }).catch((error: unknown) => {
+      if (active) setMessage(error instanceof Error ? error.message : "Tasks could not be loaded.");
+    });
+    return () => { active = false; };
+  }, [eventSlug]);
 
   async function createTask(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); const formElement = event.currentTarget; const form = new FormData(formElement);

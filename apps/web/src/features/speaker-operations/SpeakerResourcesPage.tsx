@@ -17,7 +17,17 @@ export function SpeakerResourcesPage() {
     try { const rows = await requestJson<SpeakerResource[]>(`/api/v1/organizer/events/${eventSlug}/resources`); setResources(rows); if (!selected.id && rows[0]) setSelected(rows[0]); }
     catch (error) { setMessage(error instanceof Error ? error.message : "Resources could not be loaded."); }
   }, [eventSlug, selected.id]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+    void requestJson<SpeakerResource[]>(`/api/v1/organizer/events/${eventSlug}/resources`).then((rows) => {
+      if (!active) return;
+      setResources(rows);
+      if (rows[0]) setSelected(rows[0]);
+    }).catch((error: unknown) => {
+      if (active) setMessage(error instanceof Error ? error.message : "Resources could not be loaded.");
+    });
+    return () => { active = false; };
+  }, [eventSlug]);
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); const form = new FormData(event.currentTarget); const slug = String(form.get("slug"));
