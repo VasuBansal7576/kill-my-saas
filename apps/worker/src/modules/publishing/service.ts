@@ -157,6 +157,7 @@ export async function publishProgram(
       eventType: "publication.went_live",
       payload: {
         eventId: event.id,
+        publishedByPersonId: actor.personId,
         publicationId: publication.id,
         scheduleRevisionId: revision.id,
         publicRevision: nextPublicRevision,

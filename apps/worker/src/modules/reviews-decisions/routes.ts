@@ -6,7 +6,7 @@ import type { ActorContext } from "../identity-access/actor";
 import { ReviewsDecisionsRepository, ReviewsRepositoryError } from "./repository";
 import { ReviewRuleError } from "./rules";
 import { ReviewsDecisionsError, ReviewsDecisionsService } from "./service";
-import type { AcceptancePort, ReviewReminderPort } from "./types";
+import type { AcceptancePort, DecisionResult, ReviewReminderPort } from "./types";
 import { WorkersAiReviewAdapter, type WorkersAiBinding } from "./workers-ai-adapter";
 
 type ReviewsContext = { Bindings: Env } & ActorContext;
@@ -62,6 +62,7 @@ const DecisionSchema = z.object({
 export function createOrganizerReviewsDecisionsRoutes(dependencies: {
   acceptancePortFactory?: (environment: Env) => AcceptancePort;
   reviewReminderPortFactory?: (environment: Env) => ReviewReminderPort;
+  onDecisionRecorded?: (environment: Env, result: DecisionResult) => Promise<void>;
 } = {}) {
   const routes = new Hono<ReviewsContext>();
 
@@ -131,9 +132,11 @@ export function createOrganizerReviewsDecisionsRoutes(dependencies: {
   routes.post("/:eventSlug/evaluations/decisions", async (context) => {
     const parsed = DecisionSchema.safeParse(await context.req.json().catch(() => null));
     if (!parsed.success) return invalid(context, "invalid_decision", parsed.error.flatten().fieldErrors);
-    return run(context, async (service) => context.json(await service.decide(
-      context.get("actor"), context.req.param("eventSlug"), parsed.data,
-    ), 201));
+    return run(context, async (service) => {
+      const result = await service.decide(context.get("actor"), context.req.param("eventSlug"), parsed.data);
+      await dependencies.onDecisionRecorded?.(context.env, result);
+      return context.json(result, 201);
+    });
   });
 
   routes.post("/:eventSlug/evaluations/rounds/:roundId/submissions/:submissionId/ai-assessments", async (context) =>

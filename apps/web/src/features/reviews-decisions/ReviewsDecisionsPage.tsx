@@ -135,8 +135,8 @@ export function ReviewsDecisionsPage() {
       setDecisionTarget(null);
       setDecisionReason("");
       setNotice(outcome === "accepted"
-        ? "Accepted decision and canonical Program handoff completed atomically."
-        : "Rejected decision recorded in the audit trail.");
+        ? "Accepted decision completed atomically; notification, portal invitation, and onboarding handoffs are queued."
+        : "Rejected decision recorded and its notification is queued with delivery evidence.");
       await reload();
     } catch (caught) {
       setError(message(caught));

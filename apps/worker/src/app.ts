@@ -82,6 +82,9 @@ export function createApp() {
         },
       };
     },
+    onDecisionRecorded: async (environment) => {
+      await claimAndEnqueueOutbox(environment);
+    },
   }));
   app.route("/api/v1/organizer", speakerOperationsOrganizerRoutes);
   app.route("/api/v1/organizer", filesDeliverablesOrganizerRoutes);

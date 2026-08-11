@@ -4,6 +4,7 @@ import {
   events,
   eventSpeakers,
   outboxEvents,
+  placements,
   speakerTaskAssignments,
   speakerTasks,
 } from "@programflow/database";
@@ -15,7 +16,9 @@ import {
   dispatchDelivery,
   queueCommunication,
   queueDueTaskReminders,
+  createPlacementCalendarArtifacts,
 } from "./modules/communications/service";
+import type { Actor } from "./modules/identity-access/actor";
 
 const SOURCE_COMMUNICATION_EVENTS = [
   "submission.confirmation_requested",
@@ -83,9 +86,11 @@ export async function processOutboxJob(environment: Env, job: OutboxJob) {
       .where(eq(outboxEvents.id, event.id));
     await claimAndEnqueueOutbox(environment, result?.outboxEventIds);
     return;
-  } else if ((PUBLICATION_EVENTS as readonly string[]).includes(event.eventType)) {
-    // Public reads query canonical state, so publication invalidation currently
-    // has no external cache to purge. Dispatching the receipt remains durable.
+  } else if (event.eventType === "publication.went_live") {
+    await consumePublicationCalendarHandoff(environment, database, event.payload);
+  } else if (event.eventType === "publication.paused") {
+    // Pausing public visibility does not cancel the underlying event sessions.
+    // Public reads query canonical state, so no cache purge is required.
   } else if (event.eventType === "speaker.tasks.requested") {
     await assignExistingTasks(database, arrayOfStrings(event.payload.eventSpeakerIds));
   } else if ((ACCEPTANCE_HANDOFF_EVENTS as readonly string[]).includes(event.eventType)) {
@@ -222,4 +227,49 @@ async function assignExistingTasks(database: ReturnType<typeof createDatabase>, 
   await database.insert(speakerTaskAssignments).values(tasks.flatMap((task) =>
     eventSpeakerIds.map((eventSpeakerId) => ({ taskId: task.id, eventSpeakerId })),
   )).onConflictDoNothing();
+}
+
+async function consumePublicationCalendarHandoff(
+  environment: Env,
+  database: ReturnType<typeof createDatabase>,
+  payload: Record<string, unknown>,
+) {
+  const eventId = stringValue(payload.eventId);
+  const scheduleRevisionId = stringValue(payload.scheduleRevisionId);
+  const publicationId = stringValue(payload.publicationId);
+  const publishedByPersonId = stringValue(payload.publishedByPersonId);
+  const publicRevision = numberValue(payload.publicRevision);
+  if (!environment.BREVO_SENDER_EMAIL) throw new Error("Calendar delivery requires BREVO_SENDER_EMAIL.");
+  const [event] = await database.select({ slug: events.slug, name: events.name }).from(events)
+    .where(eq(events.id, eventId)).limit(1);
+  if (!event) throw new Error("Publication calendar handoff references an unknown event.");
+  const placementRows = await database.select({ id: placements.id }).from(placements)
+    .where(eq(placements.revisionId, scheduleRevisionId));
+  const actor: Actor = {
+    identityId: "publication-calendar-handoff",
+    personId: publishedByPersonId,
+    organizationRoles: [],
+    eventRoles: [{ eventId, role: "organizer" }],
+  };
+  for (const placement of placementRows) {
+    const result = await createPlacementCalendarArtifacts(database, actor, event.slug, {
+      placementId: placement.id,
+      revision: publicRevision,
+      method: "REQUEST",
+      organizer: {
+        name: environment.BREVO_SENDER_NAME ?? event.name,
+        email: environment.BREVO_SENDER_EMAIL,
+      },
+      queueDelivery: true,
+      idempotencyKey: `publication:${publicationId}:placement:${placement.id}:calendar:v${publicRevision}`,
+    });
+    if (result.communication) await claimAndEnqueueOutbox(environment, result.communication.outboxEventIds);
+  }
+}
+
+function numberValue(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    throw new Error("Outbox payload is missing a required revision.");
+  }
+  return value;
 }
