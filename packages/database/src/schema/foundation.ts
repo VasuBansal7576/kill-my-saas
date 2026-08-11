@@ -45,6 +45,40 @@ export const events = pgTable("events", {
   index("events_organization_idx").on(table.organizationId),
 ]);
 
+export const eventTracks = pgTable("event_tracks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventId: uuid("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull(),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex("event_tracks_name_unique").on(table.eventId, table.name),
+  uniqueIndex("event_tracks_order_unique").on(table.eventId, table.sortOrder),
+]);
+
+export const eventFormats = pgTable("event_formats", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventId: uuid("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  durationMinutes: integer("duration_minutes").notNull(),
+  sortOrder: integer("sort_order").notNull(),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex("event_formats_name_unique").on(table.eventId, table.name),
+  uniqueIndex("event_formats_order_unique").on(table.eventId, table.sortOrder),
+]);
+
+export const eventRooms = pgTable("event_rooms", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventId: uuid("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull(),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex("event_rooms_name_unique").on(table.eventId, table.name),
+  uniqueIndex("event_rooms_order_unique").on(table.eventId, table.sortOrder),
+]);
+
 export const people = pgTable("people", {
   id: uuid("id").primaryKey().defaultRandom(),
   stableKey: text("stable_key").notNull(),

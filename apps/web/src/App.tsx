@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
 
 const LoginPage = lazy(async () => ({ default: (await import("./app/LoginPage")).LoginPage }));
+const EventSettingsPage = lazy(async () => ({ default: (await import("./features/event-configuration/EventSettingsPage")).EventSettingsPage }));
 
 const navigation = [
   ["Dashboard", "/organizer/events/devflow-conf-2027/dashboard"],
@@ -57,7 +58,10 @@ function ProductShell() {
         <button type="button">Help</button>
       </header>
       <main>
-        <FoundationPage readiness={readiness} />
+        <Routes>
+          <Route path="/organizer/events/:eventSlug/settings" element={<Suspense fallback={<p className="muted">Loading event settings…</p>}><EventSettingsPage /></Suspense>} />
+          <Route path="*" element={<FoundationPage readiness={readiness} />} />
+        </Routes>
       </main>
     </div>
   );

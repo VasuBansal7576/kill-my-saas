@@ -8,6 +8,13 @@
       "when": 1786470990996,
       "tag": "0000_uneven_cloak",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786471760256,
+      "tag": "0001_small_clea",
+      "breakpoints": true
     }
   ]
 }

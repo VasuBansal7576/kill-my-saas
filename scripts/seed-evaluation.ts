@@ -4,6 +4,9 @@ import { and, eq } from "drizzle-orm";
 import { createToolingDatabase } from "../packages/database/src/tooling-client";
 import {
   eventMemberships,
+  eventFormats,
+  eventRooms,
+  eventTracks,
   events,
   organizationMemberships,
   organizations,
@@ -64,6 +67,33 @@ await database.transaction(async (transaction) => {
       updatedAt: new Date(),
     },
   });
+
+  await transaction.delete(eventTracks).where(eq(eventTracks.eventId, eventId));
+  await transaction.delete(eventFormats).where(eq(eventFormats.eventId, eventId));
+  await transaction.delete(eventRooms).where(eq(eventRooms.eventId, eventId));
+  await transaction.insert(eventTracks).values(fixture.event.tracks.map((name, sortOrder) => ({
+    id: deterministicUuid(`fixture-event:track:${normalizeEmail(name)}`),
+    eventId,
+    name,
+    sortOrder,
+  })));
+  await transaction.insert(eventFormats).values(fixture.event.formats.map((label, sortOrder) => {
+    const match = label.match(/^(.*) \((\d+) min\)$/);
+    if (!match) throw new Error(`Evaluator format is invalid: ${label}`);
+    return {
+      id: deterministicUuid(`fixture-event:format:${normalizeEmail(label)}`),
+      eventId,
+      name: match[1] ?? label,
+      durationMinutes: Number(match[2]),
+      sortOrder,
+    };
+  }));
+  await transaction.insert(eventRooms).values(fixture.event.rooms.map((name, sortOrder) => ({
+    id: deterministicUuid(`fixture-event:room:${normalizeEmail(name)}`),
+    eventId,
+    name,
+    sortOrder,
+  })));
 
   for (const persona of fixture.personas) {
     if (!persona.canonical_person_key) continue;

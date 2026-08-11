@@ -4,8 +4,11 @@ import { secureHeaders } from "hono/secure-headers";
 import type { Env } from "./env";
 import { requestContext } from "./http/middleware/request-context";
 import { proxyAuthRequest } from "./modules/identity-access/auth-proxy";
+import type { ActorContext } from "./modules/identity-access/actor";
+import { resolveActor } from "./modules/identity-access/resolve-actor";
+import { eventConfigurationRoutes } from "./modules/event-configuration/routes";
 
-type WorkerContext = { Bindings: Env };
+type WorkerContext = { Bindings: Env } & ActorContext;
 
 export function createApp() {
   const app = new Hono<WorkerContext>();
@@ -14,6 +17,8 @@ export function createApp() {
   app.use("*", secureHeaders());
 
   app.all("/api/auth/*", proxyAuthRequest);
+  app.use("/api/v1/organizer/*", resolveActor);
+  app.route("/api/v1/organizer/events", eventConfigurationRoutes);
 
   app.get("/api/v1/health/live", (context) =>
     context.json({ status: "ok", service: "programflow" } as const),
