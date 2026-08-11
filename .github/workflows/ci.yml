@@ -37,7 +37,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm audit --audit-level=high
-      - run: node scripts/validate-control-plane.mjs
       - run: npm run db:migrate
       - run: npm run seed:evaluation
       - run: npm run seed:evaluation

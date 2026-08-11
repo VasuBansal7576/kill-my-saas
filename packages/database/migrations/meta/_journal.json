@@ -15,6 +15,13 @@
       "when": 1786471760256,
       "tag": "0001_small_clea",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786472098773,
+      "tag": "0002_misty_sharon_ventura",
+      "breakpoints": true
     }
   ]
 }

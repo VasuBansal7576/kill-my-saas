@@ -1,0 +1,27 @@
+import { index, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { events } from "./foundation";
+import { submissions } from "./forms-submissions";
+import { eventSpeakers } from "./speaker-operations";
+
+export const sessionContentStatus = pgEnum("session_content_status", ["draft", "in_review", "approved"]);
+
+export const sessions = pgTable("sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventId: uuid("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  sourceSubmissionId: uuid("source_submission_id").references(() => submissions.id),
+  title: text("title").notNull(),
+  abstract: text("abstract").notNull().default(""),
+  contentStatus: sessionContentStatus("content_status").notNull().default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("sessions_source_submission_unique").on(table.sourceSubmissionId),
+  index("sessions_event_status_idx").on(table.eventId, table.contentStatus),
+]);
+
+export const sessionSpeakers = pgTable("session_speakers", {
+  sessionId: uuid("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+  eventSpeakerId: uuid("event_speaker_id").notNull().references(() => eventSpeakers.id, { onDelete: "cascade" }),
+  role: text("role").notNull().default("speaker"),
+}, (table) => [primaryKey({ columns: [table.sessionId, table.eventSpeakerId] })]);
+
