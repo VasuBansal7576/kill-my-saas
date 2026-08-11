@@ -82,6 +82,10 @@ const ledgerRequiredIds = ledgerRequiredAreas.flatMap((area) => area.requirement
 const ledgerCrmIds = ledgerCrmAreas.flatMap((area) => area.requirement_ids);
 const ledgerRequiredScenarios = ledgerRequiredAreas.flatMap((area) => area.scenario_ids);
 const ledgerCrmScenarios = ledgerCrmAreas.flatMap((area) => area.scenario_ids);
+const allSpecRubrics = [...requiredRubrics, ...crmRubrics];
+const allSpecIds = allSpecRubrics.map((rubric) => rubric.id);
+const rubricById = Object.fromEntries(allSpecRubrics.map((rubric) => [rubric.id, rubric]));
+const trackingIds = Object.keys(ledger.rubric_item_tracking ?? {});
 
 assert.deepEqual(sorted(requiredScopeIds), sorted(requiredSpecIds), "Required IDs differ between authoritative scope and eval specs");
 assert.deepEqual(sorted(crmScopeIds), sorted(crmSpecIds), "CRM IDs differ between authoritative scope and eval specs");
@@ -91,6 +95,7 @@ assert.deepEqual(sorted(ledgerRequiredScenarios), sorted(requiredScenarioIds), "
 assert.deepEqual(sorted(ledgerCrmScenarios), sorted(crmScenarioIds), "Ledger CRM scenarios differ from eval specs");
 assert.equal(unique(ledgerRequiredIds).length, ledgerRequiredIds.length, "Ledger contains duplicate required rubric IDs");
 assert.equal(unique(ledgerCrmIds).length, ledgerCrmIds.length, "Ledger contains duplicate CRM rubric IDs");
+assert.deepEqual(sorted(trackingIds), sorted(allSpecIds), "Per-item tracking IDs differ from eval specs");
 
 assert.equal(requiredRubrics.length, ledger.release_contract.required_rubric_items);
 assert.equal(requiredRubrics.reduce((sum, rubric) => sum + rubric.weight, 0), ledger.release_contract.required_item_points);
@@ -109,11 +114,56 @@ assert.ok(partialIds.every((id) => manuallyCoveredIds.includes(id)), `Manual gat
 const requiredManualKinds = ["email_delivery", "calendar_files", "reviewer_isolation", "review_export", "ai_assessment", "speaker_isolation", "private_files", "external_embed", "canonical_consistency", "accelevents_sync", "airtable_sync", "reload_persistence", "public_access", "release_traceability", "human_walkthrough"];
 assert.deepEqual(sorted(ledger.manual_gates.map((gate) => gate.evidence_kind)), sorted(requiredManualKinds), "Manual evidence kinds changed or are incomplete");
 
+const allowedStatuses = new Set(ledger.status_values);
+const manualGatesByRubric = Object.fromEntries(allSpecIds.map((id) => [id, ledger.manual_gates.filter((gate) => gate.rubric_ids.includes(id))]));
+for (const [id, item] of Object.entries(ledger.rubric_item_tracking)) {
+  assert.deepEqual(sorted(Object.keys(item)), sorted(["status", "implementation_record", "automated_evidence", "manual_evidence", "blocker"]), `${id} tracking shape changed`);
+  assert.ok(allowedStatuses.has(item.status), `${id} has invalid status ${item.status}`);
+  assert.ok(Array.isArray(item.automated_evidence), `${id} automated_evidence must be an array`);
+  assert.ok(Array.isArray(item.manual_evidence), `${id} manual_evidence must be an array`);
+
+  if (item.status === "not_started") {
+    assert.equal(item.implementation_record, null, `${id} not_started cannot link an implementation record`);
+    assert.equal(item.automated_evidence.length, 0, `${id} not_started cannot claim automated evidence`);
+    assert.equal(item.manual_evidence.length, 0, `${id} not_started cannot claim manual evidence`);
+    assert.equal(item.blocker, null, `${id} not_started cannot claim an external blocker`);
+  }
+  if (["implemented", "verified"].includes(item.status)) {
+    assert.equal(typeof item.implementation_record, "string", `${id} ${item.status} requires an implementation record`);
+    assert.ok(item.implementation_record.trim(), `${id} ${item.status} implementation record is empty`);
+    assert.ok(item.automated_evidence.length > 0, `${id} ${item.status} requires automated evidence`);
+    assert.equal(item.blocker, null, `${id} ${item.status} cannot retain a blocker`);
+  }
+  if (item.status === "verified" && ["manual", "auto-partial"].includes(rubricById[id].testability)) {
+    assert.ok(item.manual_evidence.length > 0, `${id} verified requires manual evidence`);
+    const gates = manualGatesByRubric[id];
+    assert.ok(gates.length > 0, `${id} verified has no applicable manual gate`);
+    assert.ok(gates.every((gate) => gate.status === "verified"), `${id} verified while an applicable manual gate is not verified`);
+    assert.ok(gates.every((gate) => item.manual_evidence.includes(gate.id)), `${id} manual_evidence must reference every applicable verified gate`);
+  }
+  if (item.status === "blocked_external") {
+    assert.equal(typeof item.blocker, "string", `${id} blocked_external requires a blocker record`);
+    assert.ok(item.blocker.trim(), `${id} blocked_external blocker record is empty`);
+  }
+}
+
+function rollupStatus(ids) {
+  const statuses = ids.map((id) => ledger.rubric_item_tracking[id].status);
+  if (statuses.every((status) => status === "verified")) return "verified";
+  if (statuses.every((status) => status === "not_started")) return "not_started";
+  if (statuses.every((status) => status === "blocked_external")) return "blocked_external";
+  return "in_progress";
+}
+for (const area of ledger.rubric_areas) {
+  assert.equal(area.rollup_status, rollupStatus(area.requirement_ids), `${area.prefix} rollup_status is not derived from item tracking`);
+  assert.equal(area.status, undefined, `${area.prefix} must not carry an independently editable status`);
+}
+
 assert.equal(ownership.branch_policy.one_writer_per_worktree, true);
 assert.equal(ownership.branch_policy.draft_pr_required, true);
 assert.equal(ownership.modules.length, 13, "Ownership registry must contain all 13 architecture modules");
 const handoffFields = ownership.structured_handoff.required_fields;
-for (const field of ["requirement_ids", "roles", "persisted_state_before", "persisted_state_after", "downstream_handoffs", "automated_evidence", "manual_evidence", "known_blockers"]) {
+for (const field of ["requirement_ids", "requirement_status_updates", "roles", "persisted_state_before", "persisted_state_after", "downstream_handoffs", "automated_evidence", "manual_evidence", "known_blockers"]) {
   assert.ok(handoffFields.includes(field), `Structured handoff is missing ${field}`);
 }
 
@@ -134,9 +184,19 @@ assert.equal(unique(allPersonEmails.map((email) => email.toLowerCase())).length,
 assert.ok(personas.intentional_duplicate_candidates.some((candidate) => candidate.email === "priya.raman.alt@sbek-test.example.com" && candidate.must_not_be_preseeded_as_alias), "CRM duplicate candidate policy is missing");
 
 const architecture = read(path.join(root, "architecture.md"));
+const context = read(path.join(root, "CONTEXT.md"));
+const agents = read(path.join(root, "AGENTS.md"));
 assert.match(architecture.slice(0, 300), /^status:\s*approved$/m, "architecture.md is not approved");
-assert.match(architecture, /\*\*Status: approved by the user on 2026-08-10\.\*\*/, "architecture approval decision is missing");
-for (const requiredFile of ["AGENTS.md", "README.md", "prototype/kill-my-saas-ui-prototype.html", "Kill My SaaS Research Vault/09 Authoritative Clone Scope.md"]) {
+assert.match(architecture, /\*\*Status: approved by the user on 2026-08-10; corrective amendment authorized on 2026-08-11\.\*\*/, "architecture approval/amendment decision is missing");
+assert.match(architecture.slice(0, 400), /^domain_language_authority:\s*CONTEXT\.md$/m, "architecture.md does not name the domain glossary authority");
+assert.match(architecture, /`Decision` is the sole authority for accepted\/rejected outcome/, "Decision authority correction is missing");
+assert.match(architecture, /`Publication` is the sole authority for public go-live state/, "Publication authority correction is missing");
+assert.doesNotMatch(architecture, /\| Submission \| `draft → submitted → under_review → accepted`/, "Submission still duplicates Decision outcome state");
+assert.doesNotMatch(architecture, /\| Scheduling \| placements, schedule revisions, agenda state/, "Scheduling still owns a duplicate publication state");
+assert.match(context, /\*\*Decision\*\*:[\s\S]*sole authoritative accepted or rejected outcome/, "CONTEXT.md does not define Decision authority");
+assert.match(context, /\*\*Publication\*\*:[\s\S]*sole authoritative event-level state/, "CONTEXT.md does not define Publication authority");
+assert.match(agents, /read `CONTEXT\.md` for canonical domain terms and `architecture\.md` for the approved, amended implementation plan/, "AGENTS.md does not route future work through the amended plan and glossary");
+for (const requiredFile of ["AGENTS.md", "README.md", "CONTEXT.md", "prototype/kill-my-saas-ui-prototype.html", "Kill My SaaS Research Vault/09 Authoritative Clone Scope.md"]) {
   assert.ok(fs.existsSync(path.join(root, requiredFile)), `Missing baseline file: ${requiredFile}`);
 }
 
@@ -147,5 +207,7 @@ console.log(`CRM scenarios/items/points: ${crmScenarioIds.length}/${crmRubrics.l
 console.log(`Named bonus rows: ${bonusTitles.length}`);
 console.log(`Manual/auto-partial rubric IDs covered: ${partialIds.length}`);
 console.log(`Manual release gates: ${ledger.manual_gates.length}`);
+console.log(`Independently tracked rubric items: ${trackingIds.length}`);
+console.log(`Verified rubric items: ${Object.values(ledger.rubric_item_tracking).filter((item) => item.status === "verified").length}`);
 console.log(`Ownership modules: ${ownership.modules.length}`);
 console.log(`Canonical evaluator personas: ${personas.personas.length}`);

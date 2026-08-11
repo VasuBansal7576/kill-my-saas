@@ -4,15 +4,25 @@ status: approved
 product: Kill My SaaS challenge — SessionBoard program-lifecycle clone
 scope_authority: Kill My SaaS Research Vault/09 Authoritative Clone Scope.md
 visual_authority: prototype/kill-my-saas-ui-prototype.html
+domain_language_authority: CONTEXT.md
 decision_date: 2026-08-10
 approved_date: 2026-08-10
+last_amended_date: 2026-08-11
 ---
 
 # ProgramFlow V1 Architecture and Build Plan
 
 This document is the build plan for the complete V1 challenge submission. It turns the product and evaluation contract in `Kill My SaaS Research Vault/09 Authoritative Clone Scope.md` into an implementable system. It does not reduce or replace that scope. If the two documents disagree, `09 Authoritative Clone Scope.md` wins.
 
-The user approved this architecture on 2026-08-10. Any later architecture change must update this document before code depends on it.
+The user approved this architecture on 2026-08-10 and authorized the corrective amendment recorded below on 2026-08-11. Any later architecture change must update this document before code depends on it.
+
+### Corrective amendment — 2026-08-11
+
+- `Decision` is the sole authority for accepted/rejected outcome; submission status shown in UI is a projection, not a second decision field.
+- `Publication` is the sole authority for public go-live state; Scheduling owns placements, revisions, conflicts, and readiness only.
+- Slice 0 now includes bounded provider feasibility spikes, and Slice 2 is an early production-real walking skeleton through the complete lifecycle.
+- Rubric completion is tracked per item with evidence requirements; area rows are planning rollups only.
+- Organizer task, file, resource, publishing, and integration routes are explicitly event-scoped.
 
 ## 1. Product outcome
 
@@ -123,54 +133,7 @@ The application is a **modular monolith**: one repository, one relational databa
 
 ## 5. Domain language
 
-These names are canonical in requirements, database naming, code, routes, and UI copy where suitable.
-
-**Organization**: the durable workspace that owns people, events, integrations, and the cross-event Speaker CRM.  
-_Avoid_: tenant, account, company when referring to the workspace.
-
-**Event**: one conference program with its own dates, timezone, CFP, reviews, speakers, content, schedule, and public program.
-
-**Person**: one human identity record, independent of any event or role. Alternate fixture emails are aliases of the same person when evidence says so.  
-_Avoid_: contact, user, speaker when the role is not intended.
-
-**Identity**: the login credential/session linked to a person. A person may exist before an identity is provisioned.
-
-**Membership**: a person's scoped relationship to an organization or event, carrying one or more roles.
-
-**Speaker Profile**: reusable professional biography, company, title, social links, headshot, logistics, and custom metadata linked to a person.
-
-**Event Speaker**: the event-specific speaker workflow record, including status, invitation state, tasks, and event overrides.
-
-**CFP Form**: a versioned public form definition, its submission window, rules, questions, conditions, routing, and confirmation behavior.
-
-**Submission**: a draft or submitted proposal evaluated before program acceptance.  
-_Avoid_: session after acceptance.
-
-**Participant**: a named author, co-author, or presenter on a submission, optionally linked to a person and identity.
-
-**Review Round**: one independently dated stage with its own scorecard, reviewer pool, assignments, and blind-review policy.
-
-**Review Assignment**: the exclusive link authorizing one reviewer to review one submission in one round.
-
-**Decision**: the organizer's accepted or rejected outcome for a submission, kept separately from review scores and AI advice.
-
-**Session**: accepted or manually entered program content. A session may link back to exactly one accepted submission.
-
-**Task**: an organizer request assigned to one or more event speakers; it may be a general action, form, or file request.
-
-**Deliverable**: the logical file requested by a task/session. Each upload creates an immutable `File Version`.
-
-**Placement**: the scheduled day/time/room for a session. Speaker and room conflicts are derived from placements.
-
-**Publication**: the event-level switch and configuration that exposes eligible canonical program records publicly.
-
-**Communication**: a composed message/template operation; each recipient has a separate delivery record and provider outcome.
-
-**Integration Run**: one observable attempt to synchronize a bounded set of canonical records with an external system.
-
-**CRM Contact**: the organization-level program-sourcing view of a person, including notes, tags, segments, pipeline, and event history. It is not a second person table.
-
-**Evidence Record**: an inspectable link between a requirement, the operation that exercised it, and its artifact/log/test result.
+`CONTEXT.md` is the canonical domain glossary for requirements, database naming, module interfaces, routes, and UI copy. This architecture may explain how those concepts are implemented, but it must not redefine them. In particular, `Submission`/`Decision` and `Schedule Revision`/`Publication` are deliberately separate concepts with one authority each.
 
 ## 6. Core domain model
 
@@ -215,14 +178,14 @@ erDiagram
 
 | Record | Allowed V1 lifecycle |
 |---|---|
-| Submission | `draft → submitted → under_review → accepted` or `rejected`; submitted content is versioned; editing is blocked after CFP close. |
+| Submission | `draft → submitted`; submitted content is versioned, and editing eligibility is derived from the CFP window. `under_review`, `accepted`, and `rejected` are read-model labels derived from assignments and the authoritative `Decision`, never stored as competing submission outcomes. |
 | Review assignment | `assigned → in_progress → submitted`, or `recused`; a submitted response is immutable except an explicit organizer-approved reopen. |
 | Decision | `undecided → accepted/rejected → notified`; changing a final decision is an explicit audited command. |
 | Session content | `draft → in_review → approved`; edits after approval return it to `in_review` unless the edited field is explicitly non-public. |
 | Event speaker | `invited → onboarding → ready`, with `withdrawn` available; readiness is derived from required task completion. |
 | Task assignment | `pending → complete`; `overdue` is derived from due date and completion. |
 | Deliverable | `requested → submitted → changes_requested → submitted → approved`; every upload adds a file version. |
-| Placement | `unscheduled → placed`; conflicts are computed facts, not a user-editable status. |
+| Placement | `unscheduled → placed`; conflicts and schedule readiness are computed facts, not user-editable or publication states. |
 | Publication | `draft → live → paused`; live queries include only approved content with valid placements. |
 | Delivery | `queued → sending → delivered`, `bounced`, or `failed`; retries retain attempt history. |
 | Integration run | `queued → running → succeeded`, `partial`, or `failed`; every item records its external ID or error. |
@@ -241,14 +204,14 @@ Routes never write tables directly. Each domain module owns its tables and prese
 | Program | sessions, session speakers, session content versions, approval state | Accept submission transactionally; manually add/edit/restore/approve session; assign speakers | CFP-15, CNT-09, CNT-11, CNT-12 |
 | Speaker Operations | speaker profiles/profile versions, event speakers, custom fields, tasks/forms/assignments, resources | Manage roster/import; provision portal; update own profile; assign/complete tasks; edit/restore speaker content; publish safe resources | SPK-01–16, CNT-01, CNT-10, CNT-11 plus portal/wiki human requirements |
 | Files & Deliverables | file assets, deliverables, file versions, comments, ZIP/export manifests | Authorize upload/finalize; version; comment; approve; download; aggregate; bulk ZIP | SPK-10, CNT-02–08, CNT-13–14 |
-| Scheduling | placements, schedule revisions, agenda state | Place/move/unplace; detect conflicts; list/day/week/track/room views; auto-place; publish agenda | AIA-01–08 and named agenda views |
+| Scheduling | placements, schedule revisions, computed conflicts and readiness | Place/move/unplace; detect conflicts; list/day/week/track/room views; auto-place; report a publishable revision | AIA-01–06, AIA-08 and named agenda views; hands AIA-07 to Publishing |
 | Communications | templates, campaigns, recipients, deliveries, calendar artifacts | Render merge fields; queue targeted/bulk/reminder email; generate `.ics`; ingest provider outcomes | CFP-08/14, ABS-09, SPK-06/13/14/16, CNT-08 |
-| Publishing | publication settings, widget configurations, attendee itineraries/items | Query one eligible live program; search/filter/details; itinerary; embed/share/export formats | EMB-01–16 |
+| Publishing | publication state/settings, widget configurations, attendee itineraries/items | Validate scheduling/content eligibility; perform the sole go-live/pause transition; query one eligible live program; search/filter/details; itinerary; embed/share/export formats | AIA-07 and EMB-01–16 |
 | Integrations | encrypted configs, mappings, external links, runs/items | Preview and execute idempotent Accelevents/Airtable sync; retry failed items | Accelevents and Airtable human/bonus requirements |
 | Speaker CRM | contact extensions, notes, tags/custom fields, duplicate candidates/merges, segments, pipelines/transitions | Search/filter/import/merge; source through pipeline; push person into event; bulk outreach; metrics | CRM-01–12 |
 | Operations & Evidence | outbox, job attempts, activity feed, evidence records, dashboard projections | Dispatch jobs, recover retries, expose work queue/readiness/analytics, assemble evidence bundle | Dashboard, performance, manual release proof |
 
-The deletion test applies: if a proposed module merely renames a Drizzle query or external SDK call, it does not become a module. True external dependencies—Brevo, Workers AI, Airtable, and Accelevents—have injected ports with real production adapters and controlled test adapters. Internal PostgreSQL access stays private to the owning module rather than exposing repositories across the codebase.
+The deletion test applies: if a proposed module merely renames a Drizzle query or external SDK call, it does not become a module. True external dependencies—Brevo, Workers AI, Airtable, and Accelevents—have injected ports with real production adapters and controlled test adapters. Internal PostgreSQL access stays private to the owning module rather than exposing repositories across the codebase. Scheduling exposes readiness through its module interface; Publishing consumes that interface and owns the only public-state transition, avoiding a coordination layer between duplicate publication flags.
 
 ## 8. Transaction and data rules
 
@@ -278,6 +241,8 @@ One database transaction:
 
 Retrying with the same idempotency key returns the same session and never duplicates speakers or messages.
 
+The accepted/rejected outcome exists only on `Decision`. Organizer and speaker submission lists may display `under_review`, `accepted`, or `rejected`, but those labels are projections derived from review assignments and `Decision`; commands never update a second outcome field on `Submission`.
+
 ### Outbox delivery
 
 The command transaction inserts an `outbox_event`. A queue publisher claims rows with `FOR UPDATE SKIP LOCKED`, publishes them, and marks them dispatched. Queue consumers use the event ID as their idempotency key. Exponential retries end in a visible dead-letter state, never silent loss. Cron republishes old undispatched rows and calculates due task/reviewer reminders.
@@ -294,6 +259,8 @@ The command transaction inserts an `outbox_event`. A queue publisher claims rows
 ### Public consistency
 
 Publication is a gate, not a copied CMS. All five public surfaces call the same `PublishedProgram` query over live event, approved session/speaker content, and current valid placements. Widget configurations add field selection, branding, and filters without copying session data. Public responses use short edge caching with event-revision keys; canonical updates bump the revision and invalidate the old cache. An embed therefore receives current data without being regenerated.
+
+`PublishingModule.publishProgram()` is the sole public go-live command. It asks Scheduling for a specific conflict-free `Schedule Revision`, verifies content eligibility, and advances `Publication` atomically. Agenda UI actions call this command; Scheduling never stores a separate published flag.
 
 ## 9. Authentication, roles, and routes
 
@@ -317,10 +284,10 @@ Roles are additive: one person may be an organizer in one event and speaker or r
 | Event setup | `/organizer/events/:eventSlug/settings` |
 | CFP builder and preview | `/organizer/events/:eventSlug/cfp`, `/cfp/:eventSlug` |
 | Submissions and evaluations | `/organizer/events/:eventSlug/submissions`, `/organizer/events/:eventSlug/evaluations` |
-| Speakers, tasks, files | `/organizer/events/:eventSlug/speakers`, `/tasks`, `/files` |
+| Speakers, tasks, files | `/organizer/events/:eventSlug/speakers`, `/organizer/events/:eventSlug/tasks`, `/organizer/events/:eventSlug/files` |
 | Agenda | `/organizer/events/:eventSlug/agenda` |
-| Communications/resources | `/organizer/events/:eventSlug/communications`, `/resources` |
-| Publishing/integrations | `/organizer/events/:eventSlug/publish`, `/integrations/accelevents`, `/integrations/airtable` |
+| Communications/resources | `/organizer/events/:eventSlug/communications`, `/organizer/events/:eventSlug/resources` |
+| Publishing/integrations | `/organizer/events/:eventSlug/publish`, `/organizer/events/:eventSlug/integrations/accelevents`, `/organizer/events/:eventSlug/integrations/airtable` |
 | Speaker CRM | `/organizer/speaker-crm` |
 | Speaker portal | `/speaker`, `/speaker/events/:eventSlug/*` |
 | Reviewer portal | `/reviewer`, `/reviewer/rounds/:roundId` |
@@ -431,6 +398,7 @@ CRM reuses `Person` and `Speaker Profile`; it does not fork event speakers into 
 /
 ├── AGENTS.md
 ├── architecture.md
+├── CONTEXT.md                      # canonical product/domain language
 ├── apps/
 │   ├── web/                         # React SPA, routes, feature workspaces
 │   │   └── src/
@@ -484,7 +452,7 @@ Backend modules are folders inside the Worker until a genuine reuse/deployment s
 - The evaluation environment contains `DevFlow Conf 2027`, exact dates/location/tracks/formats, filled public content, and usable organizer, speaker, second speaker, and reviewer credentials.
 - Jordan Alvarez, Priya Raman, Sam Whitfield, and fixture CSV/scenario email variants map through `person_email_aliases` to canonical people. Aliases never grant a role; memberships do.
 - Password credentials are delivered in submission/evaluator configuration, not displayed publicly in the application.
-- Each Playwright scenario can reset to a named database snapshot or use a run-scoped organization while preserving the required within-run state chain.
+- Focused Playwright scenarios may reset to a named database snapshot or use a run-scoped organization for diagnosis. The release suite must also execute the evaluator's complete ordered cross-area chain against one run-scoped organization without resetting between areas, so CFP-to-public handoffs cannot be masked by scenario seeds.
 
 ## 15. Test and evidence strategy
 
@@ -601,13 +569,14 @@ Launch services stay within free allowances: Cloudflare Worker/Static Assets/Que
 
 Each slice must be merged only after its real database transition, role boundary, downstream handoff, and evidence pass. A slice may establish UI needed by later work but cannot claim later requirements early.
 
-### Slice 0 — Foundation and deployable skeleton
+### Slice 0 — Foundation, deployable skeleton, and provider feasibility gates
 
-- **Scope:** workspace, strict TypeScript, React/Hono, design tokens, database/migrations, Neon Auth, role middleware, R2 bindings, outbox/queue, structured logs, CI, preview/evaluation deploy.
+- **Scope:** workspace, strict TypeScript, React/Hono, design tokens, database/migrations, Neon Auth, role middleware, R2 bindings, outbox/queue, structured logs, CI, preview/evaluation deploy; bounded feasibility harnesses for every release-critical external dependency.
 - **Roles:** organizer, speaker, reviewer, anonymous route shells.
 - **Persisted transition:** create organization, event, people, memberships, aliases, provider configuration.
 - **Handoff:** every later slice uses the same identity, transaction, job, evidence, and deployment foundation.
-- **Proof:** migration-from-empty, four-role access matrix, static/protected/public route smoke, deployed health check.
+- **Provider gates:** prove seeded/password evaluator identities can be provisioned; a transactional outbox row can be claimed and delivered through Queue; a signed R2 upload/finalize/download round trip works; Brevo accepts a send and reports an outcome; Workers AI returns the required result shape; Airtable can round-trip a namespaced augmentation field; and current Accelevents documentation, credentials, writable objects, and stable-ID update semantics are available. A missing external credential becomes an explicit `blocked_external` record before dependent feature work, not a surprise in Slice 12.
+- **Proof:** migration-from-empty, four-role access matrix, static/protected/public route smoke, deployed health check, and dated provider-feasibility records. Harnesses may use isolated test accounts but cannot claim a rubric item or remain as parallel production implementations.
 
 ### Slice 1 — Event setup and evaluator seed
 
@@ -617,26 +586,27 @@ Each slice must be merged only after its real database transition, role boundary
 - **Handoff:** catalogs drive CFP, review routing, schedule, public program, integrations.
 - **Proof:** reload, timezone/date validation, exact DevFlow fixture seed, public branding round-trip.
 
-### Slice 2 — CFP builder and anonymous form
+### Slice 2 — Production-real golden-path walking skeleton
 
-- **IDs:** CFP-01, CFP-02, CFP-03, CFP-04.
-- **Human additions:** abstract/session target, welcome/instructions/success copy, participant labels/min/max, close window, submission limits, draft policy, category routing.
-- **Roles:** organizer → anonymous attendee/speaker.
-- **Persisted transition:** draft form → immutable published version → closed state.
-- **Handoff:** published form version becomes submission validation authority and routing input.
-- **Proof:** builder/public/closed Playwright chain, server validation and condition parity tests.
+- **IDs completed by the narrow path:** CFP-03, CFP-05, CFP-06, CFP-10, CFP-11, CFP-12, CFP-13, CFP-15, CNT-12, AIA-03, AIA-07, EMB-01. Later slices deepen and regression-test these behaviors; they do not introduce alternative paths.
+- **Human requirement advanced but not yet verified:** HUM-01 program-side lifecycle.
+- **Roles:** organizer → speaker → reviewer → organizer → speaker → anonymous attendee.
+- **Persisted transition:** configured event/minimal CFP → submitted proposal → explicit review assignment and response → authoritative decision → distinct linked session/event speaker → approved content → placement → `Publication` live → public session card.
+- **Handoff:** crosses the real database and the external seams already proven in Slice 0, establishing one narrow interface through every core module before feature depth is added.
+- **Proof:** one serial Playwright test with role changes and reloads, module-interface tests for acceptance/idempotency/authorization, and a final logged-out public read from the same canonical record. No mock, static seed substitution, or reset is allowed inside this chain.
 
-### Slice 3 — Speaker identity, drafts, submissions, and confirmation
+### Slice 3 — Complete CFP builder, drafts, submissions, and confirmation
 
-- **IDs:** CFP-05, CFP-06, CFP-07, CFP-08, CFP-09, CFP-16, ABS-11.
+- **IDs:** CFP-01, CFP-02, CFP-04, CFP-07, CFP-08, CFP-09, CFP-16, ABS-11; regression coverage for CFP-03, CFP-05, and CFP-06 from Slice 2.
+- **Human additions:** abstract/session target, welcome/instructions/success copy, participant labels/min/max, close window, submission limits, multiple drafts, draft reminders, manual entry, and category routing.
 - **Roles:** speaker → organizer.
-- **Persisted transition:** account/person → draft → submitted/versioned → edited while open; co-author links retained.
-- **Handoff:** organizer inbox and review eligibility; confirmation outbox → real Brevo delivery.
-- **Proof:** stateful cross-role E2E, reload/resume, after-close denial, email evidence.
+- **Persisted transition:** draft form → immutable published version; account/person → draft → submitted/versioned → edited while open; co-author links retained; closed form blocks creation and editing.
+- **Handoff:** organizer inbox and review eligibility; published form version remains server validation/routing authority; confirmation outbox → real Brevo delivery.
+- **Proof:** builder/public/closed chain, server/client condition parity, stateful cross-role E2E, reload/resume, after-close denial, and email evidence.
 
 ### Slice 4 — Review plans, assignment, isolated scoring, AI advice, and exports
 
-- **IDs:** CFP-10, CFP-11; ABS-01 through ABS-14.
+- **IDs:** ABS-01 through ABS-14; regression coverage for CFP-10 and CFP-11 from Slice 2.
 - **Roles:** organizer, reviewer, second reviewer.
 - **Persisted transition:** plan/round/scorecard/pool → assignments → response/recusal → weighted results; AI assessment → human override.
 - **Handoff:** aggregate results feed decisions; reminders feed Communications.
@@ -644,9 +614,9 @@ Each slice must be merged only after its real database transition, role boundary
 
 ### Slice 5 — Decisions and accepted-program handoff
 
-- **IDs:** CFP-12, CFP-13, CFP-14, CFP-15.
+- **IDs:** CFP-14 plus hardening/regression coverage for CFP-12, CFP-13, and CFP-15 from Slice 2.
 - **Roles:** organizer → speaker.
-- **Persisted transition:** undecided submission → accepted/rejected decision; accepted transaction creates linked session/event speakers; notification queued/delivered.
+- **Persisted transition:** no decision exists → accepted/rejected `Decision`; accepted transaction creates linked session/event speakers; notification queued/delivered. Submission-list outcome labels are derived from `Decision` and are never written separately.
 - **Handoff:** Program, Speaker Operations, Communications, Scheduling, and integrations receive canonical links.
 - **Proof:** idempotent acceptance integration test, cross-role status E2E, real accept/reject delivery evidence.
 
@@ -680,15 +650,15 @@ Each slice must be merged only after its real database transition, role boundary
 - **IDs:** AIA-01 through AIA-08.
 - **Human additions:** list, day, week, track, and room views.
 - **Roles:** organizer.
-- **Persisted transition:** unscheduled session → placed/moved; conflicts appear/clear; auto-place result; agenda draft → live.
-- **Handoff:** Publishing and calendar delivery read current placements.
+- **Persisted transition:** unscheduled session → placed/moved in a `Schedule Revision`; conflicts appear/clear; auto-place result; Publishing advances the sole `Publication` from draft to live for an eligible revision.
+- **Handoff:** Scheduling reports readiness; Publishing owns go-live; calendar delivery reads the selected live revision's current placements.
 - **Proof:** reload persistence, room/speaker overlap tests, keyboard/click and drag placement, one-action assist, all five views.
 
 ### Slice 10 — Public program, itinerary, and embeds
 
 - **IDs:** EMB-01 through EMB-16.
 - **Roles:** anonymous attendee; organizer embed administrator.
-- **Persisted transition:** publication/configuration → live eligible query; anonymous itinerary selections persist; embed configuration versions persist.
+- **Persisted transition:** existing live `Publication` gains complete widget/configuration behavior; anonymous itinerary selections persist; embed configuration versions persist. No second go-live state is introduced.
 - **Handoff:** website embeds and exports read the same canonical program.
 - **Proof:** all five logged-out surfaces, search/filter/detail/day behavior, reload itinerary, calendar parser, external-origin interactive embed, JSON/XML/iCal validation, consistency report.
 
@@ -732,6 +702,8 @@ Each slice must be merged only after its real database transition, role boundary
 - **Handoff:** final deployed environment and evidence bundle.
 - **Proof:** 20-scenario serial run, live provider smoke tests, migration/restore rehearsal, manual evidence manifest, Lighthouse/axe/security budgets, source/deployment submission checklist.
 
+### Execution across agent threads
+
 ## 19. Definition of done
 
 A task is done only when its implementation record states:
@@ -745,6 +717,8 @@ A task is done only when its implementation record states:
 7. manual evidence where a browser cannot prove the outcome;
 8. locked-design route/workspace affected;
 9. migration, observability, accessibility, and performance impact.
+
+The implementation record must update every claimed ID in `docs/requirements/v1-ledger.json` independently. An area's planning row cannot be marked complete and cannot stand in for per-item status or evidence. `implemented` requires a linked implementation record and automated evidence; `verified` additionally requires every applicable manual gate to be verified.
 
 The V1 release gate additionally requires:
 
@@ -760,7 +734,7 @@ The V1 release gate additionally requires:
 
 ## 20. Known external dependencies and failure policy
 
-These do not change the architecture, but they must be resolved before their slice can be called complete:
+These do not change the architecture, but Slice 0 must resolve their feasibility or record an explicit external blocker before dependent feature implementation begins. A feasibility pass proves access and protocol shape; it does not satisfy the later feature or live-evidence gate.
 
 | Dependency | Needed from outside the codebase | Failure policy |
 |---|---|---|
@@ -773,7 +747,7 @@ These do not change the architecture, but they must be resolved before their sli
 
 ## 21. Approval decision
 
-**Status: approved by the user on 2026-08-10.** Wave 0 control-plane work may proceed; feature behavior remains governed by the vertical-slice gates and requirement evidence rules above.
+**Status: approved by the user on 2026-08-10; corrective amendment authorized on 2026-08-11.** Wave 0 control-plane work may proceed; feature behavior remains governed by the amended vertical-slice gates and per-item evidence rules above.
 
 Approving this document approves the following pre-coding gate as one package:
 

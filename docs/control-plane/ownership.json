@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "purpose": "Define exclusive change ownership and machine-checkable handoff content for isolated worktree PRs.",
   "authority": "architecture.md#7-deep-modules-and-ownership",
   "branch_policy": {
@@ -15,6 +15,7 @@
     "Do not edit another active PR's owned paths; request a structured handoff or sequence the work.",
     "Changes to shared hotspots require an explicit shared-owner handoff in the PR description.",
     "Do not mark an ID verified until persistence, authorization, downstream handoff and evidence all pass.",
+    "Update rubric_item_tracking for every claimed rubric ID; area rollups are derived and may not be edited as a substitute.",
     "Production behavior may not select mock, demo or in-memory adapters.",
     "V2 work is blocked while any V1 contract or release proof is incomplete unless the user reprioritizes."
   ],
@@ -34,9 +35,9 @@
     {"id": "program", "name": "Program", "future_path": "apps/worker/src/modules/program", "owns": ["sessions", "session speakers", "session content versions", "approval state"], "downstream": ["speaker-operations", "scheduling", "publishing", "integrations"]},
     {"id": "speaker-operations", "name": "Speaker Operations", "future_path": "apps/worker/src/modules/speaker-operations", "owns": ["speaker profiles and versions", "event speakers", "custom fields", "tasks", "task forms", "task assignments", "resources"], "downstream": ["files-deliverables", "publishing", "communications"]},
     {"id": "files-deliverables", "name": "Files & Deliverables", "future_path": "apps/worker/src/modules/files-deliverables", "owns": ["file assets", "deliverables", "file versions", "comments", "ZIP and export manifests"], "downstream": ["speaker-operations", "program", "operations-evidence"]},
-    {"id": "scheduling", "name": "Scheduling", "future_path": "apps/worker/src/modules/scheduling", "owns": ["placements", "schedule revisions", "agenda state", "computed conflicts"], "downstream": ["publishing", "communications", "integrations"]},
+    {"id": "scheduling", "name": "Scheduling", "future_path": "apps/worker/src/modules/scheduling", "owns": ["placements", "schedule revisions", "computed conflicts", "publication readiness"], "downstream": ["publishing", "communications", "integrations"]},
     {"id": "communications", "name": "Communications", "future_path": "apps/worker/src/modules/communications", "owns": ["templates", "campaigns", "recipients", "deliveries", "calendar artifacts"], "downstream": ["email provider", "operations-evidence"]},
-    {"id": "publishing", "name": "Publishing", "future_path": "apps/worker/src/modules/publishing", "owns": ["publication settings", "widget configurations", "attendee itineraries and items"], "downstream": ["public web", "embed and data consumers"]},
+    {"id": "publishing", "name": "Publishing", "future_path": "apps/worker/src/modules/publishing", "owns": ["publication state and settings", "widget configurations", "attendee itineraries and items"], "downstream": ["public web", "embed and data consumers"]},
     {"id": "integrations", "name": "Integrations", "future_path": "apps/worker/src/modules/integrations", "owns": ["encrypted integration configs", "mappings", "external links", "integration runs and items"], "downstream": ["Accelevents", "Airtable", "operations-evidence"]},
     {"id": "speaker-crm", "name": "Speaker CRM", "future_path": "apps/worker/src/modules/speaker-crm", "owns": ["CRM contact extensions", "notes", "tags", "custom fields", "duplicate candidates", "merges", "segments", "pipelines and transitions"], "downstream": ["speaker-operations", "communications"]},
     {"id": "operations-evidence", "name": "Operations & Evidence", "future_path": "apps/worker/src/modules/operations-evidence", "owns": ["outbox", "job attempts", "activity feed", "evidence records", "dashboard projections"], "downstream": ["release evidence bundle"]}
@@ -49,6 +50,7 @@
       "primary_module",
       "owned_paths",
       "requirement_ids",
+      "requirement_status_updates",
       "scenario_ids",
       "roles",
       "persisted_state_before",
