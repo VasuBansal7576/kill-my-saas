@@ -1,7 +1,8 @@
 import type { ReadinessResponse } from "@programflow/contracts";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
-import { LoginPage } from "./app/LoginPage";
+
+const LoginPage = lazy(async () => ({ default: (await import("./app/LoginPage")).LoginPage }));
 
 const navigation = [
   ["Dashboard", "/organizer/events/devflow-conf-2027/dashboard"],
@@ -17,7 +18,7 @@ const navigation = [
 export function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login" element={<Suspense fallback={<div className="login-page">Loading sign in…</div>}><LoginPage /></Suspense>} />
       <Route path="*" element={<ProductShell />} />
     </Routes>
   );

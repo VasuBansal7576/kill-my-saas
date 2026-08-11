@@ -8,4 +8,5 @@ export interface Env {
   GIT_COMMIT_SHA?: string;
   JOBS: Queue;
   NEON_AUTH_BASE_URL?: string;
+  NEON_AUTH_COOKIE_SECRET?: string;
 }

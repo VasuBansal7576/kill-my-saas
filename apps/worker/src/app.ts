@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import type { Env } from "./env";
 import { requestContext } from "./http/middleware/request-context";
+import { proxyAuthRequest } from "./modules/identity-access/auth-proxy";
 
 type WorkerContext = { Bindings: Env };
 
@@ -12,6 +13,8 @@ export function createApp() {
   app.use("*", requestContext);
   app.use("*", secureHeaders());
 
+  app.all("/api/auth/*", proxyAuthRequest);
+
   app.get("/api/v1/health/live", (context) =>
     context.json({ status: "ok", service: "programflow" } as const),
   );
@@ -19,7 +22,7 @@ export function createApp() {
   app.get("/api/v1/health/ready", (context) => {
     const dependencies = {
       database: status(Boolean(context.env.DATABASE_URL), "Neon PostgreSQL connection"),
-      auth: status(Boolean(context.env.NEON_AUTH_BASE_URL), "Neon Auth endpoint"),
+      auth: status(Boolean(context.env.NEON_AUTH_BASE_URL && context.env.NEON_AUTH_COOKIE_SECRET), "Neon Auth endpoint and cookie signing"),
       email: status(Boolean(context.env.BREVO_API_KEY), "Brevo transactional email"),
       files: status(Boolean(context.env.FILES), "Cloudflare R2 binding"),
       queue: status(Boolean(context.env.JOBS), "Cloudflare Queue binding"),
@@ -75,4 +78,3 @@ function status(configured: boolean, dependency: string) {
     detail: configured ? `${dependency} is configured` : `${dependency} needs configuration`,
   };
 }
-

@@ -11,11 +11,6 @@ export function LoginPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!authClient) {
-      setError("Neon Auth is not configured for this environment.");
-      return;
-    }
-
     setSubmitting(true);
     setError(null);
     const result = await authClient.signIn.email({ email, password });
@@ -44,4 +39,3 @@ export function LoginPage() {
     </main>
   );
 }
-
