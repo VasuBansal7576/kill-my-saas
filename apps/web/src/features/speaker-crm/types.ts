@@ -53,6 +53,7 @@ export interface CrmMetrics {
 export interface CrmOutreachHandoff {
   requestId: string;
   organizationId: string;
+  eventId: string;
   recipientPersonIds: string[];
   recipientSnapshot: Array<{ contactId: string; personId: string; displayName: string; email: string }>;
   idempotencyKey: string;

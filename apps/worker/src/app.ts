@@ -31,6 +31,9 @@ import {
   speakerOperationsPortalRoutes,
 } from "./modules/speaker-operations";
 import { schedulingOrganizerRoutes } from "./modules/scheduling";
+import { integrationsOrganizerRoutes } from "./modules/integrations";
+import { publishingOrganizerRoutes, publishingPublicRoutes } from "./modules/publishing";
+import { speakerCrmRoutes } from "./modules/speaker-crm";
 
 type WorkerContext = { Bindings: Env } & ActorContext;
 
@@ -69,11 +72,15 @@ export function createApp() {
   app.route("/api/v1/organizer", filesDeliverablesOrganizerRoutes);
   app.route("/api/v1/organizer", communicationsOrganizerRoutes);
   app.route("/api/v1/organizer", schedulingOrganizerRoutes);
+  app.route("/api/v1/organizer", integrationsOrganizerRoutes);
+  app.route("/api/v1/organizer", publishingOrganizerRoutes);
+  app.route("/api/v1/organizer", speakerCrmRoutes);
   app.route("/api/v1/reviewer/events", createReviewerReviewsDecisionsRoutes());
   app.route("/api/v1/speaker", speakerFormsSubmissionsRoutes);
   app.route("/api/v1/speaker", speakerOperationsPortalRoutes);
   app.route("/api/v1/speaker", filesDeliverablesSpeakerRoutes);
   app.route("/api/v1/public/cfp", publicFormsSubmissionsRoutes);
+  app.route("/api/v1/public/program", publishingPublicRoutes);
   app.route("/api/v1/providers/webhooks", communicationsProviderRoutes);
 
   app.get("/api/v1/health/live", (context) =>

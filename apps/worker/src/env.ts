@@ -1,5 +1,6 @@
 export interface Env {
   AI?: Ai;
+  AIRTABLE_TOKEN?: string;
   APP_ENV: "local" | "preview" | "evaluation" | "production";
   ASSETS: Fetcher;
   BREVO_API_KEY?: string;

@@ -17,7 +17,7 @@ import {
   airtableRecordLinks,
   airtableSyncItems,
   airtableSyncRuns,
-} from "../../../../../packages/database/src/schema/integrations";
+} from "@programflow/database";
 import type {
   AirtableConfigurationRecord,
   AirtableEntity,

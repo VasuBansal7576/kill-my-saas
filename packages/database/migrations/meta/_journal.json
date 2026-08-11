@@ -36,6 +36,13 @@
       "when": 1786475744751,
       "tag": "0004_tan_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786477608349,
+      "tag": "0005_jittery_tinkerer",
+      "breakpoints": true
     }
   ]
 }

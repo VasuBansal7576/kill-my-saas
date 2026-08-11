@@ -1,6 +1,6 @@
 import type { ReadinessResponse } from "@programflow/contracts";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { NavLink, Route, Routes } from "react-router-dom";
+import { NavLink, Route, Routes, useParams } from "react-router-dom";
 
 const LoginPage = lazy(async () => ({ default: (await import("./app/LoginPage")).LoginPage }));
 const EventSettingsPage = lazy(async () => ({ default: (await import("./features/event-configuration/EventSettingsPage")).EventSettingsPage }));
@@ -18,6 +18,14 @@ const OrganizerFilesPage = lazy(async () => ({ default: (await import("./feature
 const SpeakerFilesPage = lazy(async () => ({ default: (await import("./features/files-deliverables")).SpeakerFilesPage }));
 const CommunicationsPage = lazy(async () => ({ default: (await import("./features/communications")).CommunicationsPage }));
 const AgendaPage = lazy(async () => ({ default: (await import("./features/scheduling")).AgendaPage }));
+const SpeakerCrmPage = lazy(async () => ({ default: (await import("./features/speaker-crm")).SpeakerCrmPage }));
+const AirtableIntegrationPage = lazy(async () => ({ default: (await import("./features/integrations")).AirtableIntegrationPage }));
+const PublishProgramPage = lazy(async () => ({ default: (await import("./features/public-program")).PublishProgramPage }));
+const PublicSessionsPage = lazy(async () => ({ default: (await import("./features/public-program")).PublicSessionsPage }));
+const PublicSpeakersPage = lazy(async () => ({ default: (await import("./features/public-program")).PublicSpeakersPage }));
+const PublicAgendaPage = lazy(async () => ({ default: (await import("./features/public-program")).PublicAgendaPage }));
+const PublicItineraryPage = lazy(async () => ({ default: (await import("./features/public-program")).PublicItineraryPage }));
+const PublicSpeakerGalleryPage = lazy(async () => ({ default: (await import("./features/public-program")).PublicSpeakerGalleryPage }));
 
 const navigation = [
   ["Dashboard", "/organizer/events/devflow-conf-2027/dashboard"],
@@ -30,6 +38,8 @@ const navigation = [
   ["Communications", "/organizer/events/devflow-conf-2027/communications"],
   ["Agenda", "/organizer/events/devflow-conf-2027/agenda"],
   ["Publish", "/organizer/events/devflow-conf-2027/publish"],
+  ["Speaker CRM", "/organizer/organizations/314a7cef-1e90-4413-80cd-6e1cd0212cdd/speaker-crm"],
+  ["Integrations", "/organizer/events/devflow-conf-2027/integrations/airtable"],
 ] as const;
 
 export function App() {
@@ -41,6 +51,11 @@ export function App() {
       <Route path="/speaker/events/:eventSlug/submissions" element={<StandalonePage><SpeakerSubmissionsPage /></StandalonePage>} />
       <Route path="/speaker/events/:eventSlug/files" element={<StandalonePage><SpeakerFilesPage /></StandalonePage>} />
       <Route path="/speaker/events/:eventSlug" element={<StandalonePage><SpeakerPortalPage /></StandalonePage>} />
+      <Route path="/program/:eventSlug/sessions" element={<StandalonePage><PublicSessionsPage /></StandalonePage>} />
+      <Route path="/program/:eventSlug/speakers" element={<StandalonePage><PublicSpeakersPage /></StandalonePage>} />
+      <Route path="/program/:eventSlug/agenda" element={<StandalonePage><PublicAgendaPage /></StandalonePage>} />
+      <Route path="/program/:eventSlug/itinerary" element={<StandalonePage><PublicItineraryPage /></StandalonePage>} />
+      <Route path="/program/:eventSlug/speaker-gallery" element={<StandalonePage><PublicSpeakerGalleryPage /></StandalonePage>} />
       <Route path="*" element={<ProductShell />} />
     </Routes>
   );
@@ -94,11 +109,19 @@ function ProductShell() {
           <Route path="/organizer/events/:eventSlug/files" element={<Suspense fallback={<p className="muted">Loading files…</p>}><OrganizerFilesPage /></Suspense>} />
           <Route path="/organizer/events/:eventSlug/communications" element={<Suspense fallback={<p className="muted">Loading communications…</p>}><CommunicationsPage /></Suspense>} />
           <Route path="/organizer/events/:eventSlug/agenda" element={<Suspense fallback={<p className="muted">Loading agenda…</p>}><AgendaPage /></Suspense>} />
+          <Route path="/organizer/events/:eventSlug/publish" element={<Suspense fallback={<p className="muted">Loading publishing…</p>}><PublishProgramPage /></Suspense>} />
+          <Route path="/organizer/events/:eventSlug/integrations/airtable" element={<Suspense fallback={<p className="muted">Loading Airtable…</p>}><AirtableIntegrationPage /></Suspense>} />
+          <Route path="/organizer/organizations/:organizationId/speaker-crm" element={<Suspense fallback={<p className="muted">Loading speaker CRM…</p>}><SpeakerCrmRoute /></Suspense>} />
           <Route path="*" element={<FoundationPage readiness={readiness} />} />
         </Routes>
       </main>
     </div>
   );
+}
+
+function SpeakerCrmRoute() {
+  const { organizationId = "" } = useParams();
+  return <SpeakerCrmPage organizationId={organizationId} />;
 }
 
 function FoundationPage({ readiness }: { readiness: ReadinessResponse | null }) {

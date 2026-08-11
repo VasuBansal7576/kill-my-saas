@@ -51,6 +51,7 @@ export const MoveCrmPipelineContactSchema = z.object({
   note: z.string().trim().max(2_000).default(""),
 });
 export const CreateCrmOutreachHandoffSchema = z.object({
+  eventId: z.uuid(),
   name: z.string().trim().min(1).max(160),
   contactIds: z.array(z.uuid()).min(1).max(1_000).transform((ids) => [...new Set(ids)]),
   subjectTemplate: z.string().trim().min(1).max(998),

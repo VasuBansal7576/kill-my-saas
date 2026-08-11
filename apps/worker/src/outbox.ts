@@ -1,8 +1,8 @@
-import { createDatabase, outboxEvents } from "@programflow/database";
+import { createDatabase, crmOutreachRequests, outboxEvents } from "@programflow/database";
 import { and, eq, inArray, lte, sql } from "drizzle-orm";
 import type { Env } from "./env";
 import { BrevoEmailAdapter } from "./modules/communications/brevo-adapter";
-import { consumeCommunicationOutboxEvent, dispatchDelivery } from "./modules/communications/service";
+import { consumeCommunicationOutboxEvent, dispatchDelivery, queueCommunication } from "./modules/communications/service";
 
 const SOURCE_COMMUNICATION_EVENTS = [
   "submission.confirmation_requested",
@@ -12,7 +12,8 @@ const SOURCE_COMMUNICATION_EVENTS = [
   "speaker.portal-invitation.requested",
 ] as const;
 
-const SUPPORTED_EVENTS = ["communication.delivery_requested", ...SOURCE_COMMUNICATION_EVENTS] as const;
+const PUBLICATION_EVENTS = ["publication.went_live", "publication.paused"] as const;
+const SUPPORTED_EVENTS = ["communication.delivery_requested", ...SOURCE_COMMUNICATION_EVENTS, ...PUBLICATION_EVENTS] as const;
 
 export interface OutboxJob {
   outboxEventId: string;
@@ -68,6 +69,9 @@ export async function processOutboxJob(environment: Env, job: OutboxJob) {
       .where(eq(outboxEvents.id, event.id));
     await claimAndEnqueueOutbox(environment, result?.outboxEventIds);
     return;
+  } else if ((PUBLICATION_EVENTS as readonly string[]).includes(event.eventType)) {
+    // Public reads query canonical state, so publication invalidation currently
+    // has no external cache to purge. Dispatching the receipt remains durable.
   } else {
     throw new Error(`Unsupported outbox event: ${event.eventType}`);
   }
@@ -85,6 +89,55 @@ export async function markOutboxFailed(environment: Env, outboxEventId: string, 
     lastError: error instanceof Error ? error.message : "Outbox processing failed.",
     updatedAt: new Date(),
   }).where(eq(outboxEvents.id, outboxEventId));
+}
+
+export async function consumeCrmOutreachHandoffs(environment: Env) {
+  if (!environment.DATABASE_URL) return { consumed: 0, failed: 0 };
+  const database = createDatabase(environment.DATABASE_URL);
+  const requests = await database.select().from(crmOutreachRequests)
+    .where(eq(crmOutreachRequests.status, "pending_handoff")).limit(50);
+  let consumed = 0;
+  let failed = 0;
+  for (const request of requests) {
+    try {
+      const result = await queueCommunication(database, {
+        command: {
+          eventId: request.eventId,
+          kind: "campaign",
+          recipientPersonIds: request.recipientSnapshot.map((recipient) => recipient.personId),
+          subjectTemplate: request.subjectTemplate,
+          htmlTemplate: request.htmlTemplate,
+          textTemplate: request.textTemplate,
+          mergeDataByPersonId: {},
+          idempotencyKey: `crm-outreach-communication:${request.id}`,
+        },
+        name: request.name,
+        requestedByPersonId: request.requestedByPersonId,
+        audienceSnapshot: {
+          source: "speaker_crm",
+          outreachRequestId: request.id,
+          selectedContactIds: request.selectedContactIds,
+          recipients: request.recipientSnapshot,
+        },
+      });
+      await database.update(crmOutreachRequests).set({
+        status: "consumed",
+        consumedCommunicationId: result.communicationId,
+        failureMessage: null,
+        updatedAt: new Date(),
+      }).where(eq(crmOutreachRequests.id, request.id));
+      await claimAndEnqueueOutbox(environment, result.outboxEventIds);
+      consumed += 1;
+    } catch (error) {
+      await database.update(crmOutreachRequests).set({
+        status: "failed",
+        failureMessage: error instanceof Error ? error.message : "Communications rejected the CRM handoff.",
+        updatedAt: new Date(),
+      }).where(eq(crmOutreachRequests.id, request.id));
+      failed += 1;
+    }
+  }
+  return { consumed, failed };
 }
 
 export function parseOutboxJob(value: unknown): OutboxJob {

@@ -139,6 +139,7 @@ export const crmEventSpeakerHandoffs = pgTable("crm_event_speaker_handoffs", {
 export const crmOutreachRequests = pgTable("crm_outreach_requests", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  eventId: uuid("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   subjectTemplate: text("subject_template").notNull(),
   htmlTemplate: text("html_template").notNull(),

@@ -14,7 +14,7 @@ import {
   crmPipelineStageTransitions,
   crmPipelines,
   crmSavedSegments,
-} from "../../../../../packages/database/src/schema/speaker-crm";
+} from "@programflow/database";
 import type { Actor } from "../identity-access/actor";
 import {
   createCrmOutreachHandoff,
@@ -110,7 +110,7 @@ integration("organization Speaker CRM persisted round trip", () => {
     expect((await getCrmContact(database, actor, ids.organization, primaryContactId)).eventHistory[0]?.eventName).toBe("CRM Event");
 
     const outreach = await createCrmOutreachHandoff(database, actor, ids.organization, {
-      name: "Invite AI speakers", contactIds: [primaryContactId], subjectTemplate: "Hello {{recipient_name}}", htmlTemplate: "<p>Invitation</p>", textTemplate: "Invitation", idempotencyKey: `crm-outreach:${crypto.randomUUID()}`,
+      name: "Invite AI speakers", eventId: ids.event, contactIds: [primaryContactId], subjectTemplate: "Hello {{recipient_name}}", htmlTemplate: "<p>Invitation</p>", textTemplate: "Invitation", idempotencyKey: `crm-outreach:${crypto.randomUUID()}`,
     });
     expect(outreach.recipientPersonIds).toEqual([handoff.personId]);
     expect((await getCrmMetrics(database, actor, ids.organization))).toMatchObject({ totalContacts: 2, representedEvents: 1, pipelineWon: 1, pendingOutreachHandoffs: 1 });

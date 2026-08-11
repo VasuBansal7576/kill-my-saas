@@ -22,7 +22,7 @@ import {
   crmPipelineStageTransitions,
   crmPipelines,
   crmSavedSegments,
-} from "../../../../../packages/database/src/schema/speaker-crm";
+} from "@programflow/database";
 import type { Actor } from "../identity-access/actor";
 import type {
   CreateCrmContact,
@@ -88,6 +88,7 @@ export interface CrmPipelineBoard {
 export interface CrmOutreachHandoffRequest {
   requestId: string;
   organizationId: string;
+  eventId: string;
   recipientPersonIds: string[];
   recipientSnapshot: Array<{ contactId: string; personId: string; displayName: string; email: string }>;
   message: { name: string; subjectTemplate: string; htmlTemplate: string; textTemplate: string };
@@ -385,9 +386,12 @@ export async function createCrmOutreachHandoff(database: Database, actor: Actor,
   return database.transaction(async (transaction) => {
     const [prior] = await transaction.select().from(crmOutreachRequests).where(eq(crmOutreachRequests.idempotencyKey, input.idempotencyKey)).limit(1);
     if (prior) {
-      if (prior.organizationId !== organizationId || prior.subjectTemplate !== input.subjectTemplate || !sameIds(prior.selectedContactIds, input.contactIds)) throw new SpeakerCrmError("conflict", "That outreach key was already used for a different message or audience.");
+      if (prior.organizationId !== organizationId || prior.eventId !== input.eventId || prior.subjectTemplate !== input.subjectTemplate || !sameIds(prior.selectedContactIds, input.contactIds)) throw new SpeakerCrmError("conflict", "That outreach key was already used for a different event, message, or audience.");
       return outreachResult(prior, true);
     }
+    const [targetEvent] = await transaction.select({ id: events.id }).from(events)
+      .where(and(eq(events.id, input.eventId), eq(events.organizationId, organizationId))).limit(1);
+    if (!targetEvent) throw new SpeakerCrmError("event_not_found", "Choose an event owned by this organization for the outreach handoff.");
     const recipients = await transaction.select({ contactId: crmContacts.id, personId: people.id, displayName: people.displayName, email: people.canonicalEmail })
       .from(crmContacts).innerJoin(people, eq(people.id, crmContacts.personId)).where(and(eq(crmContacts.organizationId, organizationId), inArray(crmContacts.id, input.contactIds), isNull(crmContacts.mergedIntoContactId)));
     if (recipients.length !== input.contactIds.length) throw new SpeakerCrmError("contact_not_found", "Every outreach recipient must be an active contact in this organization.");
@@ -395,6 +399,7 @@ export async function createCrmOutreachHandoff(database: Database, actor: Actor,
     const snapshot = recipients.map((recipient) => ({ ...recipient, email: recipient.email! }));
     const [request] = await transaction.insert(crmOutreachRequests).values({
       organizationId,
+      eventId: targetEvent.id,
       name: input.name,
       subjectTemplate: input.subjectTemplate,
       htmlTemplate: input.htmlTemplate,
@@ -548,4 +553,4 @@ function uniqueStrings(values: string[]) { return [...new Set(values.map((value)
 function sameIds(left: string[], right: string[]) { return left.length === right.length && left.every((id) => right.includes(id)); }
 function countValues(values: string[]) { const counts = new Map<string, number>(); for (const value of values.filter(Boolean)) counts.set(value, (counts.get(value) ?? 0) + 1); return counts; }
 function topCounts(values: Map<string, number>, limit: number) { return [...values].map(([label, count]) => ({ label, count })).sort((left, right) => right.count - left.count || left.label.localeCompare(right.label)).slice(0, limit); }
-function outreachResult(request: typeof crmOutreachRequests.$inferSelect, idempotent: boolean): CrmOutreachHandoffRequest { return { requestId: request.id, organizationId: request.organizationId, recipientPersonIds: request.recipientSnapshot.map((recipient) => recipient.personId), recipientSnapshot: request.recipientSnapshot, message: { name: request.name, subjectTemplate: request.subjectTemplate, htmlTemplate: request.htmlTemplate, textTemplate: request.textTemplate }, idempotencyKey: request.idempotencyKey, idempotent }; }
+function outreachResult(request: typeof crmOutreachRequests.$inferSelect, idempotent: boolean): CrmOutreachHandoffRequest { return { requestId: request.id, organizationId: request.organizationId, eventId: request.eventId, recipientPersonIds: request.recipientSnapshot.map((recipient) => recipient.personId), recipientSnapshot: request.recipientSnapshot, message: { name: request.name, subjectTemplate: request.subjectTemplate, htmlTemplate: request.htmlTemplate, textTemplate: request.textTemplate }, idempotencyKey: request.idempotencyKey, idempotent }; }
