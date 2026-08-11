@@ -25,9 +25,15 @@ export function SpeakerSubmissionsPage() {
       <div className="speaker-proposal-grid">
         {submissions.map((submission) => (
           <article className="cfp-panel" key={submission.id}>
-            <div className="section-head"><span className={`submission-state ${submission.state}`}>{submission.state}</span><time dateTime={submission.updatedAt}>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(submission.updatedAt))}</time></div>
+            <div className="section-head"><span className={`submission-state ${submission.decision ?? submission.state}`}>{submission.decision ?? submission.state}</span><time dateTime={submission.updatedAt}>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(submission.updatedAt))}</time></div>
             <h2>{submission.title}</h2>
-            <p>{submission.state === "draft" ? "Continue completing this proposal before the call closes." : "Your proposal is recorded and ready for the review workflow."}</p>
+            <p>{submission.decision === "accepted"
+              ? "Your proposal was accepted. Continue to speaker onboarding and session preparation."
+              : submission.decision === "rejected"
+                ? "Your proposal was not selected for this program. The recorded decision remains visible here."
+                : submission.state === "draft"
+                  ? "Continue completing this proposal before the call closes."
+                  : "Your proposal is recorded and ready for the review workflow."}</p>
             <Link to={`/cfp/${eventSlug}?submission=${submission.id}`}>{submission.state === "draft" ? "Resume draft" : "View or edit proposal"} →</Link>
           </article>
         ))}

@@ -1,6 +1,7 @@
 import {
   cfpForms,
   cfpFormVersions,
+  decisions,
   eventFormats,
   eventTracks,
   events,
@@ -107,6 +108,7 @@ export type SubmissionRecord = {
   submitterPersonId: string | null;
   title: string;
   state: "draft" | "submitted";
+  decision: "accepted" | "rejected" | null;
   routingKey: string | null;
   version: number;
   answers: Record<string, unknown>;
@@ -514,28 +516,37 @@ async function listSubmissionRecords(database: Database, where: SQL<unknown>): P
   if (roots.length === 0) return [];
   const ids = roots.map((root) => root.id);
   const formVersionIds = [...new Set(roots.map((root) => root.formVersionId))];
-  const [versions, participants, formVersions] = await Promise.all([
+  const [versions, participants, formVersions, decisionRows] = await Promise.all([
     database.select().from(submissionVersions).where(inArray(submissionVersions.submissionId, ids)),
     database.select().from(submissionParticipants).where(inArray(submissionParticipants.submissionId, ids)).orderBy(asc(submissionParticipants.sortOrder)),
     database.select({ id: cfpFormVersions.id, version: cfpFormVersions.version }).from(cfpFormVersions).where(inArray(cfpFormVersions.id, formVersionIds)),
+    database.select({ submissionId: decisions.submissionId, outcome: decisions.outcome }).from(decisions)
+      .where(inArray(decisions.submissionId, ids)),
   ]);
   return roots.map((root) => {
     const current = versions.find((version) => version.submissionId === root.id && version.version === root.currentVersion);
     if (!current) throw new Error(`Submission ${root.id} has no current version.`);
-    return toSubmissionRecord(root, current, participants.filter((participant) => participant.submissionId === root.id), formVersions.find((version) => version.id === root.formVersionId)?.version ?? 0);
+    return toSubmissionRecord(
+      root,
+      current,
+      participants.filter((participant) => participant.submissionId === root.id),
+      formVersions.find((version) => version.id === root.formVersionId)?.version ?? 0,
+      decisionRows.find((decision) => decision.submissionId === root.id)?.outcome ?? null,
+    );
   });
 }
 
 async function requireSubmissionRecord(database: Database, id: string): Promise<SubmissionRecord> {
   const [root] = await database.select().from(submissions).where(eq(submissions.id, id)).limit(1);
   if (!root) throw new FormsSubmissionsError("submission_not_found", "Submission not found.");
-  const [current, participants, formVersion] = await Promise.all([
+  const [current, participants, formVersion, decision] = await Promise.all([
     database.select().from(submissionVersions).where(and(eq(submissionVersions.submissionId, root.id), eq(submissionVersions.version, root.currentVersion))).limit(1),
     database.select().from(submissionParticipants).where(eq(submissionParticipants.submissionId, root.id)).orderBy(asc(submissionParticipants.sortOrder)),
     requireFormVersion(database, root.formVersionId),
+    database.select({ outcome: decisions.outcome }).from(decisions).where(eq(decisions.submissionId, root.id)).limit(1),
   ]);
   if (!current[0]) throw new Error(`Submission ${root.id} has no current version.`);
-  return toSubmissionRecord(root, current[0], participants, formVersion.version);
+  return toSubmissionRecord(root, current[0], participants, formVersion.version, decision[0]?.outcome ?? null);
 }
 
 function toSubmissionRecord(
@@ -543,6 +554,7 @@ function toSubmissionRecord(
   current: typeof submissionVersions.$inferSelect,
   participants: Array<typeof submissionParticipants.$inferSelect>,
   formVersion: number,
+  decision: "accepted" | "rejected" | null,
 ): SubmissionRecord {
   return {
     id: root.id,
@@ -552,6 +564,7 @@ function toSubmissionRecord(
     submitterPersonId: root.submitterPersonId,
     title: current.title,
     state: root.state,
+    decision,
     routingKey: root.routingKey,
     version: current.version,
     answers: current.answers,

@@ -77,6 +77,7 @@ export type SubmissionRecord = {
   formVersion: number;
   title: string;
   state: "draft" | "submitted";
+  decision: "accepted" | "rejected" | null;
   routingKey: string | null;
   version: number;
   answers: Record<string, unknown>;
