@@ -66,7 +66,10 @@ function encodeEntry(entry: ZipEntry) {
 export function safePath(value: string): string {
   return value.normalize("NFKC").replaceAll("\\", "/").split("/")
     .filter((part) => part && part !== "." && part !== "..")
-    .map((part) => part.replace(/[\u0000-\u001f<>:"|?*]/g, "_").slice(0, 120))
+    .map((part) => [...part].map((character) => {
+      const code = character.charCodeAt(0);
+      return code < 32 || '<>:"|?*'.includes(character) ? "_" : character;
+    }).join("").slice(0, 120))
     .join("/") || "file";
 }
 

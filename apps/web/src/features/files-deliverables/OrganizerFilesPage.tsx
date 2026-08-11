@@ -25,7 +25,17 @@ export function OrganizerFilesPage() {
     ]);
     setDeliverables(files); setSpeakers(roster); setExports(exportRows);
   }, [eventSlug]);
-  useEffect(() => { void load().catch(showError(setMessage)); }, [load]);
+  useEffect(() => {
+    Promise.all([
+      requestJson<Deliverable[]>(`/api/v1/organizer/events/${eventSlug}/files`),
+      requestJson<SpeakerChoice[]>(`/api/v1/organizer/events/${eventSlug}/speakers?taskStatus=all&search=`),
+      requestJson<FileExport[]>(`/api/v1/organizer/events/${eventSlug}/file-exports`),
+    ]).then(([files, roster, exportRows]) => {
+      setDeliverables(files);
+      setSpeakers(roster);
+      setExports(exportRows);
+    }).catch(showError(setMessage));
+  }, [eventSlug]);
 
   const visible = useMemo(() => deliverables.filter((row) => filter === "all" || (filter === "overdue" ? row.status === "pending" && Boolean(row.dueAt && new Date(row.dueAt) < new Date()) : row.status === filter)), [deliverables, filter]);
   const active = deliverables.find((row) => row.id === selected) ?? null;

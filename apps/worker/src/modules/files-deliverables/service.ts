@@ -74,12 +74,14 @@ export interface DeliverableRow {
 }
 
 interface FileRequestConfiguration {
+  [key: string]: unknown;
   acceptedMediaTypes: string[];
   maxByteSize: number;
   handoff: "session_file" | "speaker_headshot";
 }
 
 interface BundleManifest {
+  [key: string]: unknown;
   format: "programflow.files.v1";
   grouping: "session" | "speaker" | "flat";
   generatedAt: string;
@@ -190,7 +192,7 @@ export async function requestUpload(database: Database, actor: Actor, commandVal
   const storageKey = `events/${command.eventId}/quarantine/${authorizationId}`;
   const expiresAt = new Date(Date.now() + 15 * 60_000);
   const status = storage.configured ? "authorized" : "blocked_external";
-  const [created] = await database.transaction(async (transaction) => {
+  const created = await database.transaction(async (transaction) => {
     const [file] = await transaction.insert(fileObjects).values({
       eventId: command.eventId,
       ownerPersonId: assignment.personId,
@@ -288,8 +290,10 @@ export async function finalizeUpload(database: Database, actor: Actor, authoriza
       actorPersonId: actor.personId,
       reason: version === 1 ? "First verified upload" : `Verified upload v${version}`,
     });
-    await transaction.update(speakerTaskAssignments).set({ status: "complete", completedAt: new Date(), updatedAt: new Date() })
-      .where(eq(speakerTaskAssignments.id, authorization.taskAssignmentId));
+    if (authorization.taskAssignmentId) {
+      await transaction.update(speakerTaskAssignments).set({ status: "complete", completedAt: new Date(), updatedAt: new Date() })
+        .where(eq(speakerTaskAssignments.id, authorization.taskAssignmentId));
+    }
     if (authorization.handoff === "speaker_headshot") {
       const [profile] = await transaction.select().from(speakerProfiles).where(eq(speakerProfiles.personId, authorization.ownerPersonId)).limit(1);
       if (profile) {
@@ -595,7 +599,13 @@ async function loadDeliverables(database: Database, eventId: string, speakerPers
       versions: versionRows.filter((version) => version.deliverableId === row.id).map((version) => ({
         ...version,
         latest: version.version === row.latestVersion,
-        comments: commentRows.filter((comment) => comment.versionId === version.id).map(({ versionId: _versionId, ...comment }) => comment),
+        comments: commentRows.filter((comment) => comment.versionId === version.id).map((comment) => ({
+          id: comment.id,
+          authorPersonId: comment.authorPersonId,
+          authorName: comment.authorName,
+          body: comment.body,
+          createdAt: comment.createdAt,
+        })),
       })),
     };
   });

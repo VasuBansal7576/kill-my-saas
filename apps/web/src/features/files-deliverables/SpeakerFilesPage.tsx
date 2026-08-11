@@ -10,7 +10,11 @@ export function SpeakerFilesPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const load = useCallback(async () => setDeliverables(await requestJson(`/api/v1/speaker/events/${eventSlug}/files`)), [eventSlug]);
-  useEffect(() => { void load().catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Your files could not be loaded.")); }, [load]);
+  useEffect(() => {
+    requestJson<Deliverable[]>(`/api/v1/speaker/events/${eventSlug}/files`)
+      .then(setDeliverables)
+      .catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Your files could not be loaded."));
+  }, [eventSlug]);
 
   async function upload(row: Deliverable, file: File) {
     setBusy(row.id);
