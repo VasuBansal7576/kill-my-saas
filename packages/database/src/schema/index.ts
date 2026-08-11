@@ -2,6 +2,7 @@ export * from "./foundation";
 export * from "./communications";
 export * from "./files-deliverables";
 export * from "./forms-submissions";
+export * from "./integrations";
 export * from "./reviews-decisions";
 export * from "./speaker-operations";
 export * from "./speaker-crm";
