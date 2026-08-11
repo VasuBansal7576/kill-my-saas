@@ -221,8 +221,8 @@ function widgetWithUrls(
   widget: Awaited<ReturnType<typeof saveWidgetConfiguration>>,
 ) {
   const origin = new URL(context.req.url).origin;
-  const surface = widget.widgetType === "speaker_gallery" ? "gallery" : widget.widgetType;
-  const publicUrl = `${origin}/events/${encodeURIComponent(eventSlug)}/${surface}`;
+  const surface = widget.widgetType === "speaker_gallery" ? "speaker-gallery" : widget.widgetType;
+  const publicUrl = `${origin}/program/${encodeURIComponent(eventSlug)}/${surface}`;
   const base = `${origin}/api/v1/public/program/${encodeURIComponent(eventSlug)}/embeds/${encodeURIComponent(widget.slug)}`;
   const styledUrl = `${base}/styled`;
   return {

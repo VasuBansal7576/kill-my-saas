@@ -120,7 +120,7 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
     </header>
 
     <nav className="public-program-nav" aria-label="Public program views">
-      {surfaces.map((item) => <Link key={item.key} className={surface === item.key ? "active" : ""} aria-current={surface === item.key ? "page" : undefined} to={`/events/${eventSlug}/${item.key}`}>{item.label}</Link>)}
+      {surfaces.map((item) => <Link key={item.key} className={surface === item.key ? "active" : ""} aria-current={surface === item.key ? "page" : undefined} to={`/program/${eventSlug}/${item.key === "gallery" ? "speaker-gallery" : item.key}`}>{item.label}</Link>)}
     </nav>
 
     <main className="public-program-main">

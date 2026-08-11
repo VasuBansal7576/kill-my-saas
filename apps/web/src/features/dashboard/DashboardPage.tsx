@@ -13,9 +13,13 @@ export function DashboardPage() {
 
   useEffect(() => {
     let active = true;
-    setError(null);
     void loadDashboard(eventSlug)
-      .then((result) => { if (active) setDashboard(result); })
+      .then((result) => {
+        if (active) {
+          setError(null);
+          setDashboard(result);
+        }
+      })
       .catch((caught: unknown) => { if (active) setError(caught instanceof Error ? caught.message : "The dashboard could not be loaded."); });
     return () => { active = false; };
   }, [eventSlug]);

@@ -78,7 +78,15 @@ async function run(
   operation: (program: PublishedProgram) => Promise<unknown>,
 ) {
   try {
-    const program = await dependencies.loadPublishedProgram(context.env, context.req.param("eventSlug"));
+    const eventSlug = context.req.param("eventSlug");
+    if (!eventSlug) {
+      return context.json(
+        { error: { code: "event_not_found", message: "Event not found." } },
+        404,
+        noStoreHeaders(),
+      );
+    }
+    const program = await dependencies.loadPublishedProgram(context.env, eventSlug);
     return cachedJson(context, await operation(program), "public, max-age=30, stale-while-revalidate=60");
   } catch (error) {
     return publicApiError(context, error);

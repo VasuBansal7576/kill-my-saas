@@ -26,6 +26,8 @@ const PublicSpeakersPage = lazy(async () => ({ default: (await import("./feature
 const PublicAgendaPage = lazy(async () => ({ default: (await import("./features/public-program")).PublicAgendaPage }));
 const PublicItineraryPage = lazy(async () => ({ default: (await import("./features/public-program")).PublicItineraryPage }));
 const PublicSpeakerGalleryPage = lazy(async () => ({ default: (await import("./features/public-program")).PublicSpeakerGalleryPage }));
+const DashboardPage = lazy(async () => ({ default: (await import("./features/dashboard")).DashboardPage }));
+const DeveloperApiPage = lazy(async () => ({ default: (await import("./features/api-docs")).DeveloperApiPage }));
 
 const navigation = [
   ["Dashboard", "/organizer/events/devflow-conf-2027/dashboard"],
@@ -40,6 +42,7 @@ const navigation = [
   ["Publish", "/organizer/events/devflow-conf-2027/publish"],
   ["Speaker CRM", "/organizer/organizations/314a7cef-1e90-4413-80cd-6e1cd0212cdd/speaker-crm"],
   ["Integrations", "/organizer/events/devflow-conf-2027/integrations/airtable"],
+  ["API", "/organizer/events/devflow-conf-2027/api"],
 ] as const;
 
 export function App() {
@@ -99,6 +102,7 @@ function ProductShell() {
       </header>
       <main>
         <Routes>
+          <Route path="/organizer/events/:eventSlug/dashboard" element={<Suspense fallback={<p className="muted">Loading dashboard…</p>}><DashboardPage /></Suspense>} />
           <Route path="/organizer/events/:eventSlug/settings" element={<Suspense fallback={<p className="muted">Loading event settings…</p>}><EventSettingsPage /></Suspense>} />
           <Route path="/organizer/events/:eventSlug/cfp" element={<Suspense fallback={<p className="muted">Loading CFP builder…</p>}><CfpBuilderPage /></Suspense>} />
           <Route path="/organizer/events/:eventSlug/submissions" element={<Suspense fallback={<p className="muted">Loading submissions…</p>}><SubmissionsPage /></Suspense>} />
@@ -111,6 +115,7 @@ function ProductShell() {
           <Route path="/organizer/events/:eventSlug/agenda" element={<Suspense fallback={<p className="muted">Loading agenda…</p>}><AgendaPage /></Suspense>} />
           <Route path="/organizer/events/:eventSlug/publish" element={<Suspense fallback={<p className="muted">Loading publishing…</p>}><PublishProgramPage /></Suspense>} />
           <Route path="/organizer/events/:eventSlug/integrations/airtable" element={<Suspense fallback={<p className="muted">Loading Airtable…</p>}><AirtableIntegrationPage /></Suspense>} />
+          <Route path="/organizer/events/:eventSlug/api" element={<Suspense fallback={<p className="muted">Loading API documentation…</p>}><DeveloperApiPage /></Suspense>} />
           <Route path="/organizer/organizations/:organizationId/speaker-crm" element={<Suspense fallback={<p className="muted">Loading speaker CRM…</p>}><SpeakerCrmRoute /></Suspense>} />
           <Route path="*" element={<FoundationPage readiness={readiness} />} />
         </Routes>

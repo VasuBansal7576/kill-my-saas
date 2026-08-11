@@ -34,6 +34,8 @@ import { schedulingOrganizerRoutes } from "./modules/scheduling";
 import { integrationsOrganizerRoutes } from "./modules/integrations";
 import { publishingOrganizerRoutes, publishingPublicRoutes } from "./modules/publishing";
 import { speakerCrmRoutes } from "./modules/speaker-crm";
+import { dashboardOrganizerRoutes } from "./modules/dashboard";
+import { publicApiRoutes } from "./modules/public-api";
 
 type WorkerContext = { Bindings: Env } & ActorContext;
 
@@ -75,6 +77,7 @@ export function createApp() {
   app.route("/api/v1/organizer", integrationsOrganizerRoutes);
   app.route("/api/v1/organizer", publishingOrganizerRoutes);
   app.route("/api/v1/organizer", speakerCrmRoutes);
+  app.route("/api/v1/organizer", dashboardOrganizerRoutes);
   app.route("/api/v1/reviewer/events", createReviewerReviewsDecisionsRoutes());
   app.route("/api/v1/speaker", speakerFormsSubmissionsRoutes);
   app.route("/api/v1/speaker", speakerOperationsPortalRoutes);
@@ -82,6 +85,7 @@ export function createApp() {
   app.route("/api/v1/public/cfp", publicFormsSubmissionsRoutes);
   app.route("/api/v1/public/program", publishingPublicRoutes);
   app.route("/api/v1/providers/webhooks", communicationsProviderRoutes);
+  app.route("/api/v1", publicApiRoutes);
 
   app.get("/api/v1/health/live", (context) =>
     context.json({ status: "ok", service: "programflow" } as const),
