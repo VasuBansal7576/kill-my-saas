@@ -1,5 +1,6 @@
 import { ReadinessResponseSchema, type ReadinessResponse } from "@programflow/contracts";
-import { createDatabase } from "@programflow/database";
+import { createDatabase, events } from "@programflow/database";
+import { inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import type { Env } from "./env";
@@ -51,6 +52,30 @@ export function createApp() {
   app.use("/api/v1/organizer/*", resolveActor);
   app.use("/api/v1/reviewer/*", resolveActor);
   app.use("/api/v1/speaker/*", resolveActor);
+  app.use("/api/v1/session", resolveActor);
+  app.get("/api/v1/session", async (context) => {
+    const actor = context.get("actor");
+    const database = createDatabase(context.env.DATABASE_URL!);
+    const eventIds = [...new Set(actor.eventRoles.map((grant) => grant.eventId))];
+    const eventRows = eventIds.length
+      ? await database.select({ id: events.id, slug: events.slug, name: events.name }).from(events).where(inArray(events.id, eventIds))
+      : [];
+    const eventMemberships = eventRows.map((event) => ({
+      ...event,
+      roles: actor.eventRoles.filter((grant) => grant.eventId === event.id).map((grant) => grant.role),
+    }));
+    const organizerEvent = eventMemberships.find((event) => event.roles.includes("organizer"));
+    const reviewerEvent = eventMemberships.find((event) => event.roles.includes("reviewer"));
+    const speakerEvent = eventMemberships.find((event) => event.roles.includes("speaker"));
+    const recommendedPath = organizerEvent
+      ? `/organizer/events/${organizerEvent.slug}/dashboard`
+      : reviewerEvent
+        ? `/reviewer/events/${reviewerEvent.slug}/reviews`
+        : speakerEvent
+          ? `/speaker/events/${speakerEvent.slug}`
+          : "/";
+    return context.json({ personId: actor.personId, eventMemberships, recommendedPath });
+  });
   app.route("/api/v1/organizer/events", eventConfigurationRoutes);
   app.route("/api/v1/organizer/events", organizerFormsSubmissionsRoutes);
   app.route("/api/v1/organizer/events", createOrganizerReviewsDecisionsRoutes({

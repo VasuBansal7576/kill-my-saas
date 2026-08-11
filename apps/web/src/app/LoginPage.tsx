@@ -7,7 +7,7 @@ export function LoginPage() {
   const [searchParams] = useSearchParams();
   const signingUp = searchParams.get("mode") === "signup";
   const eventSlug = searchParams.get("event") ?? "devflow-conf-2027";
-  const next = searchParams.get("next") ?? (signingUp ? `/cfp/${eventSlug}` : "/organizer/events/devflow-conf-2027/dashboard");
+  const next = searchParams.get("next") ?? (signingUp ? `/cfp/${eventSlug}` : null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,7 +26,17 @@ export function LoginPage() {
       setError(result.error.message ?? (signingUp ? "Account creation failed." : "Sign in failed."));
       return;
     }
-    navigate(next, { replace: true });
+    if (next) {
+      navigate(next, { replace: true });
+      return;
+    }
+    const session = await fetch("/api/v1/session");
+    if (!session.ok) {
+      setError("Signed in, but ProgramFlow could not resolve an event role for this account.");
+      return;
+    }
+    const landing = await session.json() as { recommendedPath: string };
+    navigate(landing.recommendedPath, { replace: true });
   }
 
   return (
@@ -44,8 +54,8 @@ export function LoginPage() {
           <button type="submit" disabled={submitting}>{submitting ? (signingUp ? "Creating account…" : "Signing in…") : (signingUp ? "Create account" : "Sign in")}</button>
         </form>
         <p>{signingUp
-          ? <>Already have an account? <Link to={`/login?event=${encodeURIComponent(eventSlug)}&next=${encodeURIComponent(next)}`}>Sign in</Link></>
-          : <>Submitting a proposal? <Link to={`/login?mode=signup&event=${encodeURIComponent(eventSlug)}&next=${encodeURIComponent(next)}`}>Create a speaker account</Link></>}
+          ? <>Already have an account? <Link to={`/login?event=${encodeURIComponent(eventSlug)}`}>Sign in</Link></>
+          : <>Submitting a proposal? <Link to={`/login?mode=signup&event=${encodeURIComponent(eventSlug)}&next=${encodeURIComponent(`/cfp/${eventSlug}`)}`}>Create a speaker account</Link></>}
         </p>
       </section>
     </main>

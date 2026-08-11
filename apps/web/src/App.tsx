@@ -1,6 +1,6 @@
 import type { ReadinessResponse } from "@programflow/contracts";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { NavLink, Route, Routes, useParams } from "react-router-dom";
+import { NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 const LoginPage = lazy(async () => ({ default: (await import("./app/LoginPage")).LoginPage }));
 const EventSettingsPage = lazy(async () => ({ default: (await import("./features/event-configuration/EventSettingsPage")).EventSettingsPage }));
@@ -52,10 +52,10 @@ export function App() {
     <Routes>
       <Route path="/login" element={<Suspense fallback={<div className="login-page">Loading sign in…</div>}><LoginPage /></Suspense>} />
       <Route path="/cfp/:eventSlug" element={<StandalonePage><PublicCfpPage /></StandalonePage>} />
-      <Route path="/reviewer/events/:eventSlug/reviews" element={<StandalonePage><ReviewerQueuePage /></StandalonePage>} />
-      <Route path="/speaker/events/:eventSlug/submissions" element={<StandalonePage><SpeakerSubmissionsPage /></StandalonePage>} />
-      <Route path="/speaker/events/:eventSlug/files" element={<StandalonePage><SpeakerFilesPage /></StandalonePage>} />
-      <Route path="/speaker/events/:eventSlug" element={<StandalonePage><SpeakerPortalPage /></StandalonePage>} />
+      <Route path="/reviewer/events/:eventSlug/reviews" element={<RolePage label="Reviewer workspace"><ReviewerQueuePage /></RolePage>} />
+      <Route path="/speaker/events/:eventSlug/submissions" element={<RolePage label="Speaker submissions"><SpeakerSubmissionsPage /></RolePage>} />
+      <Route path="/speaker/events/:eventSlug/files" element={<RolePage label="Speaker files"><SpeakerFilesPage /></RolePage>} />
+      <Route path="/speaker/events/:eventSlug" element={<RolePage label="Speaker workspace"><SpeakerPortalPage /></RolePage>} />
       <Route path="/program/:eventSlug/sessions" element={<StandalonePage><PublicSessionsPage /></StandalonePage>} />
       <Route path="/program/:eventSlug/speakers" element={<StandalonePage><PublicSpeakersPage /></StandalonePage>} />
       <Route path="/program/:eventSlug/agenda" element={<StandalonePage><PublicAgendaPage /></StandalonePage>} />
@@ -68,6 +68,10 @@ export function App() {
 
 function StandalonePage({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<p className="muted">Loading ProgramFlow…</p>}>{children}</Suspense>;
+}
+
+function RolePage({ children, label }: { children: React.ReactNode; label: string }) {
+  return <div className="role-page"><header className="role-topbar"><div className="brand"><span>PF</span>ProgramFlow</div><strong>{label}</strong><SignOutButton /></header><StandalonePage>{children}</StandalonePage></div>;
 }
 
 function ProductShell() {
@@ -101,6 +105,7 @@ function ProductShell() {
         <span>DevFlow Conf 2027</span>
         <div className="command">Search or jump to… <kbd>⌘ K</kbd></div>
         <button type="button">Help</button>
+        <SignOutButton />
       </header>
       <main>
         <Routes>
@@ -125,6 +130,17 @@ function ProductShell() {
       </main>
     </div>
   );
+}
+
+function SignOutButton() {
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  return <button type="button" disabled={busy} onClick={() => {
+    setBusy(true);
+    void import("./app/auth-client")
+      .then(({ authClient }) => authClient.signOut())
+      .finally(() => navigate("/login", { replace: true }));
+  }}>{busy ? "Signing out…" : "Sign out"}</button>;
 }
 
 function SpeakerCrmRoute() {
