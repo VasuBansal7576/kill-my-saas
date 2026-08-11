@@ -6,6 +6,7 @@ import "./reviews-decisions.css";
 import "./scorecard-editor.css";
 
 type Tab = "rounds" | "assignments" | "results" | "ai";
+type ResultSort = "none" | "desc" | "asc";
 type DraftRound = {
   key: string;
   name: string;
@@ -34,6 +35,7 @@ export function ReviewsDecisionsPage() {
   const [decisionTarget, setDecisionTarget] = useState<string | null>(null);
   const [decisionReason, setDecisionReason] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [resultSort, setResultSort] = useState<ResultSort>("none");
 
   const reload = useCallback(async () => {
     try {
@@ -62,6 +64,15 @@ export function ReviewsDecisionsPage() {
   const assignmentSubmissions = workspace?.submissions.filter((submission) =>
     !activeRound?.routingKeys.length || (submission.routingKey !== null && activeRound.routingKeys.includes(submission.routingKey)),
   ) ?? [];
+  const sortedResults = useMemo(() => {
+    const results = [...(workspace?.results ?? [])];
+    if (resultSort === "none") return results;
+    return results.sort((left, right) => {
+      const leftScore = left.aggregateScore ?? Number.NEGATIVE_INFINITY;
+      const rightScore = right.aggregateScore ?? Number.NEGATIVE_INFINITY;
+      return resultSort === "desc" ? rightScore - leftScore : leftScore - rightScore;
+    });
+  }, [resultSort, workspace]);
 
   async function createPlan() {
     setBusy(true);
@@ -213,7 +224,7 @@ export function ReviewsDecisionsPage() {
         {(["rounds", "assignments", "results", "ai"] as const).map((value) => <button key={value} className={tab === value ? "active" : ""} onClick={() => setTab(value)}>{value === "ai" ? "AI advice" : capitalize(value)}</button>)}
       </div>
 
-      {tab === "rounds" ? <RoundsPanel plans={workspace.plans} busy={busy} remind={(roundId) => void remindOutstanding(roundId)} /> : null}
+      {tab === "rounds" ? <RoundsPanel eventSlug={eventSlug} plans={workspace.plans} busy={busy} remind={(roundId) => void remindOutstanding(roundId)} /> : null}
       {tab === "assignments" ? (
         <section className="rd-panel">
           <div className="rd-panel-head"><div><h2>Conflict-aware distribution</h2><p>Every proposal is assigned only to a reviewer in this round’s pool with capacity and no declared conflict.</p></div><button className="primary-action" disabled={busy || !activeAssignmentRoundId || selectedSubmissions.length === 0} onClick={() => void distribute()}>Assign selected</button></div>
@@ -225,8 +236,8 @@ export function ReviewsDecisionsPage() {
       ) : null}
       {tab === "results" ? (
         <section className="rd-panel">
-          <div className="rd-panel-head"><div><h2>Aggregate results</h2><p>Finalized responses only. Author/co-presenter attribution remains visible to organizers.</p></div><span className="rd-badge">Sorted by score</span></div>
-          <div className="rd-table-wrap"><table className="rd-table"><thead><tr><th>Proposal</th><th>Progress</th><th>Aggregate</th><th>Decision</th><th /></tr></thead><tbody>{workspace.results.map((row) => <tr key={row.submissionId}><td><strong>{row.title}</strong><small>{row.participants.map((participant) => `${participant.name} · ${participant.role.replace("_", "-")}`).join("; ")}</small></td><td>{row.submitted}/{row.assigned}{row.recused ? <small>{row.recused} recused</small> : null}</td><td><strong>{row.aggregateScore?.toFixed(2) ?? "—"}</strong></td><td><span className={`rd-badge ${row.decision ?? "pending"}`}>{row.decision ?? "Undecided"}</span></td><td><button className="rd-link" onClick={() => setDecisionTarget(row.submissionId)}>Record decision</button></td></tr>)}</tbody></table></div>
+          <div className="rd-panel-head"><div><h2>Aggregate results</h2><p>Finalized responses only. Author/co-presenter attribution remains visible to organizers.</p></div><span className="rd-badge">{resultSort === "none" ? "Canonical order" : `${resultSort === "desc" ? "Highest" : "Lowest"} score first`}</span></div>
+          <div className="rd-table-wrap"><table className="rd-table"><thead><tr><th>Proposal</th><th>Progress</th><th><button className="rd-link" type="button" onClick={() => setResultSort(resultSort === "desc" ? "asc" : "desc")} aria-label={`Sort aggregate score ${resultSort === "desc" ? "ascending" : "descending"}`}>Aggregate {resultSort === "desc" ? "↓" : resultSort === "asc" ? "↑" : "↕"}</button></th><th>Decision</th><th /></tr></thead><tbody>{sortedResults.map((row) => <tr key={row.submissionId}><td><strong>{row.title}</strong><small>{row.participants.map((participant) => `${participant.name} · ${participant.role.replace("_", "-")}`).join("; ")}</small></td><td>{row.submitted}/{row.assigned}{row.recused ? <small>{row.recused} recused</small> : null}</td><td><strong>{row.aggregateScore?.toFixed(2) ?? "—"}</strong></td><td><span className={`rd-badge ${row.decision ?? "pending"}`}>{row.decision ?? "Undecided"}</span></td><td><button className="rd-link" onClick={() => setDecisionTarget(row.submissionId)}>Record decision</button></td></tr>)}</tbody></table></div>
         </section>
       ) : null}
       {tab === "ai" ? (
@@ -257,9 +268,11 @@ function AiAssessmentRow(props: {
   return <article className="rd-ai-row"><div><strong>{props.title}</strong>{props.assessment ? <><p>{props.assessment.reasoning ?? props.assessment.failureCode ?? "Provider assessment failed."}</p><small>{props.assessment.model} · score {props.assessment.score?.toFixed(1) ?? "failed"}{props.assessment.humanOverrideScore !== null ? ` · human override ${props.assessment.humanOverrideScore.toFixed(1)}` : ""}</small><div className="rd-ai-override"><input aria-label="Human override score" type="number" min="0" max="100" placeholder="Override score" value={score} onChange={(event) => setScore(event.target.value)} /><input aria-label="Human override reason" placeholder="Reason for override" value={reason} onChange={(event) => setReason(event.target.value)} /><button className="rd-link" disabled={props.busy || !score || reason.trim().length < 3} onClick={() => props.override(Number(score), reason)}>Save override</button></div></> : <small>No provider assessment has been run.</small>}</div><button className="rd-secondary" disabled={props.busy} onClick={props.run}>{props.assessment ? "Run again" : "Run Workers AI"}</button></article>;
 }
 
-function RoundsPanel({ plans, busy, remind }: { plans: ReviewsWorkspace["plans"]; busy: boolean; remind(roundId: string): void }) {
+function RoundsPanel({ eventSlug, plans, busy, remind }: { eventSlug: string; plans: ReviewsWorkspace["plans"]; busy: boolean; remind(roundId: string): void }) {
   if (plans.length === 0) return <section className="rd-panel rd-empty"><h2>No review plan yet</h2><p>Create at least two rounds with independent reviewer pools and scorecards.</p></section>;
-  return <div className="rd-round-grid">{plans.flatMap((plan) => plan.rounds.map((round, index) => <article className="rd-round-card" key={round.id}><div className="rd-panel-head"><div><span className="rd-kicker">{plan.name} · round {index + 1}</span><h2>{round.name}</h2></div><span className="rd-badge">{round.blindPolicy.replace("_", " ")}</span></div><p>{formatDate(round.opensAt)} → {formatDate(round.closesAt)}</p><p className="rd-routing-note">{round.routingKeys.length ? `Routes: ${round.routingKeys.join(", ")}` : "All submission routes"}</p><div className="rd-progress"><i style={{ width: `${round.progress.percentComplete}%` }} /></div><div className="rd-progress-copy"><strong>{round.progress.submitted}/{round.progress.assigned} complete</strong><span>{round.progress.percentComplete}%</span></div><div className="rd-criteria">{round.scorecard.map((criterion) => <div key={criterion.key}><span>{criterion.label}</span><small>{criterion.type.replace("_", " ")} · {criterion.weight}%</small></div>)}</div><footer>{round.reviewers.map((reviewer) => <span className="rd-chip" key={reviewer.personId}>{reviewer.name} · {reviewer.submitted}/{reviewer.assigned} ({reviewer.percentComplete}%){reviewer.assignmentCap ? ` · cap ${reviewer.assignmentCap}` : ""}</span>)}<button className="rd-link" disabled={busy || round.progress.assigned - round.progress.submitted - round.progress.recused <= 0} onClick={() => remind(round.id)}>Remind outstanding</button></footer></article>))}</div>;
+  const reviewerNext = `/reviewer/events/${eventSlug}/reviews`;
+  const reviewerSignup = `/login?mode=signup&event=${encodeURIComponent(eventSlug)}&next=${encodeURIComponent(reviewerNext)}`;
+  return <div className="rd-round-grid">{plans.flatMap((plan) => plan.rounds.map((round, index) => <article className="rd-round-card" key={round.id}><div className="rd-panel-head"><div><span className="rd-kicker">{plan.name} · round {index + 1}</span><h2>{round.name}</h2></div><span className="rd-badge">{round.blindPolicy.replace("_", " ")}</span></div><p>{formatDate(round.opensAt)} → {formatDate(round.closesAt)}</p><p className="rd-routing-note">{round.routingKeys.length ? `Routes: ${round.routingKeys.join(", ")}` : "All submission routes"}</p><div className="rd-progress"><i style={{ width: `${round.progress.percentComplete}%` }} /></div><div className="rd-progress-copy"><strong>{round.progress.submitted}/{round.progress.assigned} complete</strong><span>{round.progress.percentComplete}%</span></div><div className="rd-criteria">{round.scorecard.map((criterion) => <div key={criterion.key}><span>{criterion.label}</span><small>{criterion.type.replace("_", " ")} · {criterion.weight}%</small></div>)}</div><footer>{round.reviewers.map((reviewer) => <span className="rd-chip" key={reviewer.personId}>{reviewer.name} · {reviewer.submitted}/{reviewer.assigned} ({reviewer.percentComplete}%){reviewer.assignmentCap ? ` · cap ${reviewer.assignmentCap}` : ""}</span>)}<a className="rd-link" href={reviewerSignup}>Reviewer access link</a><button className="rd-link" disabled={busy || round.progress.assigned - round.progress.submitted - round.progress.recused <= 0} onClick={() => remind(round.id)}>Remind outstanding</button></footer></article>))}</div>;
 }
 
 function PlanDialog(props: { reviewers: ReviewsWorkspace["reviewers"]; planName: string; setPlanName(value: string): void; rounds: DraftRound[]; setRounds(value: DraftRound[]): void; busy: boolean; close(): void; save(): void }) {

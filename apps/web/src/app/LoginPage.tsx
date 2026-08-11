@@ -8,6 +8,7 @@ export function LoginPage() {
   const signingUp = searchParams.get("mode") === "signup";
   const eventSlug = searchParams.get("event") ?? "devflow-conf-2027";
   const next = searchParams.get("next") ?? (signingUp ? `/cfp/${eventSlug}` : null);
+  const accountLabel = next?.startsWith("/reviewer/") ? "Reviewer account" : "Speaker account";
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,9 +44,9 @@ export function LoginPage() {
     <main className="login-page">
       <section className="login-card">
         <div className="brand login-brand"><span>PF</span>ProgramFlow</div>
-        <p className="eyebrow">{signingUp ? "Speaker account" : "Welcome back"}</p>
-        <h1>{signingUp ? "Create your speaker account." : "Sign in to your program."}</h1>
-        <p>{signingUp ? "Create an account to save proposals and return to them later." : "Use the credentials assigned to your event role."}</p>
+        <p className="eyebrow">{signingUp ? accountLabel : "Welcome back"}</p>
+        <h1>{signingUp ? `Create your ${accountLabel.toLocaleLowerCase()}.` : "Sign in to your program."}</h1>
+        <p>{signingUp ? (accountLabel === "Reviewer account" ? "Link your assigned reviewer identity and open only your evaluation queue." : "Create an account to save proposals and return to them later.") : "Use the credentials assigned to your event role."}</p>
         <form onSubmit={submit}>
           {signingUp ? <label>Name<input autoComplete="name" required value={name} onChange={(event) => setName(event.target.value)} /></label> : null}
           <label>Email<input autoComplete="username" required type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
