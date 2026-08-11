@@ -43,6 +43,7 @@ const ReviewPlanSchema = z.object({
     opensAt: z.iso.datetime(),
     closesAt: z.iso.datetime(),
     blindPolicy: z.enum(["none", "single_blind", "double_blind"]),
+    routingKeys: z.array(z.string().trim().min(1).max(160)).max(50).default([]),
     scorecard: z.array(ReviewCriterionSchema).min(1),
     reviewers: z.array(z.object({ personId: z.uuid(), assignmentCap: z.number().int().positive().nullable() })),
   })).min(2),

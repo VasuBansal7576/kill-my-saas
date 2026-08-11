@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertSubmissionRouting,
   buildConflictAwareDistribution,
   calculateWeightedScore,
   conflictKey,
@@ -54,6 +55,14 @@ describe("conflict-aware distribution", () => {
       reviewers: [{ personId: "reviewer-a", assignmentCap: 1, existingAssignments: 1 }],
       conflictKeys: new Set(),
     })).toThrow("No conflict-free reviewer with remaining capacity");
+  });
+});
+
+describe("category routing to review pools", () => {
+  it("accepts matching routes and rejects a proposal outside the configured pool", () => {
+    expect(() => assertSubmissionRouting(["platform-reviewers"], [{ routingKey: "platform-reviewers" }])).not.toThrow();
+    expect(() => assertSubmissionRouting(["platform-reviewers"], [{ routingKey: "ai-reviewers" }]))
+      .toThrow("not routed to this review round");
   });
 });
 

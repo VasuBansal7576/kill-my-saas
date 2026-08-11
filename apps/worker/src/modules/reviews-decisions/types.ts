@@ -31,6 +31,7 @@ export interface ReviewRoundInput {
   opensAt: string;
   closesAt: string;
   blindPolicy: "none" | "single_blind" | "double_blind";
+  routingKeys: ReadonlyArray<string>;
   scorecard: ReadonlyArray<ReviewCriterion>;
   reviewers: ReadonlyArray<{ personId: string; assignmentCap: number | null }>;
 }
@@ -51,6 +52,7 @@ export interface ReviewPlanView {
     opensAt: string;
     closesAt: string;
     blindPolicy: "none" | "single_blind" | "double_blind";
+    routingKeys: string[];
     scorecard: ReadonlyArray<ReviewCriterion>;
     reviewers: Array<{ personId: string; name: string; assignmentCap: number | null; assigned: number; submitted: number; recused: number; percentComplete: number }>;
     progress: { assigned: number; submitted: number; recused: number; percentComplete: number };

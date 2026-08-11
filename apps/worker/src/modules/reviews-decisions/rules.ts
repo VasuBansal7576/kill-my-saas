@@ -7,6 +7,7 @@ export class ReviewRuleError extends Error {
       | "invalid_scorecard"
       | "incomplete_scorecard"
       | "invalid_scorecard_answer"
+      | "routing_mismatch"
       | "no_conflict_free_assignment",
     message: string,
   ) {
@@ -135,6 +136,17 @@ export function buildConflictAwareDistribution(input: DistributionInput): Array<
     assignments.push({ submissionId, reviewerPersonId: reviewer.personId });
   }
   return assignments;
+}
+
+export function assertSubmissionRouting(
+  poolRoutingKeys: ReadonlyArray<string>,
+  submissions: ReadonlyArray<{ routingKey: string | null }>,
+): void {
+  if (poolRoutingKeys.length === 0) return;
+  const allowed = new Set(poolRoutingKeys);
+  if (submissions.some((submission) => !submission.routingKey || !allowed.has(submission.routingKey))) {
+    throw new ReviewRuleError("routing_mismatch", "At least one submission is not routed to this review round's reviewer pool.");
+  }
 }
 
 export function conflictKey(submissionId: string, reviewerPersonId: string): string {

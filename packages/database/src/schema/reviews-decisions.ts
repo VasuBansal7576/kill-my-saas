@@ -62,6 +62,7 @@ export const reviewRounds = pgTable("review_rounds", {
   opensAt: timestamp("opens_at", { withTimezone: true }).notNull(),
   closesAt: timestamp("closes_at", { withTimezone: true }).notNull(),
   blindPolicy: text("blind_policy").$type<"none" | "single_blind" | "double_blind">().notNull().default("double_blind"),
+  routingKeys: jsonb("routing_keys").$type<string[]>().notNull().default([]),
   scorecard: jsonb("scorecard").$type<Array<ReviewScorecardCriterion>>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

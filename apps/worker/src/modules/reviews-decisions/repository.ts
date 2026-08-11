@@ -24,6 +24,7 @@ import type {
   ReviewQueueItem,
   ReviewResultRow,
 } from "./types";
+import { assertSubmissionRouting } from "./rules";
 
 export class ReviewsRepositoryError extends Error {
   constructor(
@@ -93,6 +94,7 @@ export class ReviewsDecisionsRepository {
           opensAt: new Date(roundInput.opensAt),
           closesAt: new Date(roundInput.closesAt),
           blindPolicy: roundInput.blindPolicy,
+          routingKeys: [...new Set(roundInput.routingKeys.map((key) => key.trim()))],
           scorecard: [...roundInput.scorecard],
         }).returning({ id: reviewRounds.id });
         if (!round) throw new Error("The review round insert did not return a record.");
@@ -147,6 +149,7 @@ export class ReviewsDecisionsRepository {
           opensAt: round.opensAt.toISOString(),
           closesAt: round.closesAt.toISOString(),
           blindPolicy: round.blindPolicy,
+          routingKeys: round.routingKeys,
           scorecard: round.scorecard,
           reviewers: reviewerRows.filter((reviewer) => reviewer.roundId === round.id).map((reviewer) => ({
             personId: reviewer.personId,
@@ -172,11 +175,12 @@ export class ReviewsDecisionsRepository {
       .orderBy(asc(people.displayName));
   }
 
-  async listSubmittedProposals(eventId: string): Promise<Array<{ submissionId: string; title: string; track: string | null }>> {
+  async listSubmittedProposals(eventId: string): Promise<Array<{ submissionId: string; title: string; track: string | null; routingKey: string | null }>> {
     const rows = await this.database.select({
       submissionId: submissions.id,
       title: submissionVersions.title,
       answers: submissionVersions.answers,
+      routingKey: submissions.routingKey,
     }).from(submissions)
       .innerJoin(submissionVersions, and(
         eq(submissionVersions.submissionId, submissions.id),
@@ -184,7 +188,7 @@ export class ReviewsDecisionsRepository {
       ))
       .where(and(eq(submissions.eventId, eventId), eq(submissions.state, "submitted")))
       .orderBy(asc(submissionVersions.title));
-    return rows.map((row) => ({ submissionId: row.submissionId, title: row.title, track: optionalStringAnswer(row.answers.track) }));
+    return rows.map((row) => ({ submissionId: row.submissionId, title: row.title, track: optionalStringAnswer(row.answers.track), routingKey: row.routingKey }));
   }
 
   async listAiAssessments(eventId: string) {
@@ -238,11 +242,12 @@ export class ReviewsDecisionsRepository {
   async getDistributionContext(eventId: string, roundId: string, submissionIds: ReadonlyArray<string>) {
     const round = await this.getRound(eventId, roundId);
     if (submissionIds.length === 0) return { round, reviewers: [], conflictKeys: new Set<string>() };
-    const submissionRows = await this.database.select({ id: submissions.id }).from(submissions)
+    const submissionRows = await this.database.select({ id: submissions.id, routingKey: submissions.routingKey }).from(submissions)
       .where(and(eq(submissions.eventId, eventId), inArray(submissions.id, [...submissionIds])));
     if (submissionRows.length !== new Set(submissionIds).size) {
       throw new ReviewsRepositoryError("submission_not_found", "At least one submission is not part of this event.");
     }
+    assertSubmissionRouting(round.routingKeys, submissionRows);
     const [poolRows, assignmentRows, conflictRows] = await Promise.all([
       this.database.select().from(reviewRoundReviewers).where(eq(reviewRoundReviewers.roundId, roundId)),
       this.database.select({ submissionId: reviewAssignments.submissionId, reviewerPersonId: reviewAssignments.reviewerPersonId }).from(reviewAssignments)

@@ -12,6 +12,7 @@ type DraftRound = {
   opensAt: string;
   closesAt: string;
   blindPolicy: "none" | "single_blind" | "double_blind";
+  routingKeys: string[];
   reviewerIds: string[];
   assignmentCap: number;
   scorecard: ReviewCriterion[];
@@ -57,6 +58,10 @@ export function ReviewsDecisionsPage() {
 
   const rounds = useMemo(() => workspace?.plans.flatMap((plan) => plan.rounds) ?? [], [workspace]);
   const activeAssignmentRoundId = assignmentRoundId || rounds[0]?.id || "";
+  const activeRound = rounds.find((round) => round.id === activeAssignmentRoundId);
+  const assignmentSubmissions = workspace?.submissions.filter((submission) =>
+    !activeRound?.routingKeys.length || (submission.routingKey !== null && activeRound.routingKeys.includes(submission.routingKey)),
+  ) ?? [];
 
   async function createPlan() {
     setBusy(true);
@@ -69,6 +74,7 @@ export function ReviewsDecisionsPage() {
           opensAt: new Date(round.opensAt).toISOString(),
           closesAt: new Date(round.closesAt).toISOString(),
           blindPolicy: round.blindPolicy,
+          routingKeys: round.routingKeys,
           scorecard: round.scorecard,
           reviewers: round.reviewerIds.map((personId) => ({ personId, assignmentCap: round.assignmentCap || null })),
         })),
@@ -211,9 +217,10 @@ export function ReviewsDecisionsPage() {
       {tab === "assignments" ? (
         <section className="rd-panel">
           <div className="rd-panel-head"><div><h2>Conflict-aware distribution</h2><p>Every proposal is assigned only to a reviewer in this round’s pool with capacity and no declared conflict.</p></div><button className="primary-action" disabled={busy || !activeAssignmentRoundId || selectedSubmissions.length === 0} onClick={() => void distribute()}>Assign selected</button></div>
-          <label className="rd-field">Review round<select value={activeAssignmentRoundId} onChange={(event) => setAssignmentRoundId(event.target.value)}>{rounds.map((round) => <option key={round.id} value={round.id}>{round.name} · {round.reviewers.length} reviewers</option>)}</select></label>
-          <div className="rd-specific-assignment"><label className="rd-field">Proposal<select value={specificSubmissionId} onChange={(event) => setSpecificSubmissionId(event.target.value)}><option value="">Choose proposal…</option>{workspace.submissions.map((submission) => <option key={submission.submissionId} value={submission.submissionId}>{submission.title}</option>)}</select></label><label className="rd-field">Specific reviewer<select value={specificReviewerId} onChange={(event) => setSpecificReviewerId(event.target.value)}><option value="">Choose reviewer…</option>{rounds.find((round) => round.id === activeAssignmentRoundId)?.reviewers.map((reviewer) => <option key={reviewer.personId} value={reviewer.personId}>{reviewer.name}</option>)}</select></label><button className="rd-secondary" disabled={busy || !specificSubmissionId || !specificReviewerId} onClick={() => void assignSpecificReviewer()}>Assign reviewer</button></div>
-          <div className="rd-check-list">{workspace.submissions.map((submission) => <label key={submission.submissionId}><input type="checkbox" checked={selectedSubmissions.includes(submission.submissionId)} onChange={() => setSelectedSubmissions(toggle(selectedSubmissions, submission.submissionId))} /><span><strong>{submission.title}</strong><small>{submission.track ?? "No track"}</small></span></label>)}</div>
+          <label className="rd-field">Review round<select value={activeAssignmentRoundId} onChange={(event) => { setAssignmentRoundId(event.target.value); setSelectedSubmissions([]); setSpecificSubmissionId(""); }}>{rounds.map((round) => <option key={round.id} value={round.id}>{round.name} · {round.reviewers.length} reviewers</option>)}</select></label>
+          <div className="rd-specific-assignment"><label className="rd-field">Proposal<select value={specificSubmissionId} onChange={(event) => setSpecificSubmissionId(event.target.value)}><option value="">Choose proposal…</option>{assignmentSubmissions.map((submission) => <option key={submission.submissionId} value={submission.submissionId}>{submission.title}</option>)}</select></label><label className="rd-field">Specific reviewer<select value={specificReviewerId} onChange={(event) => setSpecificReviewerId(event.target.value)}><option value="">Choose reviewer…</option>{activeRound?.reviewers.map((reviewer) => <option key={reviewer.personId} value={reviewer.personId}>{reviewer.name}</option>)}</select></label><button className="rd-secondary" disabled={busy || !specificSubmissionId || !specificReviewerId} onClick={() => void assignSpecificReviewer()}>Assign reviewer</button></div>
+          <p className="rd-routing-note">{activeRound?.routingKeys.length ? `Pool routes: ${activeRound.routingKeys.join(", ")}` : "Pool accepts every submission route."}</p>
+          <div className="rd-check-list">{assignmentSubmissions.map((submission) => <label key={submission.submissionId}><input type="checkbox" checked={selectedSubmissions.includes(submission.submissionId)} onChange={() => setSelectedSubmissions(toggle(selectedSubmissions, submission.submissionId))} /><span><strong>{submission.title}</strong><small>{submission.routingKey ?? submission.track ?? "General queue"}</small></span></label>)}</div>
         </section>
       ) : null}
       {tab === "results" ? (
@@ -252,7 +259,7 @@ function AiAssessmentRow(props: {
 
 function RoundsPanel({ plans, busy, remind }: { plans: ReviewsWorkspace["plans"]; busy: boolean; remind(roundId: string): void }) {
   if (plans.length === 0) return <section className="rd-panel rd-empty"><h2>No review plan yet</h2><p>Create at least two rounds with independent reviewer pools and scorecards.</p></section>;
-  return <div className="rd-round-grid">{plans.flatMap((plan) => plan.rounds.map((round, index) => <article className="rd-round-card" key={round.id}><div className="rd-panel-head"><div><span className="rd-kicker">{plan.name} · round {index + 1}</span><h2>{round.name}</h2></div><span className="rd-badge">{round.blindPolicy.replace("_", " ")}</span></div><p>{formatDate(round.opensAt)} → {formatDate(round.closesAt)}</p><div className="rd-progress"><i style={{ width: `${round.progress.percentComplete}%` }} /></div><div className="rd-progress-copy"><strong>{round.progress.submitted}/{round.progress.assigned} complete</strong><span>{round.progress.percentComplete}%</span></div><div className="rd-criteria">{round.scorecard.map((criterion) => <div key={criterion.key}><span>{criterion.label}</span><small>{criterion.type.replace("_", " ")} · {criterion.weight}%</small></div>)}</div><footer>{round.reviewers.map((reviewer) => <span className="rd-chip" key={reviewer.personId}>{reviewer.name} · {reviewer.submitted}/{reviewer.assigned} ({reviewer.percentComplete}%){reviewer.assignmentCap ? ` · cap ${reviewer.assignmentCap}` : ""}</span>)}<button className="rd-link" disabled={busy || round.progress.assigned - round.progress.submitted - round.progress.recused <= 0} onClick={() => remind(round.id)}>Remind outstanding</button></footer></article>))}</div>;
+  return <div className="rd-round-grid">{plans.flatMap((plan) => plan.rounds.map((round, index) => <article className="rd-round-card" key={round.id}><div className="rd-panel-head"><div><span className="rd-kicker">{plan.name} · round {index + 1}</span><h2>{round.name}</h2></div><span className="rd-badge">{round.blindPolicy.replace("_", " ")}</span></div><p>{formatDate(round.opensAt)} → {formatDate(round.closesAt)}</p><p className="rd-routing-note">{round.routingKeys.length ? `Routes: ${round.routingKeys.join(", ")}` : "All submission routes"}</p><div className="rd-progress"><i style={{ width: `${round.progress.percentComplete}%` }} /></div><div className="rd-progress-copy"><strong>{round.progress.submitted}/{round.progress.assigned} complete</strong><span>{round.progress.percentComplete}%</span></div><div className="rd-criteria">{round.scorecard.map((criterion) => <div key={criterion.key}><span>{criterion.label}</span><small>{criterion.type.replace("_", " ")} · {criterion.weight}%</small></div>)}</div><footer>{round.reviewers.map((reviewer) => <span className="rd-chip" key={reviewer.personId}>{reviewer.name} · {reviewer.submitted}/{reviewer.assigned} ({reviewer.percentComplete}%){reviewer.assignmentCap ? ` · cap ${reviewer.assignmentCap}` : ""}</span>)}<button className="rd-link" disabled={busy || round.progress.assigned - round.progress.submitted - round.progress.recused <= 0} onClick={() => remind(round.id)}>Remind outstanding</button></footer></article>))}</div>;
 }
 
 function PlanDialog(props: { reviewers: ReviewsWorkspace["reviewers"]; planName: string; setPlanName(value: string): void; rounds: DraftRound[]; setRounds(value: DraftRound[]): void; busy: boolean; close(): void; save(): void }) {
@@ -278,6 +285,7 @@ function PlanDialog(props: { reviewers: ReviewsWorkspace["reviewers"]; planName:
         <label className="rd-field">Closes<input type="datetime-local" value={round.closesAt} onChange={(event) => updateRound(roundIndex, { closesAt: event.target.value })} /></label>
         <label className="rd-field">Anonymization<select value={round.blindPolicy} onChange={(event) => updateRound(roundIndex, { blindPolicy: event.target.value as DraftRound["blindPolicy"] })}><option value="double_blind">Blind review</option><option value="single_blind">Author hidden</option><option value="none">Author visible</option></select></label>
         <label className="rd-field">Per-reviewer cap<input type="number" min="1" value={round.assignmentCap} onChange={(event) => updateRound(roundIndex, { assignmentCap: Number(event.target.value) })} /></label>
+        <label className="rd-field wide">Submission routing keys <small>Comma-separated keys from form category routing; blank accepts all.</small><input value={round.routingKeys.join(", ")} onChange={(event) => updateRound(roundIndex, { routingKeys: event.target.value.split(",").map((key) => key.trim()).filter(Boolean) })} /></label>
       </div>
       <div className="rd-pool"><strong>Reviewer pool</strong>{props.reviewers.map((reviewer) => <label key={reviewer.personId}><input type="checkbox" checked={round.reviewerIds.includes(reviewer.personId)} onChange={() => updateRound(roundIndex, { reviewerIds: toggle(round.reviewerIds, reviewer.personId) })} />{reviewer.name}</label>)}</div>
       <div className="rd-scorecard-editor"><strong>Scorecard</strong>{round.scorecard.map((criterion, criterionIndex) => <div key={criterion.key}>
@@ -307,7 +315,7 @@ function newRound(name: string, offset: number): DraftRound {
   const opens = new Date(Date.now() + offset * 86_400_000);
   const closes = new Date(opens.valueOf() + 7 * 86_400_000);
   return {
-    key: crypto.randomUUID(), name, opensAt: localDateTime(opens), closesAt: localDateTime(closes), blindPolicy: "double_blind", reviewerIds: [], assignmentCap: 12,
+    key: crypto.randomUUID(), name, opensAt: localDateTime(opens), closesAt: localDateTime(closes), blindPolicy: "double_blind", routingKeys: [], reviewerIds: [], assignmentCap: 12,
     scorecard: [
       { key: `technical_depth_${offset}`, label: "Technical depth", type: "numeric", required: true, weight: 50, min: 1, max: 10 },
       { key: `audience_value_${offset}`, label: "Audience value", type: "dropdown", required: true, weight: 50, options: [{ label: "Limited", score: 20 }, { label: "Good", score: 70 }, { label: "Excellent", score: 100 }] },

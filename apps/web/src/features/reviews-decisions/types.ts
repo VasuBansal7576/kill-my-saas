@@ -6,7 +6,7 @@ export type ReviewCriterion =
 export interface ReviewsWorkspace {
   event: { id: string; slug: string; name: string };
   reviewers: Array<{ personId: string; name: string }>;
-  submissions: Array<{ submissionId: string; title: string; track: string | null }>;
+  submissions: Array<{ submissionId: string; title: string; track: string | null; routingKey: string | null }>;
   plans: Array<{
     id: string;
     name: string;
@@ -17,6 +17,7 @@ export interface ReviewsWorkspace {
       opensAt: string;
       closesAt: string;
       blindPolicy: "none" | "single_blind" | "double_blind";
+      routingKeys: string[];
       scorecard: ReviewCriterion[];
       reviewers: Array<{ personId: string; name: string; assignmentCap: number | null; assigned: number; submitted: number; recused: number; percentComplete: number }>;
       progress: { assigned: number; submitted: number; recused: number; percentComplete: number };
