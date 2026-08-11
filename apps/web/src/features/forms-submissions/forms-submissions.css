@@ -60,6 +60,17 @@
   gap: 14px;
 }
 
+.cfp-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+  margin-top: 14px;
+}
+
+.cfp-form-grid .wide {
+  grid-column: 1 / -1;
+}
+
 .cfp-settings-stack .cfp-panel,
 .cfp-field-editor {
   display: grid;
@@ -592,6 +603,7 @@
   }
 
   .cfp-builder-field,
+  .cfp-form-grid,
   .cfp-inline-grid,
   .cfp-builder-field .cfp-inline-grid:first-child,
   .cfp-participant-row,

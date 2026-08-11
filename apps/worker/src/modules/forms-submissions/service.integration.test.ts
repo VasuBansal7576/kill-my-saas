@@ -18,6 +18,7 @@ import type { FormConfigurationInput } from "./domain";
 import {
   closeForm,
   createForm,
+  createManualSubmission,
   createSpeakerSubmission,
   FormsSubmissionsError,
   getPublicForm,
@@ -157,6 +158,20 @@ integration("forms and submissions persistence", () => {
       eq(outboxEvents.eventType, "submission.confirmation_requested"),
     ));
     expect(confirmation?.eventType).toBe("submission.confirmation_requested");
+
+    const manual = await createManualSubmission(database, organizer, eventSlug, formId, {
+      title: "Organizer-entered abstract",
+      answers: { abstract: "Entered from an offline application.", track: "Platform", format: "Talk" },
+      participants: [{ name: "Offline Speaker", email: `offline-${ids.event}@example.com`, role: "author" }],
+      saveAsDraft: false,
+    }, new Date("2027-01-16T12:00:00.000Z"));
+    createdSubmissionIds.push(manual.id);
+    expect(manual).toMatchObject({ state: "submitted", routingKey: "platform-reviewers" });
+    const [manualEvidence] = await tooling.database.select().from(outboxEvents).where(and(
+      eq(outboxEvents.aggregateId, manual.id),
+      eq(outboxEvents.eventType, "submission.manually_entered"),
+    ));
+    expect(manualEvidence?.payload).toMatchObject({ submissionId: manual.id, eventId: ids.event });
 
     await closeForm(database, organizer, eventSlug, formId);
     await expect(updateSpeakerSubmission(database, speaker, eventSlug, draft.id, {
