@@ -30,7 +30,10 @@ export class AirtableRestAdapter implements AirtableProviderPort {
   private lastRequestAt = 0;
 
   constructor(private readonly config: AirtableAdapterConfig) {
-    this.request = config.fetch ?? fetch;
+    // Cloudflare's native fetch is a host method and must retain its global
+    // receiver. Storing the bare function produces an "Illegal invocation"
+    // before any provider request leaves the Worker.
+    this.request = config.fetch ?? globalThis.fetch.bind(globalThis);
     this.baseUrl = (config.apiBaseUrl ?? "https://api.airtable.com/v0").replace(/\/$/, "");
     this.delay = config.delay ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
     this.maxAttempts = config.maxAttempts ?? 4;

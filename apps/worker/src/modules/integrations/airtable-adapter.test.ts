@@ -2,6 +2,24 @@ import { describe, expect, it, vi } from "vitest";
 import { AirtableProviderError, AirtableRestAdapter } from "./airtable-adapter";
 
 describe("Airtable REST boundary", () => {
+  it("retains the global receiver when using the runtime fetch binding", async () => {
+    const originalFetch = globalThis.fetch;
+    const request = vi.fn(function (this: typeof globalThis) {
+      if (this !== globalThis) throw new TypeError("Illegal invocation");
+      return Promise.resolve(Response.json({ records: [] }));
+    }) as unknown as typeof fetch;
+    globalThis.fetch = request;
+
+    try {
+      const adapter = new AirtableRestAdapter({ token: "secret", minimumRequestIntervalMs: 0 });
+      await expect(adapter.listPage({ baseId: "app_base", tableId: "Sessions", pageSize: 100 }))
+        .resolves.toMatchObject({ records: [], requestCount: 1 });
+      expect(request).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("follows provider pagination and preserves returned record IDs", async () => {
     const request = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ records: [{ id: "rec_one", fields: { Name: "Priya" } }], offset: "next-page" }))
