@@ -45,8 +45,8 @@ export class ReviewsRepositoryError extends Error {
 export class ReviewsDecisionsRepository {
   constructor(private readonly database: Database) {}
 
-  async findEventBySlug(eventSlug: string): Promise<{ id: string; slug: string; name: string }> {
-    const [event] = await this.database.select({ id: events.id, slug: events.slug, name: events.name })
+  async findEventBySlug(eventSlug: string): Promise<{ id: string; slug: string; name: string; timezone: string }> {
+    const [event] = await this.database.select({ id: events.id, slug: events.slug, name: events.name, timezone: events.timezone })
       .from(events)
       .where(eq(events.slug, eventSlug))
       .limit(1);

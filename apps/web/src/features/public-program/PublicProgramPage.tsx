@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
+import { formatEventDateTime } from "../../app/event-time";
 import { publicProgramRequest } from "./api";
 import {
   filterSessions,
@@ -7,6 +8,7 @@ import {
   formatDay,
   formatRange,
   initials,
+  optimisticItinerarySelection,
   sessionsAtTime,
   sessionsByStart,
   startTimes,
@@ -42,6 +44,7 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
   const [selectedItineraryIds, setSelectedItineraryIds] = useState<Set<string>>(() => new Set());
   const [showPersonal, setShowPersonal] = useState(false);
   const [itineraryBusyId, setItineraryBusyId] = useState<string | null>(null);
+  const [itineraryLoading, setItineraryLoading] = useState(surface === "itinerary");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,7 +71,8 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
       if (!active) return;
       if (result.recoveryToken) window.localStorage.setItem(recoveryKey, result.recoveryToken);
       setSelectedItineraryIds(new Set(result.selectedSessionIds));
-    }).catch((caught: unknown) => { if (active) setError(message(caught)); });
+      setItineraryLoading(false);
+    }).catch((caught: unknown) => { if (active) { setError(message(caught)); setItineraryLoading(false); } });
     return () => { active = false; };
   }, [eventSlug, program, surface]);
 
@@ -76,16 +80,19 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
   const filteredSpeakers = useMemo(() => program ? filterSpeakers(program, filters.search) : [], [filters.search, program]);
 
   async function toggleItinerary(sessionId: string) {
-    const selected = selectedItineraryIds.has(sessionId);
+    const previous = selectedItineraryIds;
+    const optimistic = optimisticItinerarySelection(previous, sessionId);
+    setSelectedItineraryIds(optimistic.next);
     setItineraryBusyId(sessionId);
     setError(null);
     try {
       const response = await publicProgramRequest<{ selectedSessionIds: string[] }>(
         `/api/v1/public/program/${encodeURIComponent(eventSlug)}/anonymous-itinerary/sessions/${sessionId}`,
-        { method: selected ? "DELETE" : "PUT" },
+        { method: optimistic.method },
       );
       setSelectedItineraryIds(new Set(response.selectedSessionIds));
     } catch (caught) {
+      setSelectedItineraryIds(previous);
       setError(message(caught));
     } finally {
       setItineraryBusyId(null);
@@ -116,7 +123,7 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
         {program.event.branding.logoUrl ? <img src={program.event.branding.logoUrl} alt="" /> : <span>{initials(program.event.name)}</span>}
         <div><p>Public event program</p><h1>{program.event.name}</h1><small>{dateSpan(program)} · {program.event.location}</small></div>
       </div>
-      <span className="public-live"><i /> Live · revision {program.publication.publicRevision}</span>
+      <span className="public-live"><i /> Live</span>
     </header>
 
     <nav className="public-program-nav" aria-label="Public program views">
@@ -127,8 +134,8 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
       <div className="public-title-row">
         <div><p>{surfaceLabel(surface)}</p><h2>{surfaceTitle(surface)}</h2><small>{surfaceDescription(surface)}</small></div>
         {surface === "itinerary" ? <div className="itinerary-actions">
-          <div className="public-segmented"><button className={!showPersonal ? "active" : ""} type="button" onClick={() => setShowPersonal(false)}>All sessions</button><button className={showPersonal ? "active" : ""} type="button" onClick={() => setShowPersonal(true)}>My schedule <b>{selectedItineraryIds.size}</b></button></div>
-          <a className={selectedItineraryIds.size ? "calendar-export" : "calendar-export disabled"} aria-disabled={!selectedItineraryIds.size} href={`/api/v1/public/program/${encodeURIComponent(eventSlug)}/anonymous-itinerary/calendar.ics`}>Export .ics</a>
+          <div className="public-segmented"><button className={!showPersonal ? "active" : ""} type="button" onClick={() => setShowPersonal(false)}>All sessions</button><button className={showPersonal ? "active" : ""} type="button" onClick={() => setShowPersonal(true)}>My schedule <b aria-live="polite">{itineraryLoading ? "…" : selectedItineraryIds.size}</b></button></div>
+          {itineraryLoading ? <span className="itinerary-loading-status" role="status">Loading saved itinerary…</span> : itineraryBusyId ? <span className="itinerary-loading-status" role="status">Saving itinerary…</span> : <a className={selectedItineraryIds.size ? "calendar-export" : "calendar-export disabled"} aria-disabled={!selectedItineraryIds.size} href={`/api/v1/public/program/${encodeURIComponent(eventSlug)}/anonymous-itinerary/calendar.ics`}>Add to calendar</a>}
         </div> : null}
       </div>
 
@@ -139,7 +146,7 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
       {surface === "sessions" ? <SessionGrid sessions={filteredSessions} timezone={program.event.timezone} expanded={expanded} toggleExpanded={toggleExpanded} open={setSelectedSession} /> : null}
       {surface === "speakers" ? <SpeakerDirectory speakers={filteredSpeakers} open={setSelectedSpeaker} /> : null}
       {surface === "agenda" ? <Agenda program={program} day={day} setDay={setActiveDay} open={setSelectedSession} /> : null}
-      {surface === "itinerary" ? <Itinerary sessions={visibleItinerary} program={program} selectedIds={selectedItineraryIds} busyId={itineraryBusyId} toggle={toggleItinerary} open={setSelectedSession} personal={showPersonal} /> : null}
+      {surface === "itinerary" ? <Itinerary sessions={visibleItinerary} program={program} selectedIds={selectedItineraryIds} busyId={itineraryBusyId} loading={itineraryLoading} toggle={toggleItinerary} open={setSelectedSession} personal={showPersonal} /> : null}
       {surface === "gallery" ? <SpeakerGallery speakers={filteredSpeakers} open={setSelectedSpeaker} /> : null}
     </main>
 
@@ -223,16 +230,18 @@ function Itinerary(props: {
   program: PublishedProgram;
   selectedIds: Set<string>;
   busyId: string | null;
+  loading: boolean;
   toggle(id: string): Promise<void>;
   open(session: PublicSession): void;
   personal: boolean;
 }) {
+  if (props.loading) return <div className="public-empty" role="status">Loading your saved itinerary…</div>;
   if (!props.sessions.length) return <Empty>{props.personal ? "Star sessions to build your personal schedule." : "No sessions match those filters."}</Empty>;
   return <section className="public-itinerary">{props.program.days.map((day) => {
     const sessions = props.sessions.filter((session) => session.day === day);
     if (!sessions.length) return null;
     return <div className="itinerary-day" key={day}><header><p>{formatDay(day)}</p><span>{sessions.length} session{sessions.length === 1 ? "" : "s"}</span></header>{sessions.map((session) => <article key={session.id}>
-      <button className={props.selectedIds.has(session.id) ? "star selected" : "star"} aria-pressed={props.selectedIds.has(session.id)} disabled={props.busyId === session.id} type="button" onClick={() => { void props.toggle(session.id); }} aria-label={`${props.selectedIds.has(session.id) ? "Remove" : "Add"} ${session.title} ${props.selectedIds.has(session.id) ? "from" : "to"} my schedule`}>★</button>
+      <button className={props.selectedIds.has(session.id) ? "star selected" : "star"} aria-pressed={props.selectedIds.has(session.id)} aria-busy={props.busyId === session.id} disabled={props.busyId !== null} type="button" onClick={() => { void props.toggle(session.id); }} aria-label={props.busyId === session.id ? `Saving ${session.title}` : `${props.selectedIds.has(session.id) ? "Remove" : "Add"} ${session.title} ${props.selectedIds.has(session.id) ? "from" : "to"} my schedule`}>★<span className="visually-hidden">{props.busyId === session.id ? "Saving" : ""}</span></button>
       <time>{formatRange(session, props.program.event.timezone, true)}</time>
       <div><Tags session={session} /><button className="itinerary-title" type="button" onClick={() => props.open(session)}><h3>{session.title}</h3></button><p>{session.description || "Session description coming soon."}</p><SpeakerMiniList speakers={session.speakers} /></div>
       <strong>{session.room.name}</strong>
@@ -254,12 +263,12 @@ function SpeakerDetail({ speaker, timezone, close }: { speaker: PublicSpeaker; t
     <div className="speaker-detail-head"><Headshot speaker={speaker} large /><div><h2>{speaker.name}</h2><p>{[speaker.jobTitle || "Speaker", speaker.company].filter(Boolean).join(" · ")}</p></div></div>
     <p className={expanded ? "" : "clamped bio"}>{speaker.biography || "Biography coming soon."}</p>
     {speaker.biography.length > 180 ? <button className="show-more" type="button" onClick={() => setExpanded(!expanded)}>{expanded ? "Show less" : "Show more"}</button> : null}
-    <h3>Sessions</h3><div className="speaker-session-list">{speaker.sessions.map((session) => <article key={session.id}><strong>{session.title}</strong><small>{new Intl.DateTimeFormat(undefined, { timeZone: timezone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(session.startsAt))} · {session.room}</small></article>)}</div>
+    <h3>Sessions</h3><div className="speaker-session-list">{speaker.sessions.map((session) => <article key={session.id}><strong>{session.title}</strong><small>{formatEventDateTime(session.startsAt, timezone)} · {session.room}</small></article>)}</div>
   </Modal>;
 }
 
 function Modal({ children, close, label }: { children: ReactNode; close(): void; label: string }) {
-  return <div className="public-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) close(); }}><section className="public-modal" role="dialog" aria-modal="true" aria-label={label}><button className="modal-close" type="button" onClick={close} aria-label="Close details">×</button>{children}</section></div>;
+  return <div className="public-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) close(); }}><section className="public-modal" role="dialog" aria-modal="true" aria-label={label}><button className="modal-close" type="button" onClick={close} aria-label={`Close ${label}`}>×</button>{children}</section></div>;
 }
 
 function Tags({ session }: { session: PublicSession }) {

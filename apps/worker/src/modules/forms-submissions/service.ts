@@ -52,7 +52,7 @@ export class FormsSubmissionsError extends Error {
 }
 
 export type FormWorkspace = {
-  event: { id: string; slug: string; name: string };
+  event: { id: string; slug: string; name: string; timezone: string };
   form: null | {
     id: string;
     name: string;
@@ -87,6 +87,7 @@ export type PublicForm = {
     location: string;
     startsOn: string;
     endsOn: string;
+    timezone: string;
     primaryColor: string;
     tracks: string[];
     formats: string[];
@@ -293,6 +294,7 @@ export async function getPublicForm(database: Database, eventSlug: string, now =
       location: event.location,
       startsOn: event.startsOn,
       endsOn: event.endsOn,
+      timezone: event.timezone,
       primaryColor: event.branding.primaryColor,
       tracks: tracks.map((track) => track.name),
       formats: formats.map(formatLabel),
@@ -804,7 +806,7 @@ function toFieldDefinition(field: typeof formFields.$inferSelect): FormFieldDefi
 }
 
 function pickEvent(event: typeof events.$inferSelect) {
-  return { id: event.id, slug: event.slug, name: event.name };
+  return { id: event.id, slug: event.slug, name: event.name, timezone: event.timezone };
 }
 
 function dateToJson(value: Date | null): string | null {

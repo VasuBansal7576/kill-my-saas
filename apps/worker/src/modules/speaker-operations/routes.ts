@@ -20,10 +20,10 @@ import {
   createSpeakerTask,
   getSpeakerDetail,
   getSpeakerPortal,
+  getSpeakerTasksWorkspace,
   importSpeakers,
   listSpeakerResources,
   listSpeakerRoster,
-  listSpeakerTasks,
   saveSpeakerResource,
   updateAssignmentDueDate,
   updateOwnSpeakerProfile,
@@ -114,7 +114,7 @@ speakerOperationsOrganizerRoutes.get("/events/:eventSlug/tasks", async (context)
   const database = configuredDatabase(context);
   if (database instanceof Response) return database;
   try {
-    return context.json(await listSpeakerTasks(database, context.get("actor"), context.req.param("eventSlug")));
+    return context.json(await getSpeakerTasksWorkspace(database, context.get("actor"), context.req.param("eventSlug")));
   } catch (error) {
     return speakerError(context, error);
   }

@@ -1,4 +1,5 @@
 import type { PublishedProgram, PublicSession, PublicSpeaker } from "./types";
+import { formatEventTimeRange } from "../../app/event-time";
 
 export interface PublicFilters {
   search: string;
@@ -40,11 +41,15 @@ export function formatDay(value: string): string {
 }
 
 export function formatRange(session: PublicSession, timezone: string, includeDate = false): string {
-  const options: Intl.DateTimeFormatOptions = includeDate
-    ? { timeZone: timezone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }
-    : { timeZone: timezone, hour: "numeric", minute: "2-digit" };
-  const formatter = new Intl.DateTimeFormat(undefined, options);
-  return `${formatter.format(new Date(session.startsAt))}–${new Intl.DateTimeFormat(undefined, { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(new Date(session.endsAt))}`;
+  return formatEventTimeRange(session.startsAt, session.endsAt, timezone, includeDate);
+}
+
+export function optimisticItinerarySelection(current: ReadonlySet<string>, sessionId: string) {
+  const selected = current.has(sessionId);
+  const next = new Set(current);
+  if (selected) next.delete(sessionId);
+  else next.add(sessionId);
+  return { method: selected ? "DELETE" as const : "PUT" as const, next };
 }
 
 export function initials(name: string): string {

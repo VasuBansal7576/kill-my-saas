@@ -84,7 +84,7 @@ export interface SpeakerDetail extends SpeakerRosterItem {
 }
 
 export interface SpeakerPortal {
-  event: { id: string; slug: string; name: string };
+  event: { id: string; slug: string; name: string; timezone: string };
   speaker: SpeakerDetail;
   resources: Array<{
     id: string;
@@ -96,7 +96,7 @@ export interface SpeakerPortal {
   }>;
 }
 
-interface EventRecord { id: string; slug: string; name: string }
+interface EventRecord { id: string; slug: string; name: string; timezone: string }
 
 export async function listSpeakerRoster(
   database: Database,
@@ -249,6 +249,11 @@ export async function updateSpeakerStatus(
 export async function listSpeakerTasks(database: Database, actor: Actor, eventSlug: string): Promise<SpeakerTaskSummary[]> {
   const event = await requireEvent(database, actor, eventSlug, "organizer");
   return loadTasks(database, event.id);
+}
+
+export async function getSpeakerTasksWorkspace(database: Database, actor: Actor, eventSlug: string) {
+  const event = await requireEvent(database, actor, eventSlug, "organizer");
+  return { event, tasks: await loadTasks(database, event.id) };
 }
 
 export async function createSpeakerTask(
@@ -651,7 +656,7 @@ async function loadTask(database: Database, eventId: string, taskId: string): Pr
 }
 
 async function requireEvent(database: Database, actor: Actor, eventSlug: string, role: "organizer" | "speaker"): Promise<EventRecord> {
-  const candidates = await database.select({ id: events.id, slug: events.slug, name: events.name }).from(events).where(eq(events.slug, eventSlug));
+  const candidates = await database.select({ id: events.id, slug: events.slug, name: events.name, timezone: events.timezone }).from(events).where(eq(events.slug, eventSlug));
   if (candidates.length === 0) throw new SpeakerOperationsError("event_not_found", "Event not found.");
   const event = candidates.find((candidate) => actorCanAccessEvent(actor, candidate.id, role));
   if (!event) throw new SpeakerOperationsError("forbidden", `${role === "organizer" ? "Organizer" : "Speaker"} access is required for this event.`);

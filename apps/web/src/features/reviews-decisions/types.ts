@@ -4,7 +4,7 @@ export type ReviewCriterion =
   | { key: string; label: string; type: "free_text"; required: boolean; weight: 0 };
 
 export interface ReviewsWorkspace {
-  event: { id: string; slug: string; name: string };
+  event: { id: string; slug: string; name: string; timezone: string };
   reviewers: Array<{ personId: string; name: string }>;
   submissions: Array<{ submissionId: string; title: string; track: string | null; routingKey: string | null }>;
   plans: Array<{
@@ -51,7 +51,7 @@ export interface ReviewsWorkspace {
 }
 
 export interface ReviewerQueue {
-  event: { id: string; slug: string; name: string };
+  event: { id: string; slug: string; name: string; timezone: string };
   assignments: Array<{
     assignmentId: string;
     roundId: string;

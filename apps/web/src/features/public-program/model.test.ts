@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterSessions, filterSpeakers, sessionsByStart } from "./model";
+import { filterSessions, filterSpeakers, optimisticItinerarySelection, sessionsByStart } from "./model";
 import type { PublishedProgram } from "./types";
 
 describe("public program read models", () => {
@@ -13,6 +13,15 @@ describe("public program read models", () => {
     const value = program();
     expect(filterSpeakers(value, "").map((speaker) => speaker.name)).toEqual(["Ada Lovelace", "Priya Raman"]);
     expect(sessionsByStart(value.sessions).map((session) => session.id)).toEqual(["session-2", "session-1"]);
+  });
+
+  it("updates itinerary counts optimistically without mutating the last saved selection", () => {
+    const current = new Set(["session-1"]);
+    const added = optimisticItinerarySelection(current, "session-2");
+    expect(added.method).toBe("PUT");
+    expect([...added.next]).toEqual(["session-1", "session-2"]);
+    expect([...current]).toEqual(["session-1"]);
+    expect(optimisticItinerarySelection(added.next, "session-1")).toMatchObject({ method: "DELETE" });
   });
 });
 

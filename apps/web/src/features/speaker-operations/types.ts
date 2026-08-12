@@ -22,6 +22,11 @@ export interface SpeakerTask {
   assignments: SpeakerTaskAssignment[];
 }
 
+export interface SpeakerTasksWorkspace {
+  event: { id: string; slug: string; name: string; timezone: string };
+  tasks: SpeakerTask[];
+}
+
 export interface RosterSpeaker {
   eventSpeakerId: string;
   personId: string;
@@ -57,7 +62,7 @@ export interface SpeakerResource {
 }
 
 export interface SpeakerPortal {
-  event: { id: string; slug: string; name: string };
+  event: { id: string; slug: string; name: string; timezone: string };
   speaker: SpeakerDetail;
   resources: SpeakerResource[];
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { eventDateTimeInputValue, eventLocalDateTimeToIso } from "../../app/event-time";
 import "./forms-submissions.css";
 import { readApi, type FieldType, type FormField, type FormWorkspace } from "./model";
 
@@ -86,7 +87,7 @@ export function CfpBuilderPage() {
         <div>
           <p className="eyebrow">Call for speakers</p>
           <h1>{workspace?.event.name ?? "CFP form"}</h1>
-          <p>Configure the public proposal form. Publishing creates an immutable version for every draft and submission.</p>
+          <p>Configure the public proposal form. Publishing saves the exact questions used for each proposal.</p>
         </div>
         <div className="cfp-actions">
           <a className="secondary-action" href={`/cfp/${eventSlug}`} target="_blank" rel="noreferrer">Preview form</a>
@@ -143,8 +144,8 @@ export function CfpBuilderPage() {
               <label>Internal form name<input value={form.name} onChange={(event) => patch("name", event.target.value)} /></label>
               <label>Collect<select value={form.target} onChange={(event) => patch("target", event.target.value as "abstract" | "session")}><option value="abstract">Review-stage abstract</option><option value="session">Full session</option></select></label>
               <div className="cfp-inline-grid">
-                <label>Opens<input type="datetime-local" value={toLocalDateTime(form.opensAt)} onChange={(event) => patch("opensAt", toIso(event.target.value))} /></label>
-                <label>Closes<input type="datetime-local" value={toLocalDateTime(form.closesAt)} onChange={(event) => patch("closesAt", toIso(event.target.value))} /></label>
+                <label>Opens <small>{workspace?.event.timezone}</small><input type="datetime-local" value={eventDateTimeInputValue(form.opensAt, workspace?.event.timezone ?? "UTC")} onChange={(event) => patch("opensAt", eventLocalDateTimeToIso(event.target.value, workspace?.event.timezone ?? "UTC"))} /></label>
+                <label>Closes <small>{workspace?.event.timezone}</small><input type="datetime-local" value={eventDateTimeInputValue(form.closesAt, workspace?.event.timezone ?? "UTC")} onChange={(event) => patch("closesAt", eventLocalDateTimeToIso(event.target.value, workspace?.event.timezone ?? "UTC"))} /></label>
               </div>
               <label>Welcome copy<textarea rows={3} value={form.welcomeCopy} onChange={(event) => patch("welcomeCopy", event.target.value)} /></label>
               <label>Instructions<textarea rows={4} value={form.instructionsCopy} onChange={(event) => patch("instructionsCopy", event.target.value)} /></label>
@@ -261,5 +262,3 @@ function parseRouting(value: string) {
   }));
 }
 function slugKey(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""); }
-function toIso(value: string) { return value ? new Date(value).toISOString() : null; }
-function toLocalDateTime(value: string | null) { return value ? new Date(value).toISOString().slice(0, 16) : ""; }

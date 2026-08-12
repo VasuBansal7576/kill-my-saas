@@ -39,7 +39,7 @@ export type FormDefinition = {
 };
 
 export type FormWorkspace = {
-  event: { id: string; slug: string; name: string };
+  event: { id: string; slug: string; name: string; timezone: string };
   form: null | FormDefinition & {
     id: string;
     name: string;
@@ -56,6 +56,7 @@ export type PublicForm = {
     location: string;
     startsOn: string;
     endsOn: string;
+    timezone: string;
     primaryColor: string;
     tracks: string[];
     formats: string[];

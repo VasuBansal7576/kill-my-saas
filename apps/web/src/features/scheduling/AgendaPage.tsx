@@ -61,7 +61,7 @@ export function AgendaPage() {
         jsonRequest("POST"),
       );
       setWorkspace(created);
-      setNotice(`Revision ${created.revision?.version ?? ""} is ready for edits.`);
+      setNotice("A new editable schedule version is ready.");
     });
   }
 
@@ -70,7 +70,7 @@ export function AgendaPage() {
     const session = workspace.sessions.find((candidate) => candidate.id === sessionId);
     if (!session) return;
     if (workspace.revision.inUse) {
-      setError("This revision is already selected by Publication. Start a new revision before moving sessions.");
+      setError("This schedule version is already public. Start a new version before moving sessions.");
       return;
     }
     await mutate(async () => {
@@ -89,7 +89,7 @@ export function AgendaPage() {
       );
       setWorkspace(next);
       setSelectedSessionId(null);
-      setNotice(`${session.title} persisted in revision ${next.revision?.version}.`);
+      setNotice(`${session.title} was placed on the schedule.`);
     });
   }
 
@@ -136,11 +136,11 @@ export function AgendaPage() {
     if (sessionId) void placeAt(sessionId, roomId, targetDay, `${String(hour).padStart(2, "0")}:00`);
   }
 
-  if (!workspace) return <section className="agenda-loading">{error ? <p role="alert">{error}</p> : <p>Loading the persisted agenda…</p>}</section>;
+  if (!workspace) return <section className="agenda-loading">{error ? <p role="alert">{error}</p> : <p>Loading the agenda…</p>}</section>;
 
   return <div className="agenda-workspace">
     <header className="agenda-head">
-      <div><p className="agenda-kicker">Schedule</p><h1>Agenda</h1><p>Place accepted sessions once, resolve conflicts, and hand a clean revision to Publication.</p></div>
+      <div><p className="agenda-kicker">Schedule</p><h1>Agenda</h1><p>Place accepted sessions, resolve conflicts, and prepare the public program.</p></div>
       <div className="agenda-actions">
         <button className="agenda-secondary" type="button" disabled={busy || unscheduled.length === 0 || workspace.revision?.inUse} onClick={() => void autoPlace()}>Auto-place {unscheduled.length}</button>
         {workspace.revision?.inUse ? <button className="agenda-primary" type="button" disabled={busy} onClick={() => void startRevision()}>Start new revision</button> : null}
@@ -151,8 +151,8 @@ export function AgendaPage() {
     {notice ? <div className="agenda-alert success" role="status">{notice}</div> : null}
 
     <section className={`agenda-readiness ${workspace.readiness.ready ? "ready" : "blocked"}`}>
-      <div><strong>{workspace.readiness.ready ? "Conflict-free revision ready for Publication" : "Schedule needs attention"}</strong><span>{workspace.readiness.ready ? `Revision ${workspace.revision?.version} can be handed off without another agenda state.` : workspace.readiness.reasons.join(" ")}</span></div>
-      {workspace.readiness.ready ? <Link to={`/organizer/events/${eventSlug}/publish`}>Continue to Publication →</Link> : <button type="button" onClick={() => setView("day")}>Resolve in Day view</button>}
+      <div><strong>{workspace.readiness.ready ? "Schedule is ready to publish" : "Schedule needs attention"}</strong><span>{workspace.readiness.ready ? "All scheduled sessions are conflict-free." : workspace.readiness.reasons.join(" ")}</span></div>
+      {workspace.readiness.ready ? <Link to={`/organizer/events/${eventSlug}/publish`}>Open public program →</Link> : <button type="button" onClick={() => setView("day")}>Resolve in Day view</button>}
     </section>
 
     <div className="agenda-toolbar">
@@ -160,7 +160,7 @@ export function AgendaPage() {
         {(["day", "week", "list", "track", "room"] as const).map((candidate) => <button key={candidate} className={view === candidate ? "active" : ""} aria-pressed={view === candidate} type="button" onClick={() => setView(candidate)}>{candidate[0]?.toUpperCase()}{candidate.slice(1)}</button>)}
       </nav>
       <div className="agenda-revision-picker">
-        <label>Revision<select value={workspace.revision?.id ?? ""} onChange={(event) => void mutate(() => load(event.target.value))}>{workspace.revisions.map((revision) => <option key={revision.id} value={revision.id}>v{revision.version} · {revision.status}{revision.inUse ? " · in Publication" : ""}</option>)}</select></label>
+        <label>Schedule version<select value={workspace.revision?.id ?? ""} onChange={(event) => void mutate(() => load(event.target.value))}>{workspace.revisions.map((revision) => <option key={revision.id} value={revision.id}>Version {revision.version} · {revision.status}{revision.inUse ? " · public" : ""}</option>)}</select></label>
         <Link to={`/organizer/events/${eventSlug}/settings`}>Rooms & tracks</Link>
       </div>
     </div>
@@ -175,7 +175,7 @@ export function AgendaPage() {
           <label>Day<select value={activeFormDay} onChange={(event) => setFormDay(event.target.value)}>{workspace.days.map((value) => <option key={value} value={value}>{formatDay(value)}</option>)}</select></label>
           <label>Room<select value={activeFormRoomId} onChange={(event) => setFormRoomId(event.target.value)}>{workspace.rooms.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}</select></label>
           <label>Start<input type="time" step={900} value={formTime} onChange={(event) => setFormTime(event.target.value)} /></label>
-          <button type="submit" disabled={busy || !selectedSessionId || !activeFormRoomId || !activeFormDay || workspace.revision?.inUse}>Persist placement</button>
+          <button type="submit" disabled={busy || !selectedSessionId || !activeFormRoomId || !activeFormDay || workspace.revision?.inUse}>Place on schedule</button>
           {selectedSession?.placement ? <button className="agenda-unplace" type="button" disabled={busy || workspace.revision?.inUse} onClick={() => void unplace(selectedSession)}>Return to unscheduled</button> : null}
         </form>
       </aside>

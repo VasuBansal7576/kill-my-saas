@@ -2,7 +2,7 @@ export function organizerNavigation(eventSlug: string, organizationId: string) {
   const base = `/organizer/events/${encodeURIComponent(eventSlug)}`;
   return [
     ["Dashboard", `${base}/dashboard`],
-    ["Event", `${base}/settings`],
+    ["Event settings", `${base}/settings`],
     ["Call for speakers", `${base}/cfp`],
     ["Submissions", `${base}/submissions`],
     ["Evaluations", `${base}/evaluations`],
@@ -12,7 +12,7 @@ export function organizerNavigation(eventSlug: string, organizationId: string) {
     ["Files", `${base}/files`],
     ["Communications", `${base}/communications`],
     ["Agenda", `${base}/agenda`],
-    ["Publish", `${base}/publish`],
+    ["Public program", `${base}/publish`],
     ["Speaker CRM", `/organizer/organizations/${organizationId}/speaker-crm`],
     ["Integrations", `${base}/integrations/airtable`],
     ["Accelevents", `${base}/integrations/accelevents`],

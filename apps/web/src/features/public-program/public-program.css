@@ -194,3 +194,28 @@
   .public-modal dl { grid-template-columns: 1fr; }
   .itinerary-actions { align-items: stretch; flex-direction: column; }
 }
+
+/* Readability and touch-target pass for core public navigation and status UI. */
+.public-live { min-height: 36px; padding: 7px 11px; color: #9bdeb9; font-size: 12px; }
+.public-program-nav a { padding-inline: 15px; color: #a0a0a0; font-size: 12px; }
+.public-filters label { color: #aaa; font-size: 12px; }
+.public-filters input, .public-filters select { min-height: 44px; padding-inline: 11px; border-color: #3b3b3b; color: #eee; font-size: 13px; }
+.public-session-card > p, .public-itinerary article > div > p { color: #aaa; font-size: 13px; }
+.session-meta { color: #bbb; font-size: 12px; }
+.public-segmented button { min-height: 40px; padding: 8px 12px; color: #aaa; font-size: 12px; }
+.calendar-export { min-height: 44px; display: inline-flex; align-items: center; padding: 9px 12px; font-size: 12px; }
+.itinerary-loading-status { color: #aaa; font-size: 12px; }
+.star { width: 44px; min-height: 44px; margin: -10px 0 0 -7px; color: #666; font-size: 22px; }
+.publication-primary, .publication-secondary { min-height: 44px; padding-inline: 15px; font-size: 12px; }
+.widget-form-row.simple { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.publication-advanced, .widget-advanced { color: #aaa; font-size: 11px; }
+.publication-advanced summary, .widget-advanced summary { min-height: 40px; display: flex; align-items: center; color: #b9b9b9; cursor: pointer; }
+.publication-advanced label, .publication-advanced small { margin-top: 10px; }
+.widget-advanced { padding: 12px; border: 1px solid #2e2e2e; border-radius: 7px; }
+.widget-links a, .widget-links button, .copy-snippet { min-height: 40px; display: inline-flex; align-items: center; padding: 7px 10px; border: 1px solid #3b3b3b; border-radius: 5px; background: #1d1d1d; color: #ccc; text-decoration: none; font-size: 11px; }
+.advanced-output-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.advanced-output-links a { color: #aabdf4; }
+
+@media (max-width: 650px) {
+  .widget-form-row.simple { grid-template-columns: 1fr; }
+}

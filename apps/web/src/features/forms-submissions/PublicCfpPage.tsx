@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import { formatEventDateTime } from "../../app/event-time";
 import "./forms-submissions.css";
 import { fieldIsVisible, readApi, type FormField, type ParticipantRole, type PublicForm, type SubmissionRecord } from "./model";
 
@@ -105,7 +106,7 @@ export function PublicCfpPage() {
           <h1>{form.name}</h1>
           <p>{form.definition.welcomeCopy}</p>
           <div className={`cfp-availability ${form.availability}`}>
-            {form.availability === "open" ? `Open${form.definition.closesAt ? ` until ${formatDate(form.definition.closesAt)}` : ""}` : form.availability === "upcoming" ? `Opens ${formatDate(form.definition.opensAt)}` : "Submissions are closed"}
+            {form.availability === "open" ? `Open${form.definition.closesAt ? ` until ${formatEventDateTime(form.definition.closesAt, event.timezone)}` : ""}` : form.availability === "upcoming" ? `Opens ${form.definition.opensAt ? formatEventDateTime(form.definition.opensAt, event.timezone) : "later"}` : "Submissions are closed"}
           </div>
           <div className="cfp-catalog-summary"><strong>Tracks</strong><p>{event.tracks.join(" · ")}</p><strong>Formats</strong><p>{event.formats.join(" · ")}</p></div>
           {submissions.length > 0 ? (
@@ -186,11 +187,6 @@ function patchParticipant(setParticipants: Dispatch<SetStateAction<ParticipantIn
 
 function compactParticipants(participants: ParticipantInput[]) {
   return participants.filter((participant) => participant.name.trim() || participant.email.trim());
-}
-
-function formatDate(value: string | null) {
-  if (!value) return "later";
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 function localProposalKey(eventSlug: string) {
