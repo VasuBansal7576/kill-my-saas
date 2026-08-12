@@ -4,6 +4,7 @@ import * as schema from "./schema";
 
 export function createDatabase(databaseUrl: string) {
   neonConfig.webSocketConstructor = WebSocket;
+  neonConfig.poolQueryViaFetch = true;
   const client = new Pool({
     connectionString: databaseUrl,
     max: 1,
