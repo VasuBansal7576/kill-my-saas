@@ -2,6 +2,30 @@ import { describe, expect, it, vi } from "vitest";
 import { BrevoEmailAdapter, BrevoProviderError } from "./brevo-adapter";
 
 describe("Brevo transactional adapter boundary", () => {
+  it("retains the Cloudflare global fetch receiver", async () => {
+    const receiverSensitiveFetch = vi.fn(function (this: unknown) {
+      if (this !== globalThis) throw new TypeError("Illegal invocation: fetch lost its global receiver.");
+      return Promise.resolve(new Response(JSON.stringify({ messageId: "<provider-bound@brevo>" }), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      }));
+    });
+    vi.stubGlobal("fetch", receiverSensitiveFetch);
+
+    try {
+      const adapter = new BrevoEmailAdapter({ apiKey: "secret", senderEmail: "sender@example.com", senderName: "ProgramFlow" });
+      await expect(adapter.send({
+        idempotencyKey: "recipient-attempt-bound",
+        to: { email: "vasu@example.com", name: "Vasu Bansal" },
+        subject: "Production proof",
+        html: "<p>Delivered</p>",
+        text: "Delivered",
+      })).resolves.toEqual(expect.objectContaining({ providerMessageId: "<provider-bound@brevo>" }));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("records the real provider message ID and sends iCalendar as an attachment", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ messageId: "<provider-42@brevo>" }), {
       status: 201,

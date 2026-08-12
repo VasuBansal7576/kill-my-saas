@@ -53,7 +53,10 @@ export class BrevoEmailAdapter implements EmailProviderPort {
   private readonly baseUrl: string;
 
   constructor(private readonly config: BrevoAdapterConfig) {
-    this.request = config.fetch ?? fetch;
+    // Cloudflare's native fetch is a host method and must retain its global
+    // receiver. Storing the bare function produces an "Illegal invocation"
+    // before any request reaches Brevo.
+    this.request = config.fetch ?? globalThis.fetch.bind(globalThis);
     this.baseUrl = (config.apiBaseUrl ?? "https://api.brevo.com/v3").replace(/\/$/, "");
   }
 
