@@ -80,6 +80,7 @@ export interface AudienceSpeaker {
   displayName: string;
   email: string | null;
   status: "invited" | "onboarding" | "ready" | "withdrawn";
+  employerApprovalStatus: "not_required" | "pending" | "approved";
   company: string;
   jobTitle: string;
   taskProgress: { complete: number; total: number; overdue: number };

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const SpeakerStatusSchema = z.enum(["invited", "onboarding", "ready", "withdrawn"]);
+export const EmployerApprovalStatusSchema = z.enum(["not_required", "pending", "approved"]);
 export const TaskCompletionFilterSchema = z.enum(["all", "complete", "incomplete"]);
 
 const SocialLinksSchema = z.record(z.string().trim().min(1).max(40), z.string().trim().max(500));
@@ -26,10 +27,12 @@ export const UpdateSpeakerInputSchema = z.object({
 });
 
 export const UpdateSpeakerStatusInputSchema = z.object({ status: SpeakerStatusSchema });
+export const UpdateEmployerApprovalInputSchema = z.object({ status: EmployerApprovalStatusSchema });
 
 export const RosterQuerySchema = z.object({
   search: z.string().trim().max(160).default(""),
   status: SpeakerStatusSchema.optional(),
+  employerApprovalStatus: EmployerApprovalStatusSchema.optional(),
   taskStatus: TaskCompletionFilterSchema.default("all"),
 });
 
@@ -70,3 +73,4 @@ export type RosterQuery = z.infer<typeof RosterQuerySchema>;
 export type CreateSpeakerTaskInput = z.infer<typeof CreateSpeakerTaskInputSchema>;
 export type SaveSpeakerResourceInput = z.infer<typeof SaveSpeakerResourceInputSchema>;
 export type SpeakerStatus = z.infer<typeof SpeakerStatusSchema>;
+export type EmployerApprovalStatus = z.infer<typeof EmployerApprovalStatusSchema>;

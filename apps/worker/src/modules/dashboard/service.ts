@@ -93,7 +93,12 @@ export async function getOrganizerDashboard(
     database.select({ id: decisions.id, outcome: decisions.outcome, notifiedAt: decisions.notifiedAt, decidedAt: decisions.decidedAt })
       .from(decisions).innerJoin(submissions, eq(submissions.id, decisions.submissionId))
       .where(eq(submissions.eventId, event.id)),
-    database.select({ id: eventSpeakers.id, displayName: people.displayName, status: eventSpeakers.status })
+    database.select({
+      id: eventSpeakers.id,
+      displayName: people.displayName,
+      status: eventSpeakers.status,
+      employerApprovalStatus: eventSpeakers.employerApprovalStatus,
+    })
       .from(eventSpeakers).innerJoin(people, eq(people.id, eventSpeakers.personId))
       .where(eq(eventSpeakers.eventId, event.id)),
     database.select({
@@ -482,6 +487,29 @@ function deriveProgramReadiness(rows: DashboardRows): DashboardSnapshot["readine
     });
   }
 
+  const employerApprovalPending = rows.speakers.filter((speaker) =>
+    speaker.status !== "withdrawn" && speaker.employerApprovalStatus === "pending");
+  if (employerApprovalPending.length) {
+    const first = employerApprovalPending[0];
+    if (!first) throw new Error("Employer approval readiness requires at least one pending speaker.");
+    exceptions.push({
+      id: `employer_approval_pending:${first.id}`,
+      code: "employer_approval_pending",
+      severity: "warning",
+      title: `${employerApprovalPending.length} speaker${employerApprovalPending.length === 1 ? " is" : "s are"} awaiting employer approval`,
+      detail: "Participation is not yet confirmed. Review prior contact and draft a human-approved follow-up.",
+      affectedCount: employerApprovalPending.length,
+      workspace: "communications",
+      sourceId: first.id,
+      proof: {
+        sourceType: "event_speaker",
+        status: "employer_approval_pending",
+        occurredAt: null,
+        facts: { pendingCount: employerApprovalPending.length },
+      },
+    });
+  }
+
   const latestHandoff = rows.publicationHandoffs[0];
   if (latestHandoff && (latestHandoff.status === "failed" || latestHandoff.status === "dead_letter")) {
     exceptions.push({
@@ -583,6 +611,7 @@ function deriveProgramReadiness(rows: DashboardRows): DashboardSnapshot["readine
   const priority: Record<ProgramReadinessException["code"], number> = {
     portal_invitation_failed: 10,
     portal_identity_conflict: 20,
+    employer_approval_pending: 25,
     publication_handoff_failed: 30,
     publication_behind_ready_revision: 40,
     accelevents_run_failed: 50,

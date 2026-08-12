@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import {
   getAudienceSpeakers,
   getCommunications,
@@ -9,6 +9,7 @@ import {
   saveCommunicationTemplate,
 } from "./api";
 import styles from "./communications.module.css";
+import { employerApprovalChaseDraft, employerApprovalHistory } from "./chasing";
 import type { AudienceSpeaker, CommunicationCampaign, CommunicationRecipient, CommunicationTemplate, CommunicationsWorkspace } from "./types";
 
 const starter = {
@@ -20,11 +21,14 @@ const starter = {
 
 export function CommunicationsPage() {
   const { eventSlug = "devflow-conf-2027" } = useParams();
+  const [searchParams] = useSearchParams();
+  const chaseMode = searchParams.get("chase") === "employer-approval";
+  const chaseDraft = employerApprovalChaseDraft();
   const [workspace, setWorkspace] = useState<CommunicationsWorkspace | null>(null);
   const [speakers, setSpeakers] = useState<AudienceSpeaker[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [filters, setFilters] = useState({ search: "", status: "", taskStatus: "all" });
-  const [compose, setCompose] = useState({ ...starter, kind: "campaign" as "transactional" | "campaign" | "reminder" });
+  const [selected, setSelected] = useState<Set<string>>(new Set(chaseMode ? chaseDraft.selectedPersonIds : []));
+  const [filters, setFilters] = useState(chaseMode ? chaseDraft.filters : { ...chaseDraft.filters, employerApprovalStatus: "" });
+  const [compose, setCompose] = useState({ ...(chaseMode ? chaseDraft.compose : starter), kind: (chaseMode ? "reminder" : "campaign") as "transactional" | "campaign" | "reminder" });
   const [templateId, setTemplateId] = useState<string | undefined>();
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,12 +47,12 @@ export function CommunicationsPage() {
   useEffect(() => {
     Promise.all([
       getCommunications(eventSlug),
-      getAudienceSpeakers(eventSlug, { search: "", status: "", taskStatus: "all" }),
+      getAudienceSpeakers(eventSlug, { search: "", status: "", taskStatus: "all", employerApprovalStatus: chaseMode ? "pending" : "" }),
     ]).then(([nextWorkspace, nextSpeakers]) => {
       setWorkspace(nextWorkspace);
       setSpeakers(nextSpeakers);
     }).catch((reason: Error) => setError(reason.message));
-  }, [eventSlug]);
+  }, [chaseMode, eventSlug]);
 
   const selectedSpeakers = useMemo(() => speakers.filter((speaker) => selected.has(speaker.personId)), [selected, speakers]);
   const previewSpeaker = selectedSpeakers[0] ?? speakers[0];
@@ -95,7 +99,7 @@ export function CommunicationsPage() {
         htmlTemplate: compose.htmlTemplate,
         textTemplate: compose.textTemplate,
         mergeDataByPersonId: {},
-        audienceSnapshot: { filters, selectedPersonIds: selectedSpeakers.map((speaker) => speaker.personId) },
+        audienceSnapshot: { type: filters.employerApprovalStatus === "pending" ? "employer_approval_chase" : "selected_speakers", filters, selectedPersonIds: selectedSpeakers.map((speaker) => speaker.personId) },
         idempotencyKey: `organizer-communication:${crypto.randomUUID()}`,
       });
       setNotice(`${result.recipientCount} message${result.recipientCount === 1 ? " is" : "s are"} queued to send. Delivery status will update here.`);
@@ -152,8 +156,9 @@ export function CommunicationsPage() {
             <input aria-label="Search speakers" placeholder="Search name, company or email" value={filters.search} onChange={(event) => void applyFilters({ ...filters, search: event.target.value })} />
             <select aria-label="Speaker status" value={filters.status} onChange={(event) => void applyFilters({ ...filters, status: event.target.value })}><option value="">All statuses</option><option value="invited">Invited</option><option value="onboarding">Onboarding</option><option value="ready">Ready</option><option value="withdrawn">Withdrawn</option></select>
             <select aria-label="Task completion" value={filters.taskStatus} onChange={(event) => void applyFilters({ ...filters, taskStatus: event.target.value })}><option value="all">All task states</option><option value="incomplete">Incomplete tasks</option><option value="overdue">Overdue tasks</option><option value="complete">Complete</option></select>
+            <select aria-label="Employer approval" value={filters.employerApprovalStatus} onChange={(event) => void applyFilters({ ...filters, employerApprovalStatus: event.target.value })}><option value="">All approval states</option><option value="pending">Employer approval pending</option><option value="approved">Employer approved</option><option value="not_required">Not required</option></select>
           </div>
-          <div className={styles.audienceRows}>{speakers.map((speaker) => <label key={speaker.personId}><input type="checkbox" checked={selected.has(speaker.personId)} disabled={!speaker.email} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(speaker.personId)) next.delete(speaker.personId); else next.add(speaker.personId); return next; })} /><span><strong>{speaker.displayName}</strong><small>{speaker.email ?? "Missing email address"} · {speaker.company || "No company"}</small></span><em>{speaker.taskProgress.overdue ? `${speaker.taskProgress.overdue} overdue` : speaker.status}</em></label>)}</div>
+          <div className={styles.audienceRows}>{speakers.map((speaker) => { const context = employerApprovalContext(speaker.personId, workspace.campaigns); return <label key={speaker.personId}><input type="checkbox" checked={selected.has(speaker.personId)} disabled={!speaker.email} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(speaker.personId)) next.delete(speaker.personId); else next.add(speaker.personId); return next; })} /><span><strong>{speaker.displayName}</strong><small>{speaker.email ?? "Missing email address"} · {speaker.company || "No company"}</small>{speaker.employerApprovalStatus === "pending" ? <small className={styles.escalation}>{context.count ? `${context.count} prior follow-up${context.count === 1 ? "" : "s"} · last ${formatDate(context.lastAt!)}` : "No prior employer-approval follow-up"}</small> : null}</span><em>{speaker.employerApprovalStatus === "pending" ? "approval pending" : speaker.taskProgress.overdue ? `${speaker.taskProgress.overdue} overdue` : speaker.status}</em></label>; })}</div>
         </section>
       </section>
 
@@ -197,3 +202,10 @@ function formatDate(value: string) { return new Intl.DateTimeFormat(undefined, {
 function preview(template: string, speaker: AudienceSpeaker, eventName: string) { return template.replace(/{{\s*first_name\s*}}/g, speaker.displayName.split(/\s+/)[0] ?? speaker.displayName).replace(/{{\s*recipient_name\s*}}/g, speaker.displayName).replace(/{{\s*event_name\s*}}/g, eventName).replace(/{{\s*email\s*}}/g, speaker.email ?? ""); }
 function textToSafeHtml(value: string) { return value.split(/\n{2,}/).map((paragraph) => `<p>${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`).join(""); }
 function escapeHtml(value: string) { return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
+function employerApprovalContext(personId: string, campaigns: CommunicationCampaign[]) {
+  return employerApprovalHistory(personId, campaigns.map((campaign) => ({
+    type: campaign.audienceSnapshot.type,
+    createdAt: campaign.createdAt,
+    recipientPersonIds: campaign.recipients.map((recipient) => recipient.personId),
+  })));
+}

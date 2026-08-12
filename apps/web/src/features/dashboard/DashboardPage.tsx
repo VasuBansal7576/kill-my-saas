@@ -113,7 +113,7 @@ function ReadinessCenter({ dashboard }: { dashboard: DashboardSnapshot }) {
       <span data-ready={exceptions.length === 0}>{exceptions.length === 0 ? "Ready" : `${exceptions.length} exception${exceptions.length === 1 ? "" : "s"}`}</span>
     </div>
     {exceptions.length ? <div className={styles.exceptionList}>{exceptions.map((exception) => {
-      const action = readinessAction(dashboard.event, exception.workspace);
+      const action = readinessAction(dashboard.event, exception);
       return <article className={styles.exception} data-severity={exception.severity} key={exception.id}>
         <span className={styles.exceptionMark}>{exception.severity === "blocker" ? "!" : "i"}</span>
         <div className={styles.exceptionCopy}>

@@ -1,4 +1,5 @@
 export type SpeakerStatus = "invited" | "onboarding" | "ready" | "withdrawn";
+export type EmployerApprovalStatus = "not_required" | "pending" | "approved";
 export type TaskStatus = "pending" | "complete";
 
 export interface SpeakerTaskAssignment {
@@ -33,6 +34,7 @@ export interface RosterSpeaker {
   displayName: string;
   email: string | null;
   status: SpeakerStatus;
+  employerApprovalStatus: EmployerApprovalStatus;
   biography: string;
   company: string;
   jobTitle: string;

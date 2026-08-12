@@ -27,6 +27,8 @@ import {
   listSpeakerRoster,
   saveSpeakerResource,
   updateOwnSpeakerProfile,
+  updateOwnEmployerApproval,
+  updateEmployerApproval,
   updateSpeakerStatus,
 } from "./service";
 
@@ -86,6 +88,7 @@ integration("speaker operations persisted role round trip", () => {
       displayName: "Marcus Okafor", email: `marcus-${ids.event}@example.com`, jobTitle: "Staff Developer Advocate", company: "Cloudreach Labs", biography: "Initial biography", socialLinks: {}, logistics: {},
     });
     await updateSpeakerStatus(database, organizer, slug, priya.eventSpeakerId, "onboarding");
+    await updateEmployerApproval(database, organizer, slug, priya.eventSpeakerId, "pending");
     const task = await createSpeakerTask(database, organizer, slug, {
       title: "Confirm participation", description: "Confirm attendance", kind: "action", required: true, dueAt: "2027-04-01T17:00:00.000Z", configuration: {}, eventSpeakerIds: [priya.eventSpeakerId, marcus.eventSpeakerId], idempotencyKey: `task-${ids.event}`,
     });
@@ -106,10 +109,12 @@ integration("speaker operations persisted role round trip", () => {
     const assignment = task.assignments.find((candidate) => candidate.eventSpeakerId === priya.eventSpeakerId);
     if (!assignment) throw new Error("Priya assignment fixture was not created.");
     await updateOwnSpeakerProfile(database, priyaActor, slug, { biography: "SBEK-PORTAL-BIO-01", socialLinks: { linkedin: "https://example.com/priya" } });
+    await updateOwnEmployerApproval(database, priyaActor, slug, "approved");
     await completeOwnSpeakerTask(database, priyaActor, slug, assignment.id, null);
 
     const portal = await getSpeakerPortal(database, priyaActor, slug);
     expect(portal.speaker.biography).toContain("SBEK-PORTAL-BIO-01");
+    expect(portal.speaker.employerApprovalStatus).toBe("approved");
     expect(portal.speaker.assignedSessions.map((candidate) => candidate.title)).toEqual(["Taming 40-Minute CI"]);
     expect(portal.speaker.tasks).toMatchObject([{ status: "complete", title: "Confirm participation" }]);
     expect(portal.resources[0]?.contentHtml).toContain('sandbox="allow-forms allow-popups allow-same-origin"');
@@ -118,8 +123,20 @@ integration("speaker operations persisted role round trip", () => {
 
     await expect(completeOwnSpeakerTask(database, marcusActor, slug, assignment.id, null))
       .rejects.toMatchObject({ code: "task_not_found" } satisfies Partial<SpeakerOperationsError>);
-    const progress = await listSpeakerRoster(database, organizer, slug, { search: "Priya", taskStatus: "all" });
-    expect(progress).toMatchObject([{ displayName: "Priya Raman", status: "onboarding", taskProgress: { complete: 1, total: 1 } }]);
+    await updateEmployerApproval(database, organizer, slug, priya.eventSpeakerId, "pending");
+    const progress = await listSpeakerRoster(database, organizer, slug, { search: "Priya", taskStatus: "all", employerApprovalStatus: "pending" });
+    expect(progress).toMatchObject([{ displayName: "Priya Raman", status: "onboarding", employerApprovalStatus: "pending", taskProgress: { complete: 1, total: 1 } }]);
+    expect(await listSpeakerRoster(database, organizer, slug, { search: "Priya", taskStatus: "all", employerApprovalStatus: "approved" })).toEqual([]);
+  });
+
+  it("denies employer-approval mutations outside the authorized event role", async () => {
+    const [speaker] = await tooling.database.select({ id: eventSpeakers.id }).from(eventSpeakers).where(eq(eventSpeakers.eventId, ids.event)).limit(1);
+    if (!speaker) throw new Error("Speaker fixture was not created.");
+    const outsider: Actor = { identityId: "outsider", personId: crypto.randomUUID(), organizationRoles: [], eventRoles: [] };
+    await expect(updateEmployerApproval(database, outsider, slug, speaker.id, "approved"))
+      .rejects.toMatchObject({ code: "forbidden" } satisfies Partial<SpeakerOperationsError>);
+    await expect(updateOwnEmployerApproval(database, outsider, slug, "pending"))
+      .rejects.toMatchObject({ code: "forbidden" } satisfies Partial<SpeakerOperationsError>);
   });
 
   it("does not open a speaker detail record through another event's route", async () => {

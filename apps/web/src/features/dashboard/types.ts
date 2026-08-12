@@ -46,6 +46,7 @@ export interface DashboardSnapshot {
 export type ProgramReadinessExceptionCode =
   | "portal_invitation_failed"
   | "portal_identity_conflict"
+  | "employer_approval_pending"
   | "publication_handoff_failed"
   | "publication_behind_ready_revision"
   | "accelevents_run_failed"

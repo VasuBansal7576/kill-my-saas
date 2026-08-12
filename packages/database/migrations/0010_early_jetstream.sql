@@ -1,0 +1,2 @@
+CREATE TYPE "public"."employer_approval_status" AS ENUM('not_required', 'pending', 'approved');--> statement-breakpoint
+ALTER TABLE "event_speakers" ADD COLUMN "employer_approval_status" "employer_approval_status" DEFAULT 'not_required' NOT NULL;

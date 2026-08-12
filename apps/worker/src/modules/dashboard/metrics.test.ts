@@ -31,9 +31,9 @@ describe("organizer dashboard metric definitions", () => {
     rows.activeReviewConflicts.push({ id: "conflict" });
     rows.decisions.push({ id: "decision", outcome: "accepted", notifiedAt: null, decidedAt: now });
     rows.speakers.push(
-      { id: "speaker-1", displayName: "Priya Raman", status: "onboarding" },
-      { id: "speaker-2", displayName: "Sam Ready", status: "ready" },
-      { id: "speaker-3", displayName: "Withdrawn", status: "withdrawn" },
+      { id: "speaker-1", displayName: "Priya Raman", status: "onboarding", employerApprovalStatus: "not_required" },
+      { id: "speaker-2", displayName: "Sam Ready", status: "ready", employerApprovalStatus: "approved" },
+      { id: "speaker-3", displayName: "Withdrawn", status: "withdrawn", employerApprovalStatus: "not_required" },
     );
     rows.taskAssignments.push(
       { id: "task-1", eventSpeakerId: "speaker-1", displayName: "Priya Raman", status: "pending", dueAt: new Date("2027-05-09T12:00:00.000Z"), dueAtOverride: null, completedAt: null },
@@ -115,6 +115,12 @@ describe("organizer dashboard metric definitions", () => {
       aliasPersonId: "person-2",
       hasSpeakerMembership: true,
     });
+    rows.speakers.push({
+      id: "speaker-1",
+      displayName: "Priya Raman",
+      status: "onboarding",
+      employerApprovalStatus: "pending",
+    });
     rows.publication = {
       state: "live",
       scheduleRevisionId: "revision-1",
@@ -164,6 +170,7 @@ describe("organizer dashboard metric definitions", () => {
     expect(deriveDashboardSnapshot(event, rows, now).readiness.exceptions.map((exception) => exception.code)).toEqual([
       "portal_invitation_failed",
       "portal_identity_conflict",
+      "employer_approval_pending",
       "publication_handoff_failed",
       "publication_behind_ready_revision",
       "accelevents_run_failed",
@@ -191,6 +198,12 @@ describe("organizer dashboard metric definitions", () => {
       canonicalEmail: "priya@example.com",
       aliasPersonId: "person-1",
       hasSpeakerMembership: true,
+    });
+    rows.speakers.push({
+      id: "speaker-1",
+      displayName: "Priya Raman",
+      status: "ready",
+      employerApprovalStatus: "approved",
     });
     rows.publication = {
       state: "live",

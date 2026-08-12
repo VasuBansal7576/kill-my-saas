@@ -2,6 +2,7 @@ import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqu
 import { events, people } from "./foundation";
 
 export const eventSpeakerStatus = pgEnum("event_speaker_status", ["invited", "onboarding", "ready", "withdrawn"]);
+export const employerApprovalStatus = pgEnum("employer_approval_status", ["not_required", "pending", "approved"]);
 export const taskKind = pgEnum("speaker_task_kind", ["action", "form", "file_request"]);
 export const taskAssignmentStatus = pgEnum("task_assignment_status", ["pending", "complete"]);
 export const speakerResourceStatus = pgEnum("speaker_resource_status", ["draft", "published"]);
@@ -23,6 +24,7 @@ export const eventSpeakers = pgTable("event_speakers", {
   eventId: uuid("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   personId: uuid("person_id").notNull().references(() => people.id),
   status: eventSpeakerStatus("status").notNull().default("invited"),
+  employerApprovalStatus: employerApprovalStatus("employer_approval_status").notNull().default("not_required"),
   logistics: jsonb("logistics").$type<Record<string, string>>().notNull().default({}),
   invitationSentAt: timestamp("invitation_sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

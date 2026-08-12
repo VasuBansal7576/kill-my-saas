@@ -10,6 +10,7 @@ import {
   RosterQuerySchema,
   SaveSpeakerResourceInputSchema,
   UpdateAssignmentDueDateInputSchema,
+  UpdateEmployerApprovalInputSchema,
   UpdateSpeakerInputSchema,
   UpdateSpeakerStatusInputSchema,
 } from "./contracts";
@@ -26,6 +27,8 @@ import {
   listSpeakerRoster,
   saveSpeakerResource,
   updateAssignmentDueDate,
+  updateEmployerApproval,
+  updateOwnEmployerApproval,
   updateOwnSpeakerProfile,
   updateSpeaker,
   updateSpeakerStatus,
@@ -43,6 +46,7 @@ speakerOperationsOrganizerRoutes.get("/events/:eventSlug/speakers", async (conte
     search: context.req.query("search"),
     status: context.req.query("status"),
     taskStatus: context.req.query("taskStatus"),
+    employerApprovalStatus: context.req.query("employerApprovalStatus"),
   });
   if (!query.success) return invalid(context, "invalid_roster_filter", query.error.flatten().fieldErrors);
   try {
@@ -105,6 +109,18 @@ speakerOperationsOrganizerRoutes.patch("/events/:eventSlug/speakers/:eventSpeake
   if (!input.success) return invalid(context, "invalid_speaker_status", input.error.flatten().fieldErrors);
   try {
     return context.json(await updateSpeakerStatus(database, context.get("actor"), context.req.param("eventSlug"), context.req.param("eventSpeakerId"), input.data.status));
+  } catch (error) {
+    return speakerError(context, error);
+  }
+});
+
+speakerOperationsOrganizerRoutes.patch("/events/:eventSlug/speakers/:eventSpeakerId/employer-approval", async (context) => {
+  const database = configuredDatabase(context);
+  if (database instanceof Response) return database;
+  const input = UpdateEmployerApprovalInputSchema.safeParse(await context.req.json().catch(() => null));
+  if (!input.success) return invalid(context, "invalid_employer_approval_status", input.error.flatten().fieldErrors);
+  try {
+    return context.json(await updateEmployerApproval(database, context.get("actor"), context.req.param("eventSlug"), context.req.param("eventSpeakerId"), input.data.status));
   } catch (error) {
     return speakerError(context, error);
   }
@@ -186,6 +202,18 @@ speakerOperationsPortalRoutes.patch("/events/:eventSlug/profile", async (context
   if (!input.success) return invalid(context, "invalid_speaker_profile", input.error.flatten().fieldErrors);
   try {
     return context.json(await updateOwnSpeakerProfile(database, context.get("actor"), context.req.param("eventSlug"), input.data));
+  } catch (error) {
+    return speakerError(context, error);
+  }
+});
+
+speakerOperationsPortalRoutes.patch("/events/:eventSlug/employer-approval", async (context) => {
+  const database = configuredDatabase(context);
+  if (database instanceof Response) return database;
+  const input = UpdateEmployerApprovalInputSchema.safeParse(await context.req.json().catch(() => null));
+  if (!input.success) return invalid(context, "invalid_employer_approval_status", input.error.flatten().fieldErrors);
+  try {
+    return context.json(await updateOwnEmployerApproval(database, context.get("actor"), context.req.param("eventSlug"), input.data.status));
   } catch (error) {
     return speakerError(context, error);
   }

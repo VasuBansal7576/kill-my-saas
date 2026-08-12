@@ -91,6 +91,7 @@ export interface DashboardSnapshot {
 export type ProgramReadinessExceptionCode =
   | "portal_invitation_failed"
   | "portal_identity_conflict"
+  | "employer_approval_pending"
   | "publication_handoff_failed"
   | "publication_behind_ready_revision"
   | "accelevents_run_failed"
@@ -120,7 +121,12 @@ export interface DashboardRows {
   reviewAssignments: Array<{ id: string; status: "assigned" | "in_progress" | "submitted" | "recused"; updatedAt: Date }>;
   activeReviewConflicts: Array<{ id: string }>;
   decisions: Array<{ id: string; outcome: "accepted" | "rejected"; notifiedAt: Date | null; decidedAt: Date }>;
-  speakers: Array<{ id: string; displayName: string; status: "invited" | "onboarding" | "ready" | "withdrawn" }>;
+  speakers: Array<{
+    id: string;
+    displayName: string;
+    status: "invited" | "onboarding" | "ready" | "withdrawn";
+    employerApprovalStatus: "not_required" | "pending" | "approved";
+  }>;
   taskAssignments: Array<{
     id: string;
     eventSpeakerId: string;

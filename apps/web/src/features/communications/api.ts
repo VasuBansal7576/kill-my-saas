@@ -4,11 +4,12 @@ export async function getCommunications(eventSlug: string): Promise<Communicatio
   return request(`/api/v1/organizer/events/${eventSlug}/communications`);
 }
 
-export async function getAudienceSpeakers(eventSlug: string, filters: { search: string; status: string; taskStatus: string }): Promise<AudienceSpeaker[]> {
+export async function getAudienceSpeakers(eventSlug: string, filters: { search: string; status: string; taskStatus: string; employerApprovalStatus: string }): Promise<AudienceSpeaker[]> {
   const query = new URLSearchParams();
   if (filters.search.trim()) query.set("search", filters.search.trim());
   if (filters.status) query.set("status", filters.status);
   if (filters.taskStatus !== "all" && filters.taskStatus !== "overdue") query.set("taskStatus", filters.taskStatus);
+  if (filters.employerApprovalStatus) query.set("employerApprovalStatus", filters.employerApprovalStatus);
   const speakers = await request<AudienceSpeaker[]>(`/api/v1/organizer/events/${eventSlug}/speakers?${query}`);
   return filters.taskStatus === "overdue" ? speakers.filter((speaker) => speaker.taskProgress.overdue > 0) : speakers;
 }

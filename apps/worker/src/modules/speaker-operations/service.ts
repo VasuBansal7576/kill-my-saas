@@ -18,6 +18,7 @@ import { actorCanAccessEvent } from "../identity-access/actor";
 import type {
   AddSpeakerInput,
   CreateSpeakerTaskInput,
+  EmployerApprovalStatus,
   RosterQuery,
   SaveSpeakerResourceInput,
   SpeakerStatus,
@@ -66,6 +67,7 @@ export interface SpeakerRosterItem {
   displayName: string;
   email: string | null;
   status: SpeakerStatus;
+  employerApprovalStatus: EmployerApprovalStatus;
   biography: string;
   company: string;
   jobTitle: string;
@@ -107,6 +109,7 @@ export async function listSpeakerRoster(
   const event = await requireEvent(database, actor, eventSlug, "organizer");
   const conditions = [eq(eventSpeakers.eventId, event.id)];
   if (query.status) conditions.push(eq(eventSpeakers.status, query.status));
+  if (query.employerApprovalStatus) conditions.push(eq(eventSpeakers.employerApprovalStatus, query.employerApprovalStatus));
   if (query.search) {
     const pattern = `%${query.search.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
     const search = or(
@@ -124,6 +127,7 @@ export async function listSpeakerRoster(
     displayName: people.displayName,
     email: people.canonicalEmail,
     status: eventSpeakers.status,
+    employerApprovalStatus: eventSpeakers.employerApprovalStatus,
     logistics: eventSpeakers.logistics,
     biography: speakerProfiles.biography,
     company: speakerProfiles.company,
@@ -246,6 +250,20 @@ export async function updateSpeakerStatus(
   return loadSpeakerDetail(database, event, eventSpeakerId);
 }
 
+export async function updateEmployerApproval(
+  database: Database,
+  actor: Actor,
+  eventSlug: string,
+  eventSpeakerId: string,
+  status: EmployerApprovalStatus,
+): Promise<SpeakerDetail> {
+  const event = await requireEvent(database, actor, eventSlug, "organizer");
+  await requireEventSpeaker(database, event.id, eventSpeakerId);
+  await database.update(eventSpeakers).set({ employerApprovalStatus: status, updatedAt: new Date() })
+    .where(eq(eventSpeakers.id, eventSpeakerId));
+  return loadSpeakerDetail(database, event, eventSpeakerId);
+}
+
 export async function listSpeakerTasks(database: Database, actor: Actor, eventSlug: string): Promise<SpeakerTaskSummary[]> {
   const event = await requireEvent(database, actor, eventSlug, "organizer");
   return loadTasks(database, event.id);
@@ -359,6 +377,21 @@ export async function updateOwnSpeakerProfile(
   if (!speaker) throw new SpeakerOperationsError("speaker_not_found", "Your speaker participation was not found for this event.");
   const speakerSafeInput = { ...input, logistics: undefined };
   await persistProfileUpdate(database, actor.personId, speaker.id, speakerSafeInput);
+  return getSpeakerPortal(database, actor, eventSlug);
+}
+
+export async function updateOwnEmployerApproval(
+  database: Database,
+  actor: Actor,
+  eventSlug: string,
+  status: EmployerApprovalStatus,
+): Promise<SpeakerPortal> {
+  const event = await requireEvent(database, actor, eventSlug, "speaker");
+  const [speaker] = await database.select({ id: eventSpeakers.id }).from(eventSpeakers)
+    .where(and(eq(eventSpeakers.eventId, event.id), eq(eventSpeakers.personId, actor.personId))).limit(1);
+  if (!speaker) throw new SpeakerOperationsError("speaker_not_found", "Your speaker participation was not found for this event.");
+  await database.update(eventSpeakers).set({ employerApprovalStatus: status, updatedAt: new Date() })
+    .where(eq(eventSpeakers.id, speaker.id));
   return getSpeakerPortal(database, actor, eventSlug);
 }
 
@@ -530,6 +563,7 @@ async function loadSpeakerDetail(database: Database, event: EventRecord, eventSp
     displayName: people.displayName,
     email: people.canonicalEmail,
     status: eventSpeakers.status,
+    employerApprovalStatus: eventSpeakers.employerApprovalStatus,
     logistics: eventSpeakers.logistics,
     biography: speakerProfiles.biography,
     company: speakerProfiles.company,
