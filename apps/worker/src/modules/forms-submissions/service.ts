@@ -279,7 +279,7 @@ export async function getPublicForm(database: Database, eventSlug: string, now =
   if (!version) throw new FormsSubmissionsError("form_not_published", "This event has not published a call for speakers.");
   const [tracks, formats] = await Promise.all([
     database.select({ name: eventTracks.name }).from(eventTracks).where(eq(eventTracks.eventId, event.id)).orderBy(asc(eventTracks.sortOrder)),
-    database.select({ name: eventFormats.name }).from(eventFormats).where(eq(eventFormats.eventId, event.id)).orderBy(asc(eventFormats.sortOrder)),
+    database.select({ name: eventFormats.name, durationMinutes: eventFormats.durationMinutes }).from(eventFormats).where(eq(eventFormats.eventId, event.id)).orderBy(asc(eventFormats.sortOrder)),
   ]);
   const availability = formAvailability(form.status, version.definition, now);
   if (availability === "draft") throw new FormsSubmissionsError("form_not_published", "This event has not published a call for speakers.");
@@ -292,7 +292,7 @@ export async function getPublicForm(database: Database, eventSlug: string, now =
       endsOn: event.endsOn,
       primaryColor: event.branding.primaryColor,
       tracks: tracks.map((track) => track.name),
-      formats: formats.map((format) => format.name),
+      formats: formats.map(formatLabel),
     },
     form: { id: form.id, versionId: version.id, version: version.version, name: form.name, availability, definition: version.definition },
   };
@@ -653,9 +653,13 @@ async function assertSubmissionLimit(
 async function getCatalogs(database: Database, eventId: string) {
   const [tracks, formats] = await Promise.all([
     database.select({ name: eventTracks.name }).from(eventTracks).where(eq(eventTracks.eventId, eventId)),
-    database.select({ name: eventFormats.name }).from(eventFormats).where(eq(eventFormats.eventId, eventId)),
+    database.select({ name: eventFormats.name, durationMinutes: eventFormats.durationMinutes }).from(eventFormats).where(eq(eventFormats.eventId, eventId)),
   ]);
-  return { tracks: new Set(tracks.map((track) => track.name)), formats: new Set(formats.map((format) => format.name)) };
+  return { tracks: new Set(tracks.map((track) => track.name)), formats: new Set(formats.map(formatLabel)) };
+}
+
+function formatLabel(format: { name: string; durationMinutes: number }): string {
+  return `${format.name} (${format.durationMinutes} min)`;
 }
 
 function assertValidSubmission(

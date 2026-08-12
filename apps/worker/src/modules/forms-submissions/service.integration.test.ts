@@ -138,7 +138,7 @@ integration("forms and submissions persistence", () => {
 
     const submitted = await updateSpeakerSubmission(database, speaker, eventSlug, draft.id, {
       title: "Durable proposal, revised",
-      answers: { abstract: "A real persisted workflow.", track: "Platform", format: "Talk" },
+      answers: { abstract: "A real persisted workflow.", track: "Platform", format: "Talk (30 min)" },
       participants: [
         { name: "Priya Speaker", email: `speaker-${ids.speaker}@example.com`, role: "author" },
         { name: "Pat Coauthor", email: `coauthor-${ids.speaker}@example.com`, role: "co_author" },
@@ -161,7 +161,7 @@ integration("forms and submissions persistence", () => {
 
     const manual = await createManualSubmission(database, organizer, eventSlug, formId, {
       title: "Organizer-entered abstract",
-      answers: { abstract: "Entered from an offline application.", track: "Platform", format: "Talk" },
+      answers: { abstract: "Entered from an offline application.", track: "Platform", format: "Talk (30 min)" },
       participants: [{ name: "Offline Speaker", email: `offline-${ids.event}@example.com`, role: "author" }],
       saveAsDraft: false,
     }, new Date("2027-01-16T12:00:00.000Z"));
