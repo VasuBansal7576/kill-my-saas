@@ -16,16 +16,11 @@ function createDatabaseConnection(databaseUrl: string) {
 
 export type Database = ReturnType<typeof createDatabaseConnection>;
 
-const workerDatabaseCache = new Map<string, Database>();
-
 export function createDatabase(databaseUrl: string): Database {
-  const existing = workerDatabaseCache.get(databaseUrl);
-  if (existing) return existing;
-  const database = createDatabaseConnection(databaseUrl);
-  workerDatabaseCache.set(databaseUrl, database);
-  if (workerDatabaseCache.size > 4) {
-    const oldest = workerDatabaseCache.keys().next().value as string | undefined;
-    if (oldest) workerDatabaseCache.delete(oldest);
-  }
-  return database;
+  // Cloudflare may reuse a Worker isolate for unrelated requests, but native
+  // I/O objects owned by a Neon pool cannot cross request boundaries. A
+  // module-level cache therefore eventually fails with "Cannot perform I/O on
+  // behalf of a different request." Keep each pool scoped to its invocation;
+  // poolQueryViaFetch still lets Neon use its stateless HTTP transport.
+  return createDatabaseConnection(databaseUrl);
 }
