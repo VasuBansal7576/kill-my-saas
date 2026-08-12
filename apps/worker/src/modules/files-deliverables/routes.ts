@@ -29,6 +29,7 @@ import {
   listOwnDeliverables,
   processBundleExport,
   requestBundleExport,
+  requestOrganizerProfileHeadshotUpload,
   requestUpload,
   requestProfileHeadshotUpload,
   restoreSessionVersion,
@@ -78,6 +79,9 @@ filesDeliverablesOrganizerRoutes.get("/events/:eventSlug/content/speakers/:event
 
 filesDeliverablesOrganizerRoutes.put("/events/:eventSlug/content/speakers/:eventSpeakerId", validated(UpdateSpeakerContentSchema, async (context, database, input) =>
   context.json(await updateSpeakerContent(database, context.get("actor"), parameter(context, "eventSlug"), parameter(context, "eventSpeakerId"), input))));
+
+filesDeliverablesOrganizerRoutes.post("/events/:eventSlug/content/speakers/:eventSpeakerId/headshot-uploads", validated(ProfileHeadshotUploadSchema, async (context, database, input) =>
+  context.json(await requestOrganizerProfileHeadshotUpload(database, context.get("actor"), parameter(context, "eventSlug"), parameter(context, "eventSpeakerId"), input, storage(context)), 201)));
 
 filesDeliverablesOrganizerRoutes.post("/events/:eventSlug/content/speakers/:eventSpeakerId/versions/:version/restore", validated(RestoreVersionSchema, async (context, database, input) =>
   context.json(await restoreSpeakerVersion(database, context.get("actor"), parameter(context, "eventSlug"), parameter(context, "eventSpeakerId"), Number(parameter(context, "version")), input.expectedRevision))));

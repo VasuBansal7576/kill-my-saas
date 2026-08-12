@@ -230,29 +230,56 @@ export async function requestProfileHeadshotUpload(
   const [speaker] = await database.select({ id: eventSpeakers.id }).from(eventSpeakers)
     .where(and(eq(eventSpeakers.eventId, event.id), eq(eventSpeakers.personId, actor.personId))).limit(1);
   if (!speaker) throw new FilesDeliverablesError("task_not_found", "Your speaker profile was not found for this event.");
+  return requestDirectProfileHeadshotUpload(database, actor, event.id, speaker.id, actor.personId, command, storage);
+}
+
+export async function requestOrganizerProfileHeadshotUpload(
+  database: Database,
+  actor: Actor,
+  eventSlug: string,
+  eventSpeakerId: string,
+  command: { originalName: string; mediaType: "image/png" | "image/jpeg" | "image/webp"; byteSize: number; checksumSha256: string; idempotencyKey: string },
+  storage: PrivateFileStore,
+) {
+  const event = await requireEvent(database, actor, eventSlug, "organizer");
+  const [speaker] = await database.select({ id: eventSpeakers.id, personId: eventSpeakers.personId }).from(eventSpeakers)
+    .where(and(eq(eventSpeakers.eventId, event.id), eq(eventSpeakers.id, eventSpeakerId))).limit(1);
+  if (!speaker) throw new FilesDeliverablesError("task_not_found", "The speaker profile was not found for this event.");
+  return requestDirectProfileHeadshotUpload(database, actor, event.id, speaker.id, speaker.personId, command, storage);
+}
+
+async function requestDirectProfileHeadshotUpload(
+  database: Database,
+  actor: Actor,
+  eventId: string,
+  eventSpeakerId: string,
+  ownerPersonId: string,
+  command: { originalName: string; mediaType: "image/png" | "image/jpeg" | "image/webp"; byteSize: number; checksumSha256: string; idempotencyKey: string },
+  storage: PrivateFileStore,
+) {
   const [existing] = await database.select().from(fileUploadAuthorizations)
-    .where(and(eq(fileUploadAuthorizations.eventId, event.id), eq(fileUploadAuthorizations.idempotencyKey, command.idempotencyKey))).limit(1);
+    .where(and(eq(fileUploadAuthorizations.eventId, eventId), eq(fileUploadAuthorizations.idempotencyKey, command.idempotencyKey))).limit(1);
   if (existing) return uploadAuthorizationResponse(existing, storage.configured);
 
   const [profileDeliverable] = await database.select({ id: deliverables.id }).from(deliverables)
-    .where(and(eq(deliverables.eventId, event.id), eq(deliverables.eventSpeakerId, speaker.id), isNull(deliverables.taskAssignmentId))).limit(1);
+    .where(and(eq(deliverables.eventId, eventId), eq(deliverables.eventSpeakerId, eventSpeakerId), isNull(deliverables.taskAssignmentId))).limit(1);
   const authorizationId = crypto.randomUUID();
-  const storageKey = `events/${event.id}/quarantine/${authorizationId}`;
+  const storageKey = `events/${eventId}/quarantine/${authorizationId}`;
   const expiresAt = new Date(Date.now() + 15 * 60_000);
   const status = storage.configured ? "authorized" : "blocked_external";
   const created = await database.transaction(async (transaction) => {
     let deliverableId = profileDeliverable?.id;
     if (!deliverableId) {
       const [profileFile] = await transaction.insert(deliverables).values({
-        eventId: event.id,
-        eventSpeakerId: speaker.id,
+        eventId,
+        eventSpeakerId,
       }).returning({ id: deliverables.id });
       deliverableId = profileFile?.id;
     }
     if (!deliverableId) throw new FilesDeliverablesError("conflict", "The profile file container could not be created.");
     const [file] = await transaction.insert(fileObjects).values({
-      eventId: event.id,
-      ownerPersonId: actor.personId,
+      eventId,
+      ownerPersonId,
       storageKey,
       originalName: command.originalName,
       mediaType: command.mediaType,
@@ -262,7 +289,7 @@ export async function requestProfileHeadshotUpload(
     if (!file) throw new FilesDeliverablesError("conflict", "The profile image record could not be created.");
     return (await transaction.insert(fileUploadAuthorizations).values({
       id: authorizationId,
-      eventId: event.id,
+      eventId,
       deliverableId,
       requestedByPersonId: actor.personId,
       fileObjectId: file.id,

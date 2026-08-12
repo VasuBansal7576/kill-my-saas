@@ -149,15 +149,19 @@ export function OrganizerFilesPage() {
   }
   async function uploadHeadshot(row: Deliverable, file: File) {
     try {
+      const directProfileUpload = row.taskAssignmentId === null;
       const authorization = await requestJson<{
         id: string;
         uploadUrl: string | null;
         failureCode: string | null;
       }>(
-        "/api/v1/organizer/files/uploads",
+        directProfileUpload
+          ? `/api/v1/organizer/events/${eventSlug}/content/speakers/${row.eventSpeakerId}/headshot-uploads`
+          : "/api/v1/organizer/files/uploads",
         jsonRequest("POST", {
-          eventId: row.eventId,
-          taskAssignmentId: row.taskAssignmentId,
+          ...(directProfileUpload
+            ? {}
+            : { eventId: row.eventId, taskAssignmentId: row.taskAssignmentId }),
           originalName: file.name,
           mediaType: file.type,
           byteSize: file.size,
@@ -418,7 +422,7 @@ export function OrganizerFilesPage() {
                 </div>
               </div>
               <p className={styles.help}>{active.instructions}</p>
-              {active.handoff === "speaker_headshot" && active.taskAssignmentId !== null ? (
+              {active.handoff === "speaker_headshot" ? (
                 <div className={styles.uploadBox}>
                   <strong>Organizer headshot replacement</strong>
                   <small>
