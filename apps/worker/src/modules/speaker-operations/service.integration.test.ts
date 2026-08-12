@@ -22,6 +22,7 @@ import {
   addSpeaker,
   completeOwnSpeakerTask,
   createSpeakerTask,
+  getSpeakerDetail,
   getSpeakerPortal,
   listSpeakerRoster,
   saveSpeakerResource,
@@ -119,5 +120,30 @@ integration("speaker operations persisted role round trip", () => {
       .rejects.toMatchObject({ code: "task_not_found" } satisfies Partial<SpeakerOperationsError>);
     const progress = await listSpeakerRoster(database, organizer, slug, { search: "Priya", taskStatus: "all" });
     expect(progress).toMatchObject([{ displayName: "Priya Raman", status: "onboarding", taskProgress: { complete: 1, total: 1 } }]);
+  });
+
+  it("does not open a speaker detail record through another event's route", async () => {
+    const otherEventId = crypto.randomUUID();
+    const otherSlug = `speaker-scope-${otherEventId}`;
+    await tooling.database.insert(events).values({
+      id: otherEventId, organizationId: ids.organization, slug: otherSlug, name: "Other Event", startsOn: "2027-06-12", endsOn: "2027-06-14", timezone: "America/Los_Angeles", location: "Oakland",
+    });
+    await tooling.database.insert(eventMemberships).values({ eventId: otherEventId, personId: ids.organizer, role: "organizer" });
+    const otherOrganizer: Actor = { ...organizer, eventRoles: [...organizer.eventRoles, { eventId: otherEventId, role: "organizer" as const }] };
+    const otherSpeaker = await addSpeaker(database, otherOrganizer, otherSlug, {
+      displayName: "Other Event Speaker", email: `other-${otherEventId}@example.com`, jobTitle: "Speaker", company: "Other Event", biography: "Other event only", socialLinks: {}, logistics: {},
+    });
+
+    try {
+      await expect(getSpeakerDetail(database, organizer, slug, otherSpeaker.eventSpeakerId))
+        .rejects.toMatchObject({ code: "speaker_not_found" } satisfies Partial<SpeakerOperationsError>);
+    } finally {
+      await tooling.database.delete(eventMemberships).where(eq(eventMemberships.eventId, otherEventId));
+      await tooling.database.delete(eventSpeakers).where(eq(eventSpeakers.eventId, otherEventId));
+      await tooling.database.delete(events).where(eq(events.id, otherEventId));
+      await tooling.database.delete(speakerProfiles).where(eq(speakerProfiles.personId, otherSpeaker.personId));
+      await tooling.database.delete(personEmailAliases).where(eq(personEmailAliases.personId, otherSpeaker.personId));
+      await tooling.database.delete(people).where(eq(people.id, otherSpeaker.personId));
+    }
   });
 });

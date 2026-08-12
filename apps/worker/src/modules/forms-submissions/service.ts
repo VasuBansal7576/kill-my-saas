@@ -9,6 +9,7 @@ import {
   outboxEvents,
   people,
   personEmailAliases,
+  sessions,
   submissionParticipants,
   submissions,
   submissionVersions,
@@ -110,6 +111,7 @@ export type SubmissionRecord = {
   state: "draft" | "submitted";
   triageState: "unreviewed" | "maybe";
   decision: "accepted" | "rejected" | null;
+  acceptedSession: { id: string; title: string } | null;
   routingKey: string | null;
   version: number;
   answers: Record<string, unknown>;
@@ -573,6 +575,15 @@ async function listSubmissionRecords(database: Database, where: SQL<unknown>): P
       ${submissions.id}, current_version.id, form_version.id, decision.id
     order by ${submissions.updatedAt} desc
   `);
+  const submissionIds = result.rows.map((value) => (value as { id: string }).id);
+  const eventIds = [...new Set(result.rows.map((value) => (value as { event_id: string }).event_id))];
+  const acceptedSessions = submissionIds.length > 0
+    ? await database.select({ id: sessions.id, sourceSubmissionId: sessions.sourceSubmissionId, title: sessions.title })
+      .from(sessions).where(and(inArray(sessions.sourceSubmissionId, submissionIds), inArray(sessions.eventId, eventIds)))
+    : [];
+  const acceptedSessionBySubmission = new Map(acceptedSessions.flatMap((session) => session.sourceSubmissionId
+    ? [[session.sourceSubmissionId, { id: session.id, title: session.title }] as const]
+    : []));
   return result.rows.map((value) => {
     const row = value as {
       id: string; event_id: string; form_id: string; submitter_person_id: string | null;
@@ -591,6 +602,7 @@ async function listSubmissionRecords(database: Database, where: SQL<unknown>): P
       state: row.state,
       triageState: row.triage_state,
       decision: row.decision,
+      acceptedSession: acceptedSessionBySubmission.get(row.id) ?? null,
       routingKey: row.routing_key,
       version: row.content_version,
       answers: row.answers,
@@ -604,14 +616,15 @@ async function listSubmissionRecords(database: Database, where: SQL<unknown>): P
 async function requireSubmissionRecord(database: Database, id: string): Promise<SubmissionRecord> {
   const [root] = await database.select().from(submissions).where(eq(submissions.id, id)).limit(1);
   if (!root) throw new FormsSubmissionsError("submission_not_found", "Submission not found.");
-  const [current, participants, formVersion, decision] = await Promise.all([
+  const [current, participants, formVersion, decision, acceptedSession] = await Promise.all([
     database.select().from(submissionVersions).where(and(eq(submissionVersions.submissionId, root.id), eq(submissionVersions.version, root.currentVersion))).limit(1),
     database.select().from(submissionParticipants).where(eq(submissionParticipants.submissionId, root.id)).orderBy(asc(submissionParticipants.sortOrder)),
     requireFormVersion(database, root.formVersionId),
     database.select({ outcome: decisions.outcome }).from(decisions).where(eq(decisions.submissionId, root.id)).limit(1),
+    database.select({ id: sessions.id, title: sessions.title }).from(sessions).where(and(eq(sessions.sourceSubmissionId, root.id), eq(sessions.eventId, root.eventId))).limit(1),
   ]);
   if (!current[0]) throw new Error(`Submission ${root.id} has no current version.`);
-  return toSubmissionRecord(root, current[0], participants, formVersion.version, decision[0]?.outcome ?? null);
+  return toSubmissionRecord(root, current[0], participants, formVersion.version, decision[0]?.outcome ?? null, acceptedSession[0] ?? null);
 }
 
 function toSubmissionRecord(
@@ -620,6 +633,7 @@ function toSubmissionRecord(
   participants: Array<typeof submissionParticipants.$inferSelect>,
   formVersion: number,
   decision: "accepted" | "rejected" | null,
+  acceptedSession: { id: string; title: string } | null,
 ): SubmissionRecord {
   return {
     id: root.id,
@@ -631,6 +645,7 @@ function toSubmissionRecord(
     state: root.state,
     triageState: root.triageState,
     decision,
+    acceptedSession,
     routingKey: root.routingKey,
     version: current.version,
     answers: current.answers,

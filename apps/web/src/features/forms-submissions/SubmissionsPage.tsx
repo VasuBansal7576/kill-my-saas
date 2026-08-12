@@ -56,7 +56,7 @@ export function SubmissionsPage() {
       }));
       await reloadSubmissions();
       setMessage(outcome === "accepted"
-        ? `“${decisionTarget.title}” was accepted. Its linked session, speaker record, onboarding, and notification handoffs were created atomically.`
+        ? `“${decisionTarget.title}” was accepted. Its session, speaker record, onboarding tasks, and notification were created together.`
         : `“${decisionTarget.title}” was rejected and the submitter notification was queued.`);
       setDecisionTarget(null);
       setDecisionReason("");
@@ -91,7 +91,7 @@ export function SubmissionsPage() {
       {showManual && manualForm ? <ManualSubmissionForm eventSlug={eventSlug} form={manualForm} close={() => setShowManual(false)} created={(submission) => {
         setSubmissions((current) => [submission, ...current]);
         setShowManual(false);
-        setMessage("Manual submission persisted with organizer provenance and routed to Reviews.");
+        setMessage("Manual submission created by an organizer and sent to review.");
       }} /> : null}
       <div className="submission-queue-tabs" aria-label="Decision queue filters">
         {(["all", "unreviewed", "maybe", "accepted", "rejected"] as const).map((value) => <button type="button" key={value} className={filter === value ? "active" : ""} onClick={() => setFilter(value)}>{humanize(value)} <span>{submissions.filter((submission) => value === "all" ? true : value === "accepted" || value === "rejected" ? submission.decision === value : !submission.decision && submission.triageState === value).length}</span></button>)}
@@ -118,7 +118,7 @@ export function SubmissionsPage() {
               {submission.state === "submitted" && !submission.decision ? <>
                 <button type="button" disabled={busyId === submission.id} onClick={() => setDecisionTarget(submission)}>Accept / reject</button>
                 <button type="button" disabled={busyId === submission.id} className={submission.triageState === "maybe" ? "active" : ""} onClick={() => void markMaybe(submission)}>{submission.triageState === "maybe" ? "Undo maybe" : "Maybe"}</button>
-              </> : <small>{submission.decision === "accepted" ? "Session handoff complete" : submission.decision === "rejected" ? "Final outcome recorded" : "Draft is private"}</small>}
+              </> : <small>{submission.decision === "accepted" ? "Session created" : submission.decision === "rejected" ? "Final outcome recorded" : "Draft is private"}</small>}
             </div>
           </article>
         )) : null}
@@ -168,14 +168,14 @@ function ManualSubmissionForm({ eventSlug, form, close, created }: {
   }
 
   return <section className="cfp-panel" aria-labelledby="manual-submission-heading">
-    <div className="section-head"><div><span>Organizer entry · {form.form.definition.target}</span><h2 id="manual-submission-heading">Add a submission without re-entry later</h2></div><button type="button" onClick={close}>Close</button></div>
+    <div className="section-head"><div><span>Organizer entry · {form.form.definition.target}</span><h2 id="manual-submission-heading">Add a submission</h2></div><button type="button" onClick={close}>Close</button></div>
     <form onSubmit={submit} className="cfp-form-grid">
-      <label className="wide">Title<input required minLength={3} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+      <label className="wide">Proposal title<small>This becomes the session title if accepted. If another question asks for a session title, use the same title.</small><input required minLength={3} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
       {form.form.definition.fields.filter((field) => fieldIsVisible(field, answers)).map((field) => <ManualField key={field.key} field={field} value={answers[field.key]} form={form} onChange={(value) => setAnswers((current) => ({ ...current, [field.key]: value }))} />)}
       <label>Primary participant name<input required value={participant.name} onChange={(event) => setParticipant({ ...participant, name: event.target.value })} /></label>
       <label>Primary participant email<input required type="email" value={participant.email} onChange={(event) => setParticipant({ ...participant, email: event.target.value })} /></label>
       {error ? <div className="form-error wide" role="alert">{error}</div> : null}
-      <div className="cfp-submit-actions wide"><button type="button" className="secondary-action" onClick={close}>Cancel</button><button className="primary-action" disabled={busy} type="submit">{busy ? "Saving…" : "Create & route"}</button></div>
+      <div className="cfp-submit-actions wide"><button type="button" className="secondary-action" onClick={close}>Cancel</button><button className="primary-action" disabled={busy} type="submit">{busy ? "Saving…" : "Create submission and send to review"}</button></div>
     </form>
   </section>;
 }

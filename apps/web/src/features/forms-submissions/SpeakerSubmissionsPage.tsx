@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import "./forms-submissions.css";
 import { readApi, type SubmissionRecord } from "./model";
+import { decisionLabel } from "./presentation";
 
 export function SpeakerSubmissionsPage() {
   const { eventSlug = "" } = useParams();
@@ -25,7 +26,7 @@ export function SpeakerSubmissionsPage() {
       <div className="speaker-proposal-grid">
         {submissions.map((submission) => (
           <article className="cfp-panel" key={submission.id}>
-            <div className="section-head"><span className={`submission-state ${submission.decision ?? submission.state}`}>{submission.decision ?? submission.state}</span><time dateTime={submission.updatedAt}>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(submission.updatedAt))}</time></div>
+            <div className="section-head"><span className={`submission-state ${submission.decision ?? submission.state}`}>{decisionLabel(submission)}</span><time dateTime={submission.updatedAt}>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(submission.updatedAt))}</time></div>
             <h2>{submission.title}</h2>
             <p>{submission.decision === "accepted"
               ? "Your proposal was accepted. Continue to speaker onboarding and session preparation."
@@ -34,7 +35,9 @@ export function SpeakerSubmissionsPage() {
                 : submission.state === "draft"
                   ? "Continue completing this proposal before the call closes."
                   : "Your proposal is recorded and ready for the review workflow."}</p>
-            <Link to={`/cfp/${eventSlug}?submission=${submission.id}`}>{submission.state === "draft" ? "Resume draft" : "View or edit proposal"} →</Link>
+            {submission.decision === "accepted" && submission.acceptedSession
+              ? <Link to={`/speaker/events/${eventSlug}#session-${submission.acceptedSession.id}`}>Open accepted session: {submission.acceptedSession.title} →</Link>
+              : <Link to={`/cfp/${eventSlug}?submission=${submission.id}`}>{submission.state === "draft" ? "Resume draft" : "View or edit proposal"} →</Link>}
           </article>
         ))}
         {submissions.length === 0 && !message ? <div className="cfp-panel cfp-empty"><strong>No proposals yet.</strong><p>Start from the public call for speakers form.</p></div> : null}

@@ -137,7 +137,7 @@ export function PublicCfpPage() {
           ) : (
             <form onSubmit={(event_) => { event_.preventDefault(); void save(false); }}>
               <p className="cfp-instructions">{form.definition.instructionsCopy}</p>
-              <label>Proposal title <span aria-hidden="true">*</span><input value={title} minLength={3} maxLength={180} required onChange={(event_) => setTitle(event_.target.value)} /></label>
+              <label>Proposal title <span aria-hidden="true">*</span><small>This becomes the session title if accepted. If another question asks for a session title, use the same title.</small><input value={title} minLength={3} maxLength={180} required onChange={(event_) => setTitle(event_.target.value)} /></label>
               {visibleFields.map((field) => <PublicField key={field.key} field={field} value={answers[field.key]} event={event} onChange={(value) => setAnswers((current) => ({ ...current, [field.key]: value }))} />)}
               <fieldset className="cfp-participants">
                 <legend>Participants <small>{form.definition.minimumParticipants}–{form.definition.maximumParticipants}</small></legend>

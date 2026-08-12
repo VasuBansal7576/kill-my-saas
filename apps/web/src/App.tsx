@@ -1,6 +1,7 @@
 import type { ReadinessResponse } from "@programflow/contracts";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { organizerNavigation } from "./app/organizer-navigation";
 
 const LoginPage = lazy(async () => ({ default: (await import("./app/LoginPage")).LoginPage }));
 const EventSettingsPage = lazy(async () => ({ default: (await import("./features/event-configuration/EventSettingsPage")).EventSettingsPage }));
@@ -161,7 +162,10 @@ function ProductShell() {
           <Route path="events/:eventSlug/cfp" element={<Suspense fallback={<p className="muted">Loading CFP builder…</p>}><CfpBuilderPage /></Suspense>} />
           <Route path="events/:eventSlug/submissions" element={<Suspense fallback={<p className="muted">Loading submissions…</p>}><SubmissionsPage /></Suspense>} />
           <Route path="events/:eventSlug/evaluations" element={<Suspense fallback={<p className="muted">Loading evaluations…</p>}><ReviewsDecisionsPage /></Suspense>} />
+          <Route path="events/:eventSlug/speakers/:eventSpeakerId" element={<Suspense fallback={<p className="muted">Loading speaker details…</p>}><SpeakersPage /></Suspense>} />
           <Route path="events/:eventSlug/speakers" element={<Suspense fallback={<p className="muted">Loading speakers…</p>}><SpeakersPage /></Suspense>} />
+          <Route path="events/:eventSlug/tasks" element={<Suspense fallback={<p className="muted">Loading speaker tasks…</p>}><SpeakerTasksPage /></Suspense>} />
+          <Route path="events/:eventSlug/resources" element={<Suspense fallback={<p className="muted">Loading portal resources…</p>}><SpeakerResourcesPage /></Suspense>} />
           <Route path="events/:eventSlug/speakers/tasks" element={<Suspense fallback={<p className="muted">Loading speaker tasks…</p>}><SpeakerTasksPage /></Suspense>} />
           <Route path="events/:eventSlug/speakers/resources" element={<Suspense fallback={<p className="muted">Loading speaker resources…</p>}><SpeakerResourcesPage /></Suspense>} />
           <Route path="events/:eventSlug/files" element={<Suspense fallback={<p className="muted">Loading files…</p>}><OrganizerFilesPage /></Suspense>} />
@@ -188,26 +192,6 @@ function SignOutButton() {
       .then(({ authClient }) => authClient.signOut())
       .finally(() => navigate("/login", { replace: true }));
   }}>{busy ? "Signing out…" : "Sign out"}</button>;
-}
-
-function organizerNavigation(eventSlug: string, organizationId: string) {
-  const base = `/organizer/events/${encodeURIComponent(eventSlug)}`;
-  return [
-    ["Dashboard", `${base}/dashboard`],
-    ["Event", `${base}/settings`],
-    ["Call for speakers", `${base}/cfp`],
-    ["Submissions", `${base}/submissions`],
-    ["Evaluations", `${base}/evaluations`],
-    ["Speakers", `${base}/speakers`],
-    ["Files", `${base}/files`],
-    ["Communications", `${base}/communications`],
-    ["Agenda", `${base}/agenda`],
-    ["Publish", `${base}/publish`],
-    ["Speaker CRM", `/organizer/organizations/${organizationId}/speaker-crm`],
-    ["Integrations", `${base}/integrations/airtable`],
-    ["Accelevents", `${base}/integrations/accelevents`],
-    ["API", `${base}/api`],
-  ] as const;
 }
 
 function SpeakerCrmRoute() {

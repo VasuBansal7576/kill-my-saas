@@ -79,6 +79,7 @@ export type SubmissionRecord = {
   state: "draft" | "submitted";
   triageState: "unreviewed" | "maybe";
   decision: "accepted" | "rejected" | null;
+  acceptedSession: { id: string; title: string } | null;
   routingKey: string | null;
   version: number;
   answers: Record<string, unknown>;

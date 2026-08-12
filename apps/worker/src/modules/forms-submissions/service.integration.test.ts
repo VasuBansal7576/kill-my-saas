@@ -1,6 +1,7 @@
 import type { Database } from "@programflow/database";
 import {
   cfpForms,
+  decisions,
   eventFormats,
   eventMemberships,
   eventTracks,
@@ -8,6 +9,7 @@ import {
   organizations,
   outboxEvents,
   people,
+  sessions,
   submissions,
 } from "@programflow/database";
 import { and, eq, inArray } from "drizzle-orm";
@@ -23,6 +25,7 @@ import {
   FormsSubmissionsError,
   getPublicForm,
   listOrganizerSubmissions,
+  listSpeakerSubmissions,
   publishForm,
   updateSpeakerSubmission,
 } from "./service";
@@ -80,6 +83,8 @@ integration("forms and submissions persistence", () => {
 
   afterAll(async () => {
     if (createdSubmissionIds.length > 0) {
+      await tooling.database.delete(sessions).where(inArray(sessions.sourceSubmissionId, createdSubmissionIds));
+      await tooling.database.delete(decisions).where(inArray(decisions.submissionId, createdSubmissionIds));
       await tooling.database.delete(outboxEvents).where(inArray(outboxEvents.aggregateId, createdSubmissionIds));
       await tooling.database.delete(submissions).where(inArray(submissions.id, createdSubmissionIds));
     }
@@ -153,6 +158,26 @@ integration("forms and submissions persistence", () => {
 
     const organizerInbox = await listOrganizerSubmissions(database, organizer, eventSlug);
     expect(organizerInbox[0]).toMatchObject({ id: draft.id, title: "Durable proposal, revised", state: "submitted" });
+    await tooling.database.insert(decisions).values({
+      submissionId: draft.id,
+      outcome: "accepted",
+      reason: "Strong fit",
+      idempotencyKey: `forms-decision-${ids.event}`,
+      decidedByPersonId: ids.organizer,
+    });
+    const [acceptedSession] = await tooling.database.insert(sessions).values({
+      eventId: ids.event,
+      sourceSubmissionId: draft.id,
+      title: "Durable proposal, revised",
+      abstract: "A real persisted workflow.",
+    }).returning({ id: sessions.id, title: sessions.title });
+    expect(acceptedSession).toBeDefined();
+    const speakerProjection = await listSpeakerSubmissions(database, speaker, eventSlug);
+    expect(speakerProjection[0]).toMatchObject({
+      id: draft.id,
+      decision: "accepted",
+      acceptedSession: { id: acceptedSession!.id, title: "Durable proposal, revised" },
+    });
     const [confirmation] = await tooling.database.select().from(outboxEvents).where(and(
       eq(outboxEvents.aggregateId, draft.id),
       eq(outboxEvents.eventType, "submission.confirmation_requested"),

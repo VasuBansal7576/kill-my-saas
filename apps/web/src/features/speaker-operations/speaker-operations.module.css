@@ -9,6 +9,7 @@
 .eyebrow { margin: 0 0 9px; color: #8c7cf6; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; }
 .actions { display: flex; gap: 8px; }
 .primaryButton, .secondaryButton, .iconButton, .textButton { display: inline-flex; align-items: center; justify-content: center; min-height: 35px; padding: 0 13px; border-radius: 7px; font-size: 10px; font-weight: 750; cursor: pointer; }
+.secondaryButton { text-decoration: none; }
 .primaryButton { border: 0; background: #e7e7e7; color: #111; }
 .secondaryButton { border: 1px solid #353535; background: #1a1a1a; color: #c4c4c4; }
 .primaryButton:disabled { opacity: .55; cursor: wait; }
@@ -24,10 +25,12 @@
 .editor { margin-top: 18px; }
 .filters { display: grid; grid-template-columns: minmax(220px,1fr) 180px 180px; gap: 12px; margin-bottom: 14px; }
 .table { border-top: 1px solid #292929; }
-.tableHeader, .tableRow { display: grid; grid-template-columns: minmax(250px,1.6fr) minmax(110px,.65fr) minmax(110px,.65fr) 70px 24px; align-items: center; gap: 12px; min-height: 60px; padding: 0 8px; }
+.tableHeader, .tableRow { display: grid; grid-template-columns: minmax(250px,1.6fr) minmax(110px,.65fr) minmax(110px,.65fr) 70px 88px; align-items: center; gap: 12px; min-height: 60px; padding: 0 8px; }
 .tableHeader { min-height: 38px; color: #666; font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
 .tableRow { width: 100%; border: 0; border-top: 1px solid #282828; background: transparent; color: #cfcfcf; text-align: left; font-size: 10px; }
 .tableRow:hover { background: #191919; }
+.tableRow:focus-visible { outline: 2px solid #8c7cf6; outline-offset: -2px; }
+.rowAction { color: #a99cf8; font-weight: 750; text-align: right; }
 .tableRow small, .person small, .compactCard small, .taskCard small, .sessionCard small, .portalTask small, .resourceLink small { display: block; margin-top: 4px; color: #707070; font-size: 9px; }
 .person { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .avatar, .largeAvatar { flex: 0 0 auto; display: grid; place-items: center; border: 1px solid #353535; background: #202020; color: #aaa; font-weight: 800; }
@@ -49,6 +52,7 @@
 .editor > .primaryButton { margin-top: 14px; }
 .backdrop { position: fixed; z-index: 10; inset: 0; display: flex; justify-content: flex-end; background: rgba(0,0,0,.62); }
 .drawer { width: min(560px,100%); height: 100%; overflow: auto; padding: 22px; border-left: 1px solid #303030; background: #141414; box-shadow: -24px 0 80px rgba(0,0,0,.4); }
+.detailLoading { margin: auto 24px auto auto; padding: 14px 18px; border: 1px solid #303030; border-radius: 8px; background: #141414; color: #cfcfcf; }
 .iconButton { width: 34px; padding: 0; border: 1px solid #333; background: #1b1b1b; color: #999; font-size: 18px; }
 .statusControl { margin: 12px 0 18px; }
 .detailSection { margin-top: 28px; }
