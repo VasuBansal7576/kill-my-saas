@@ -21,6 +21,32 @@
   gap: 5px;
 }
 
+.rd-scorecard-editor .rd-criterion-details {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(100px, 160px));
+}
+
+.rd-scorecard-editor .rd-option-editor {
+  grid-template-columns: 1fr;
+}
+
+.rd-option-editor > div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(160px, 1fr) 100px;
+}
+
+.rd-option-editor input {
+  background: #181817;
+  border: 1px solid #32322f;
+  border-radius: 6px;
+  color: #e6e6e2;
+  padding: 8px;
+}
+
 @media (max-width: 560px) {
   .rd-scorecard-editor > div {
     grid-template-columns: 1fr;

@@ -60,8 +60,8 @@ export function validateScorecard(criteria: ReadonlyArray<ReviewCriterion>): voi
       }
       scoringWeight += criterion.weight;
     } else if (criterion.type === "dropdown") {
-      if (criterion.weight <= 0 || criterion.options.length < 2 || criterion.options.some((option) => option.score < 0 || option.score > 100)) {
-        throw new ReviewRuleError("invalid_scorecard", `Dropdown criterion “${criterion.label}” needs two scored options and a positive weight.`);
+      if (criterion.weight < 0 || criterion.options.length < 2 || criterion.options.some((option) => option.score < 0 || option.score > 100)) {
+        throw new ReviewRuleError("invalid_scorecard", `Dropdown criterion “${criterion.label}” needs two scored options and a non-negative weight.`);
       }
       scoringWeight += criterion.weight;
     } else if (criterion.weight !== 0) {

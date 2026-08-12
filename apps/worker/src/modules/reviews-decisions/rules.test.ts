@@ -7,6 +7,7 @@ import {
   ReviewRuleError,
   toReviewResultsCsv,
   validateReviewPlan,
+  validateScorecard,
 } from "./rules";
 import type { ReviewCriterion } from "./types";
 
@@ -24,6 +25,16 @@ describe("review scorecard rules", () => {
   it("allows incomplete drafts but blocks finalization until every required response exists", () => {
     expect(calculateWeightedScore(scorecard, { depth: 3 }, false)).toBe(50);
     expect(() => calculateWeightedScore(scorecard, { depth: 3 }, true)).toThrowError(ReviewRuleError);
+  });
+
+  it("allows a required categorical recommendation without changing the numeric aggregate", () => {
+    const criteria: ReviewCriterion[] = [
+      { key: "originality", label: "Originality", type: "numeric", required: true, weight: 2, min: 1, max: 5 },
+      { key: "relevance", label: "Relevance", type: "numeric", required: true, weight: 1, min: 1, max: 5 },
+      { key: "recommendation", label: "Recommendation", type: "dropdown", required: true, weight: 0, options: [{ label: "Accept", score: 100 }, { label: "Maybe", score: 50 }, { label: "Reject", score: 0 }] },
+    ];
+    expect(() => validateScorecard(criteria)).not.toThrow();
+    expect(calculateWeightedScore(criteria, { originality: 4, relevance: 2, recommendation: "Accept" }, true)).toBe(58.33);
   });
 
   it("requires two independently dated, valid rounds", () => {

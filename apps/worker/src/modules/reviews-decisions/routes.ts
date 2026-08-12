@@ -25,7 +25,7 @@ const DropdownCriterionSchema = z.object({
   label: z.string().trim().min(1).max(160),
   type: z.literal("dropdown"),
   required: z.boolean(),
-  weight: z.number().int().min(1).max(100),
+  weight: z.number().int().min(0).max(100),
   options: z.array(z.object({ label: z.string().trim().min(1), score: z.number().min(0).max(100) })).min(2),
 });
 const FreeTextCriterionSchema = z.object({
