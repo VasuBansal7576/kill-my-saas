@@ -71,9 +71,10 @@ export async function updateEventConfiguration(
     ]);
 
     const retainedTrackIds = new Set<string>();
+    const allowTrackRename = input.tracks.length === currentTracks.length;
     for (const [sortOrder, name] of input.tracks.entries()) {
       const match = currentTracks.find((track) => !retainedTrackIds.has(track.id) && track.name === name)
-        ?? currentTracks.find((track) => !retainedTrackIds.has(track.id) && track.sortOrder === sortOrder);
+        ?? (allowTrackRename ? currentTracks.find((track) => !retainedTrackIds.has(track.id) && track.sortOrder === sortOrder) : undefined);
       if (match) {
         retainedTrackIds.add(match.id);
         await transaction.update(eventTracks).set({ name, sortOrder, updatedAt: new Date() }).where(eq(eventTracks.id, match.id));
@@ -83,9 +84,10 @@ export async function updateEventConfiguration(
     }
 
     const retainedFormatIds = new Set<string>();
+    const allowFormatRename = input.formats.length === currentFormats.length;
     for (const [sortOrder, format] of input.formats.entries()) {
       const match = currentFormats.find((candidate) => !retainedFormatIds.has(candidate.id) && candidate.name === format.name)
-        ?? currentFormats.find((candidate) => !retainedFormatIds.has(candidate.id) && candidate.sortOrder === sortOrder);
+        ?? (allowFormatRename ? currentFormats.find((candidate) => !retainedFormatIds.has(candidate.id) && candidate.sortOrder === sortOrder) : undefined);
       if (match) {
         retainedFormatIds.add(match.id);
         await transaction.update(eventFormats).set({ ...format, sortOrder, updatedAt: new Date() }).where(eq(eventFormats.id, match.id));
@@ -95,9 +97,10 @@ export async function updateEventConfiguration(
     }
 
     const retainedRoomIds = new Set<string>();
+    const allowRoomRename = input.rooms.length === currentRooms.length;
     for (const [sortOrder, name] of input.rooms.entries()) {
       const match = currentRooms.find((room) => !retainedRoomIds.has(room.id) && room.name === name)
-        ?? currentRooms.find((room) => !retainedRoomIds.has(room.id) && room.sortOrder === sortOrder);
+        ?? (allowRoomRename ? currentRooms.find((room) => !retainedRoomIds.has(room.id) && room.sortOrder === sortOrder) : undefined);
       if (match) {
         retainedRoomIds.add(match.id);
         await transaction.update(eventRooms).set({ name, sortOrder, updatedAt: new Date() }).where(eq(eventRooms.id, match.id));
