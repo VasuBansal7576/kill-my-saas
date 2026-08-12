@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { loadDashboard } from "./api";
 import styles from "./dashboard.module.css";
-import type { DashboardSnapshot } from "./types";
+import { readinessAction } from "./readiness";
+import type { DashboardSnapshot, ProgramReadinessException } from "./types";
 
 type WorkItem = { tone: "danger" | "warning" | "violet" | "success"; code: string; title: string; detail: string; label: string; to: string };
 
@@ -48,6 +49,8 @@ export function DashboardPage() {
       <Metric label="Agenda readiness" value={`${dashboard.agenda.percentReady}%`} note={`${dashboard.agenda.unscheduled} unscheduled · ${dashboard.agenda.conflicts} conflicts`} to={`${base}/agenda`} progress={dashboard.agenda.percentReady} danger={dashboard.agenda.conflicts > 0} />
       <Metric label="Publication" value={label(dashboard.publication.state)} note={`Public revision ${dashboard.publication.publicRevision}`} to={`${base}/publish`} good={dashboard.publication.state === "live"} />
     </section>
+
+    <ReadinessCenter dashboard={dashboard} />
 
     <div className={styles.primaryGrid}>
       <section className={styles.panel}>
@@ -102,6 +105,28 @@ export function DashboardPage() {
   </div>;
 }
 
+function ReadinessCenter({ dashboard }: { dashboard: DashboardSnapshot }) {
+  const exceptions = dashboard.readiness.exceptions;
+  return <section className={styles.readinessCenter} aria-labelledby="program-readiness-heading">
+    <div className={styles.sectionHead}>
+      <div><h2 id="program-readiness-heading">Program readiness center</h2><p>Cross-workflow exceptions backed by persisted receipts and identity records</p></div>
+      <span data-ready={exceptions.length === 0}>{exceptions.length === 0 ? "Ready" : `${exceptions.length} exception${exceptions.length === 1 ? "" : "s"}`}</span>
+    </div>
+    {exceptions.length ? <div className={styles.exceptionList}>{exceptions.map((exception) => {
+      const action = readinessAction(dashboard.event, exception.workspace);
+      return <article className={styles.exception} data-severity={exception.severity} key={exception.id}>
+        <span className={styles.exceptionMark}>{exception.severity === "blocker" ? "!" : "i"}</span>
+        <div className={styles.exceptionCopy}>
+          <strong>{exception.title}</strong>
+          <p>{exception.detail}</p>
+          <small>{proofSummary(exception)}</small>
+        </div>
+        <Link to={action.to}>{action.label} →</Link>
+      </article>;
+    })}</div> : <div className={styles.readinessClear}><span>✓</span><div><strong>No evidence-backed exceptions</strong><small>Portal access, publication handoffs, and enabled integration receipts are healthy.</small></div></div>}
+  </section>;
+}
+
 function Metric(props: { label: string; value: string | number; note: string; to: string; progress?: number; danger?: boolean; good?: boolean }) {
   return <Link className={styles.metric} to={props.to}><span>{props.label}</span><strong className={props.danger ? styles.danger : props.good ? styles.good : undefined}>{props.value}</strong><small>{props.note}</small>{props.progress !== undefined ? <i className={styles.metricProgress}><b style={{ width: `${clamp(props.progress)}%` }} /></i> : null}</Link>;
 }
@@ -127,6 +152,15 @@ function buildWorkQueue(data: DashboardSnapshot): WorkItem[] {
   if (data.communications.failed > 0) items.push({ tone: "danger", code: "CM", title: `Inspect ${data.communications.failed} failed communication${data.communications.failed === 1 ? "" : "s"}`, detail: `${data.communications.successful} successful recipient outcomes`, label: "Open outcomes", to: `${base}/communications` });
   if (data.publication.state !== "live" && data.agenda.conflicts === 0 && data.agenda.unscheduled === 0 && data.agenda.sessions > 0) items.push({ tone: "success", code: "PB", title: data.publication.state === "paused" ? "Resume the public program" : "Publish the program", detail: `${data.agenda.scheduled} scheduled sessions are ready for the publication gate`, label: "Preview & publish", to: `${base}/publish` });
   return items;
+}
+
+function proofSummary(exception: ProgramReadinessException): string {
+  const facts = Object.entries(exception.proof.facts)
+    .filter(([, value]) => value !== null)
+    .map(([key, value]) => `${label(key)}: ${String(value)}`)
+    .join(" · ");
+  const when = exception.proof.occurredAt ? ` · ${relativeTime(exception.proof.occurredAt)}` : "";
+  return `${label(exception.proof.sourceType)} · ${label(exception.proof.status)} · ${exception.sourceId}${when}${facts ? ` · ${facts}` : ""}`;
 }
 
 function percent(part: number, total: number) { return total === 0 ? 0 : Math.round((part / total) * 100); }

@@ -4,6 +4,7 @@ import type { DashboardRows } from "./types";
 
 const event = {
   id: "event-1",
+  organizationId: "organization-1",
   slug: "devflow-conf-2027",
   name: "DevFlow Conf 2027",
   startsOn: "2027-05-12",
@@ -93,6 +94,140 @@ describe("organizer dashboard metric definitions", () => {
       percentReady: 67,
     });
   });
+
+  it("ranks evidence-backed program readiness exceptions by operational impact", () => {
+    const now = new Date("2027-05-10T12:00:00.000Z");
+    const rows = emptyRows();
+    rows.portalInvitationRecipients.push({
+      id: "recipient-1",
+      personId: "person-1",
+      displayName: "Priya Raman",
+      status: "failed",
+      attemptCount: 2,
+      lastErrorCode: "provider_rejected",
+      lastOutcomeAt: new Date("2027-05-10T11:00:00.000Z"),
+    });
+    rows.speakerIdentities.push({
+      eventSpeakerId: "speaker-1",
+      personId: "person-1",
+      displayName: "Priya Raman",
+      canonicalEmail: "priya@example.com",
+      aliasPersonId: "person-2",
+      hasSpeakerMembership: true,
+    });
+    rows.publication = {
+      state: "live",
+      scheduleRevisionId: "revision-1",
+      publicRevision: 3,
+      liveAt: new Date("2027-05-10T08:00:00.000Z"),
+      updatedAt: new Date("2027-05-10T08:00:00.000Z"),
+    };
+    rows.latestReadyRevision = { id: "revision-2", version: 5, status: "ready" };
+    rows.publicationHandoffs.push({
+      id: "outbox-1",
+      status: "failed",
+      attempts: 3,
+      createdAt: new Date("2027-05-10T08:00:00.000Z"),
+      updatedAt: new Date("2027-05-10T08:05:00.000Z"),
+    });
+    rows.accelevents = {
+      enabled: true,
+      latestRun: {
+        id: "accelevents-run-2",
+        mode: "retry",
+        status: "partial",
+        failedCount: 2,
+        providerResponded: true,
+        failureCode: "record_failures",
+        createdAt: new Date("2027-05-10T10:00:00.000Z"),
+        completedAt: new Date("2027-05-10T10:02:00.000Z"),
+      },
+      latestSuccessfulLiveRun: {
+        id: "accelevents-run-1",
+        createdAt: new Date("2027-05-09T12:00:00.000Z"),
+      },
+    };
+    rows.airtable = {
+      enabled: true,
+      latestRun: {
+        id: "airtable-run-1",
+        direction: "export",
+        status: "blocked_external",
+        failedCount: 1,
+        providerResponded: false,
+        failureCode: "airtable_not_configured",
+        createdAt: new Date("2027-05-10T09:00:00.000Z"),
+        completedAt: new Date("2027-05-10T09:01:00.000Z"),
+      },
+    };
+
+    expect(deriveDashboardSnapshot(event, rows, now).readiness.exceptions.map((exception) => exception.code)).toEqual([
+      "portal_invitation_failed",
+      "portal_identity_conflict",
+      "publication_handoff_failed",
+      "publication_behind_ready_revision",
+      "accelevents_run_failed",
+      "accelevents_out_of_date",
+      "airtable_run_failed",
+    ]);
+  });
+
+  it("clears readiness exceptions when identities, receipts, publication, and enabled integrations are healthy", () => {
+    const now = new Date("2027-05-10T12:00:00.000Z");
+    const rows = emptyRows();
+    rows.portalInvitationRecipients.push({
+      id: "recipient-1",
+      personId: "person-1",
+      displayName: "Priya Raman",
+      status: "delivered",
+      attemptCount: 1,
+      lastErrorCode: null,
+      lastOutcomeAt: new Date("2027-05-10T11:00:00.000Z"),
+    });
+    rows.speakerIdentities.push({
+      eventSpeakerId: "speaker-1",
+      personId: "person-1",
+      displayName: "Priya Raman",
+      canonicalEmail: "priya@example.com",
+      aliasPersonId: "person-1",
+      hasSpeakerMembership: true,
+    });
+    rows.publication = {
+      state: "live",
+      scheduleRevisionId: "revision-1",
+      publicRevision: 3,
+      liveAt: new Date("2027-05-10T08:00:00.000Z"),
+      updatedAt: new Date("2027-05-10T08:00:00.000Z"),
+    };
+    rows.latestReadyRevision = { id: "revision-1", version: 4, status: "ready" };
+    rows.publicationHandoffs.push({
+      id: "outbox-1",
+      status: "dispatched",
+      attempts: 1,
+      createdAt: new Date("2027-05-10T08:00:00.000Z"),
+      updatedAt: new Date("2027-05-10T08:01:00.000Z"),
+    });
+    rows.accelevents = {
+      enabled: true,
+      latestRun: {
+        id: "accelevents-run-1",
+        mode: "manual",
+        status: "succeeded",
+        failedCount: 0,
+        providerResponded: true,
+        failureCode: null,
+        createdAt: new Date("2027-05-10T09:00:00.000Z"),
+        completedAt: new Date("2027-05-10T09:02:00.000Z"),
+      },
+      latestSuccessfulLiveRun: {
+        id: "accelevents-run-1",
+        createdAt: new Date("2027-05-10T09:00:00.000Z"),
+      },
+    };
+    rows.airtable = null;
+
+    expect(deriveDashboardSnapshot(event, rows, now).readiness).toEqual({ status: "ready", exceptions: [] });
+  });
 });
 
 function emptyRows(): DashboardRows {
@@ -112,5 +247,11 @@ function emptyRows(): DashboardRows {
     rooms: [],
     sessionSpeakers: [],
     publication: null,
+    latestReadyRevision: null,
+    portalInvitationRecipients: [],
+    speakerIdentities: [],
+    publicationHandoffs: [],
+    accelevents: null,
+    airtable: null,
   };
 }

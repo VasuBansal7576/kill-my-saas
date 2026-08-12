@@ -1,6 +1,7 @@
 export interface DashboardSnapshot {
   event: {
     id: string;
+    organizationId: string;
     slug: string;
     name: string;
     startsOn: string;
@@ -69,9 +70,14 @@ export interface DashboardSnapshot {
   };
   publication: {
     state: "draft" | "live" | "paused";
+    scheduleRevisionId: string | null;
     publicRevision: number;
     liveAt: string | null;
     updatedAt: string | null;
+  };
+  readiness: {
+    status: "ready" | "needs_attention";
+    exceptions: ProgramReadinessException[];
   };
   activity: Array<{
     id: string;
@@ -80,6 +86,32 @@ export interface DashboardSnapshot {
     detail: string;
     occurredAt: string;
   }>;
+}
+
+export type ProgramReadinessExceptionCode =
+  | "portal_invitation_failed"
+  | "portal_identity_conflict"
+  | "publication_handoff_failed"
+  | "publication_behind_ready_revision"
+  | "accelevents_run_failed"
+  | "accelevents_out_of_date"
+  | "airtable_run_failed";
+
+export interface ProgramReadinessException {
+  id: string;
+  code: ProgramReadinessExceptionCode;
+  severity: "blocker" | "warning";
+  title: string;
+  detail: string;
+  affectedCount: number;
+  workspace: "communications" | "speaker_crm" | "publishing" | "accelevents" | "airtable";
+  sourceId: string;
+  proof: {
+    sourceType: "communication_recipient" | "event_speaker" | "outbox_event" | "schedule_revision" | "accelevents_run" | "airtable_run";
+    status: string;
+    occurredAt: string | null;
+    facts: Record<string, string | number | boolean | null>;
+  };
 }
 
 export interface DashboardRows {
@@ -112,8 +144,60 @@ export interface DashboardRows {
   }>;
   sessions: Array<{ id: string }>;
   latestRevision: { id: string; version: number; status: "draft" | "ready" } | null;
+  latestReadyRevision: { id: string; version: number; status: "ready" } | null;
   placements: Array<{ id: string; revisionId: string; sessionId: string; roomId: string; startsAt: Date; endsAt: Date }>;
   rooms: Array<{ id: string; name: string }>;
   sessionSpeakers: Array<{ sessionId: string; personId: string; displayName: string }>;
-  publication: { state: "draft" | "live" | "paused"; publicRevision: number; liveAt: Date | null; updatedAt: Date } | null;
+  publication: { state: "draft" | "live" | "paused"; scheduleRevisionId: string | null; publicRevision: number; liveAt: Date | null; updatedAt: Date } | null;
+  portalInvitationRecipients: Array<{
+    id: string;
+    personId: string;
+    displayName: string;
+    status: "queued" | "sending" | "accepted" | "delivered" | "bounced" | "failed" | "blocked_external";
+    attemptCount: number;
+    lastErrorCode: string | null;
+    lastOutcomeAt: Date | null;
+  }>;
+  speakerIdentities: Array<{
+    eventSpeakerId: string;
+    personId: string;
+    displayName: string;
+    canonicalEmail: string | null;
+    aliasPersonId: string | null;
+    hasSpeakerMembership: boolean;
+  }>;
+  publicationHandoffs: Array<{
+    id: string;
+    status: "pending" | "claimed" | "dispatched" | "failed" | "dead_letter";
+    attempts: number;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+  accelevents: null | {
+    enabled: boolean;
+    latestRun: null | {
+      id: string;
+      mode: "preview" | "manual" | "retry";
+      status: "queued" | "running" | "succeeded" | "partial" | "failed" | "blocked_external";
+      failedCount: number;
+      providerResponded: boolean;
+      failureCode: string | null;
+      createdAt: Date;
+      completedAt: Date | null;
+    };
+    latestSuccessfulLiveRun: null | { id: string; createdAt: Date };
+  };
+  airtable: null | {
+    enabled: boolean;
+    latestRun: null | {
+      id: string;
+      direction: "export" | "import";
+      status: "queued" | "running" | "succeeded" | "partial" | "failed" | "blocked_external";
+      failedCount: number;
+      providerResponded: boolean;
+      failureCode: string | null;
+      createdAt: Date;
+      completedAt: Date | null;
+    };
+  };
 }

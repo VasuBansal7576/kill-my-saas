@@ -22,6 +22,21 @@
 .primaryGrid { display: grid; grid-template-columns: minmax(0,1.45fr) minmax(300px,.7fr); gap: 18px; }
 .secondaryGrid { display: grid; grid-template-columns: minmax(320px,1.15fr) minmax(280px,1fr) minmax(250px,.72fr); gap: 18px; margin-top: 18px; }
 .panel, .activityPanel { padding: 18px; border: 1px solid #292929; border-radius: 8px; background: #151515; }
+.readinessCenter { margin-bottom: 18px; padding: 18px; border: 1px solid #292929; border-radius: 8px; background: #151515; }
+.readinessCenter .sectionHead > span[data-ready="true"] { color: #78c99f; }
+.exceptionList { border-top: 1px solid #292929; }
+.exception { --tone:#d6a24c; display: grid; grid-template-columns: 30px minmax(0,1fr) auto; align-items: center; gap: 12px; min-height: 76px; border-bottom: 1px solid #282828; }
+.exception[data-severity="blocker"] { --tone:#e3616c; }
+.exceptionMark { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid color-mix(in srgb,var(--tone) 45%,#292929); border-radius: 50%; background: color-mix(in srgb,var(--tone) 9%,transparent); color: var(--tone); font-size: 9px; font-weight: 850; }
+.exceptionCopy strong { color: #ccc; font-size: 10px; }
+.exceptionCopy p { margin: 5px 0; color: #777; font-size: 9px; }
+.exceptionCopy small { display: block; overflow-wrap: anywhere; color: #5f5f5f; font-size: 8px; }
+.exception > a { color: var(--tone); font-size: 9px; font-weight: 700; text-decoration: none; }
+.readinessClear { min-height: 76px; display: flex; align-items: center; gap: 12px; border-top: 1px solid #292929; color: #4bb982; }
+.readinessClear > span { width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid rgba(75,185,130,.35); border-radius: 50%; }
+.readinessClear strong, .readinessClear small { display: block; }
+.readinessClear strong { font-size: 10px; }
+.readinessClear small { margin-top: 5px; color: #707070; font-size: 9px; }
 .sectionHead { min-height: 40px; display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding-bottom: 13px; }
 .sectionHead h2 { margin: 0; color: #d8d8d8; font-size: 12px; }
 .sectionHead p { margin: 5px 0 0; color: #6f6f6f; font-size: 9px; }
@@ -95,4 +110,6 @@
   .secondaryGrid > :first-child { grid-column: auto; }
   .workItem { grid-template-columns: 34px 1fr; padding: 10px 0; }
   .workItem em { grid-column: 2; }
+  .exception { grid-template-columns: 30px 1fr; padding: 10px 0; }
+  .exception > a { grid-column: 2; }
 }
