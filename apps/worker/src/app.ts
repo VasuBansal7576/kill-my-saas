@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import type { Env } from "./env";
 import { requestContext } from "./http/middleware/request-context";
+import { externalStyledEmbedHeaders } from "./http/middleware/external-styled-embed";
 import { eventConfigurationRoutes } from "./modules/event-configuration/routes";
 import {
   filesDeliverablesOrganizerRoutes,
@@ -48,6 +49,10 @@ export function createApp() {
   const app = new Hono<WorkerContext>();
 
   app.use("*", requestContext);
+  app.use(
+    "/api/v1/public/program/:eventSlug/embeds/:widgetSlug/styled",
+    externalStyledEmbedHeaders,
+  );
   app.use("*", secureHeaders());
 
   app.all("/api/auth/*", proxyAuthRequest);
