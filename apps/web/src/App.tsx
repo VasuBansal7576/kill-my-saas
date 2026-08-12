@@ -354,6 +354,11 @@ function ProductShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [session, setSession] = useState<SessionResponse | null>(null);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileNavigationOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     void fetch("/api/v1/session")
@@ -405,7 +410,10 @@ function ProductShell() {
 
   return (
     <div className="product-shell">
-      <aside className="sidebar">
+      <aside
+        id="organizer-navigation"
+        className={`sidebar${mobileNavigationOpen ? " mobile-open" : ""}`}
+      >
         <div className="brand">
           <span>PF</span>ProgramFlow
         </div>
@@ -444,11 +452,20 @@ function ProductShell() {
         <nav aria-label="Organizer navigation">
           <p>Program lifecycle</p>
           {navigation.map(([label, to]) => (
-            <NavLink key={to} to={to}>
+            <NavLink
+              key={to}
+              to={to}
+              onClick={() => setMobileNavigationOpen(false)}
+            >
               {label}
             </NavLink>
           ))}
-          <NavLink to="/organizer/new-event">+ New event</NavLink>
+          <NavLink
+            to="/organizer/new-event"
+            onClick={() => setMobileNavigationOpen(false)}
+          >
+            + New event
+          </NavLink>
         </nav>
         <div className="account">
           <span>{initials}</span>
@@ -458,7 +475,24 @@ function ProductShell() {
           </div>
         </div>
       </aside>
+      {mobileNavigationOpen ? (
+        <button
+          className="mobile-nav-backdrop"
+          type="button"
+          aria-label="Close organizer navigation"
+          onClick={() => setMobileNavigationOpen(false)}
+        />
+      ) : null}
       <header className="topbar">
+        <button
+          className="mobile-nav-toggle"
+          type="button"
+          aria-controls="organizer-navigation"
+          aria-expanded={mobileNavigationOpen}
+          onClick={() => setMobileNavigationOpen((open) => !open)}
+        >
+          {mobileNavigationOpen ? "Close menu" : "Menu"}
+        </button>
         <span>
           {activeEvent?.name ?? activeOrganization?.name ?? "ProgramFlow"}
         </span>
