@@ -164,16 +164,20 @@ export async function decideSubmission(
         eventSpeakerIds.push(eventSpeaker.id);
       }
 
-      const requestedTrackId = answerText(version.answers, ["trackId", "track_id"]);
-      const requestedFormatId = answerText(version.answers, ["formatId", "format_id"]);
-      const [track] = requestedTrackId ? await transaction.select({ id: eventTracks.id }).from(eventTracks).where(and(
-        eq(eventTracks.id, requestedTrackId),
-        eq(eventTracks.eventId, submission.eventId),
-      )).limit(1) : [];
-      const [format] = requestedFormatId ? await transaction.select({ id: eventFormats.id }).from(eventFormats).where(and(
-        eq(eventFormats.id, requestedFormatId),
-        eq(eventFormats.eventId, submission.eventId),
-      )).limit(1) : [];
+      const requestedTrack = answerText(version.answers, ["trackId", "track_id", "track"]);
+      const requestedFormat = answerText(version.answers, ["formatId", "format_id", "format"]);
+      const [trackCatalog, formatCatalog] = await Promise.all([
+        transaction.select({ id: eventTracks.id, name: eventTracks.name }).from(eventTracks)
+          .where(eq(eventTracks.eventId, submission.eventId)),
+        transaction.select({ id: eventFormats.id, name: eventFormats.name, durationMinutes: eventFormats.durationMinutes }).from(eventFormats)
+          .where(eq(eventFormats.eventId, submission.eventId)),
+      ]);
+      const track = trackCatalog.find((candidate) => candidate.id === requestedTrack || candidate.name === requestedTrack);
+      const format = formatCatalog.find((candidate) =>
+        candidate.id === requestedFormat
+        || candidate.name === requestedFormat
+        || `${candidate.name} (${candidate.durationMinutes} min)` === requestedFormat,
+      );
 
       const [existingSession] = await transaction.select().from(sessions)
         .where(eq(sessions.sourceSubmissionId, submission.id)).limit(1);
