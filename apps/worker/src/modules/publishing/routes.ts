@@ -20,9 +20,9 @@ import { serializeBasicHtml, serializeCalendar, serializeStyledHtml, serializeXm
 import {
   addItinerarySession,
   getPublishedProgram,
+  getPublishedWidgetProgram,
   getPublishingWorkspace,
   getPublicHeadshot,
-  getWidgetConfiguration,
   pausePublication,
   PublishingError,
   publishProgram,
@@ -157,11 +157,10 @@ publishingPublicRoutes.get("/:eventSlug/anonymous-itinerary/calendar.ics", async
 publishingPublicRoutes.get("/:eventSlug/embeds/:widgetSlug/:format", async (context) => publicRun(context, async (database) => {
   const format = EmbedOutputFormatSchema.safeParse(context.req.param("format"));
   if (!format.success) return context.json({ error: { code: "output_not_found", message: "That widget output format does not exist." } }, 404);
-  const widget = await getWidgetConfiguration(database, context.req.param("eventSlug"), context.req.param("widgetSlug"));
+  const { program, widget } = await getPublishedWidgetProgram(database, context.req.param("eventSlug"), context.req.param("widgetSlug"));
   if (!widget.outputFormats.includes(format.data)) {
     return context.json({ error: { code: "output_not_enabled", message: "That output is not enabled for this widget." } }, 404);
   }
-  const program = await getPublishedProgram(database, context.req.param("eventSlug"), {}, widget.slug);
   const presentation = { widgetType: widget.widgetType, branding: widget.branding, fields: widget.fields };
   if (format.data === "styled") return new Response(serializeStyledHtml(program, presentation), { headers: publicHeaders("text/html; charset=utf-8") });
   if (format.data === "basic") return new Response(serializeBasicHtml(program, presentation), { headers: publicHeaders("text/html; charset=utf-8") });

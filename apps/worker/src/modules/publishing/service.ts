@@ -272,25 +272,78 @@ export async function getPublishedProgram(
   database: Database,
   eventSlug: string,
   query: PublicProgramQuery = {},
-  widgetSlug?: string,
 ): Promise<PublishedProgram> {
-  const [event] = await database.select().from(events).where(eq(events.slug, eventSlug)).limit(1);
-  if (!event) throw new PublishingError("event_not_found", "Event not found.");
-  const [publication] = await database.select().from(publications).where(and(
-    eq(publications.eventId, event.id),
-    eq(publications.state, "live"),
-  )).limit(1);
-  if (!publication?.scheduleRevisionId || !publication.liveAt) {
+  return (await loadPublishedProgram(database, eventSlug, query)).program;
+}
+
+export async function getPublishedWidgetProgram(
+  database: Database,
+  eventSlug: string,
+  widgetSlug: string,
+  query: PublicProgramQuery = {},
+) {
+  const result = await loadPublishedProgram(database, eventSlug, query, widgetSlug);
+  if (!result.widget) throw new PublishingError("widget_not_found", "That public widget configuration does not exist.");
+  return { program: result.program, widget: result.widget };
+}
+
+async function loadPublishedProgram(
+  database: Database,
+  eventSlug: string,
+  query: PublicProgramQuery,
+  widgetSlug?: string,
+): Promise<{ program: PublishedProgram; widget?: ReturnType<typeof serializeWidget> }> {
+  const widgetJoin = widgetSlug
+    ? and(eq(widgetConfigurations.eventId, events.id), eq(widgetConfigurations.slug, widgetSlug))
+    : sql`false`;
+  const [metadata] = await database.select({
+    eventId: events.id,
+    eventSlug: events.slug,
+    eventName: events.name,
+    startsOn: events.startsOn,
+    endsOn: events.endsOn,
+    timezone: events.timezone,
+    location: events.location,
+    eventBranding: events.branding,
+    publicationId: publications.id,
+    publicRevision: publications.publicRevision,
+    scheduleRevisionId: publications.scheduleRevisionId,
+    liveAt: publications.liveAt,
+    widgetId: widgetConfigurations.id,
+    widgetSlug: widgetConfigurations.slug,
+    widgetName: widgetConfigurations.name,
+    widgetType: widgetConfigurations.widgetType,
+    widgetBranding: widgetConfigurations.branding,
+    widgetFilters: widgetConfigurations.filters,
+    widgetFields: widgetConfigurations.fields,
+    widgetOutputFormats: widgetConfigurations.outputFormats,
+    widgetRevision: widgetConfigurations.revision,
+    widgetUpdatedAt: widgetConfigurations.updatedAt,
+  }).from(events)
+    .leftJoin(publications, and(eq(publications.eventId, events.id), eq(publications.state, "live")))
+    .leftJoin(widgetConfigurations, widgetJoin)
+    .where(eq(events.slug, eventSlug))
+    .limit(1);
+  if (!metadata) throw new PublishingError("event_not_found", "Event not found.");
+  if (!metadata.publicationId || !metadata.scheduleRevisionId || !metadata.liveAt) {
     throw new PublishingError("publication_not_live", "This event's public program is not live.");
   }
+  if (widgetSlug && !metadata.widgetId) {
+    throw new PublishingError("widget_not_found", "That public widget configuration does not exist.");
+  }
 
-  const widget = widgetSlug
-    ? (await database.select().from(widgetConfigurations).where(and(
-      eq(widgetConfigurations.eventId, event.id),
-      eq(widgetConfigurations.slug, widgetSlug),
-    )).limit(1))[0]
-    : undefined;
-  if (widgetSlug && !widget) throw new PublishingError("widget_not_found", "That public widget configuration does not exist.");
+  const widget = metadata.widgetId ? {
+    id: metadata.widgetId,
+    slug: metadata.widgetSlug!,
+    name: metadata.widgetName!,
+    widgetType: metadata.widgetType!,
+    branding: metadata.widgetBranding!,
+    filters: metadata.widgetFilters!,
+    fields: metadata.widgetFields!,
+    outputFormats: metadata.widgetOutputFormats!,
+    revision: metadata.widgetRevision!,
+    updatedAt: metadata.widgetUpdatedAt!.toISOString(),
+  } : undefined;
 
   const [sessionRows, speakerRows] = await Promise.all([
     database.select({
@@ -308,12 +361,12 @@ export async function getPublishedProgram(
     }).from(sessions)
       .innerJoin(placements, and(
         eq(placements.sessionId, sessions.id),
-        eq(placements.revisionId, publication.scheduleRevisionId),
+        eq(placements.revisionId, metadata.scheduleRevisionId),
       ))
       .innerJoin(eventRooms, eq(eventRooms.id, placements.roomId))
       .leftJoin(eventTracks, eq(eventTracks.id, sessions.trackId))
       .leftJoin(eventFormats, eq(eventFormats.id, sessions.formatId))
-      .where(and(eq(sessions.eventId, event.id), eq(sessions.contentStatus, "approved")))
+      .where(and(eq(sessions.eventId, metadata.eventId), eq(sessions.contentStatus, "approved")))
       .orderBy(asc(placements.startsAt), asc(sessions.title)),
     database.select({
       sessionId: sessionSpeakers.sessionId,
@@ -331,7 +384,7 @@ export async function getPublishedProgram(
       .innerJoin(people, eq(people.id, eventSpeakers.personId))
       .leftJoin(speakerProfiles, eq(speakerProfiles.personId, people.id))
       .leftJoin(fileObjects, eq(fileObjects.id, speakerProfiles.headshotFileId))
-      .where(and(eq(sessions.eventId, event.id), eq(sessions.contentStatus, "approved"))),
+      .where(and(eq(sessions.eventId, metadata.eventId), eq(sessions.contentStatus, "approved"))),
   ]);
 
   const allSessions: PublicSession[] = sessionRows.map((row) => ({
@@ -340,7 +393,7 @@ export async function getPublishedProgram(
     description: row.description,
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
-    day: localDate(row.startsAt, event.timezone),
+    day: localDate(row.startsAt, metadata.timezone),
     room: { id: row.roomId, name: row.roomName },
     track: row.trackId && row.trackName ? { id: row.trackId, name: row.trackName } : null,
     format: row.formatId && row.formatName ? { id: row.formatId, name: row.formatName } : null,
@@ -359,7 +412,7 @@ export async function getPublishedProgram(
       company: row.company ?? "",
       jobTitle: row.jobTitle ?? "",
       headshotUrl: row.headshotFileId && row.headshotStatus === "verified"
-        ? `/api/v1/public/program/${encodeURIComponent(event.slug)}/speakers/${row.personId}/headshot`
+        ? `/api/v1/public/program/${encodeURIComponent(metadata.eventSlug)}/speakers/${row.personId}/headshot`
         : null,
       sessions: [],
     };
@@ -395,28 +448,31 @@ export async function getPublishedProgram(
     .sort((left, right) => surnameKey(left.name).localeCompare(surnameKey(right.name)) || left.name.localeCompare(right.name));
 
   return {
-    publication: {
-      id: publication.id,
-      publicRevision: publication.publicRevision,
-      scheduleRevisionId: publication.scheduleRevisionId,
-      liveAt: publication.liveAt.toISOString(),
+    widget,
+    program: {
+      publication: {
+        id: metadata.publicationId,
+        publicRevision: metadata.publicRevision!,
+        scheduleRevisionId: metadata.scheduleRevisionId,
+        liveAt: metadata.liveAt.toISOString(),
+      },
+      event: {
+        id: metadata.eventId,
+        slug: metadata.eventSlug,
+        name: metadata.eventName,
+        startsOn: metadata.startsOn,
+        endsOn: metadata.endsOn,
+        timezone: metadata.timezone,
+        location: metadata.location,
+        branding: metadata.eventBranding,
+      },
+      days: eventDays(metadata.startsOn, metadata.endsOn),
+      tracks: uniqueBy(filteredSessions.flatMap((session) => session.track ? [session.track] : [])),
+      formats: uniqueBy(filteredSessions.flatMap((session) => session.format ? [session.format] : [])),
+      rooms: uniqueBy(filteredSessions.map((session) => session.room)),
+      sessions: filteredSessions,
+      speakers: filteredSpeakers,
     },
-    event: {
-      id: event.id,
-      slug: event.slug,
-      name: event.name,
-      startsOn: event.startsOn,
-      endsOn: event.endsOn,
-      timezone: event.timezone,
-      location: event.location,
-      branding: event.branding,
-    },
-    days: eventDays(event.startsOn, event.endsOn),
-    tracks: uniqueBy(filteredSessions.flatMap((session) => session.track ? [session.track] : [])),
-    formats: uniqueBy(filteredSessions.flatMap((session) => session.format ? [session.format] : [])),
-    rooms: uniqueBy(filteredSessions.map((session) => session.room)),
-    sessions: filteredSessions,
-    speakers: filteredSpeakers,
   };
 }
 
@@ -497,17 +553,6 @@ export async function getPublicHeadshot(database: Database, eventSlug: string, p
     .where(and(eq(speakerProfiles.personId, personId), eq(fileObjects.verificationStatus, "verified"))).limit(1);
   if (!file) throw new PublishingError("headshot_not_found", "Headshot not found.");
   return file;
-}
-
-export async function getWidgetConfiguration(database: Database, eventSlug: string, widgetSlug: string) {
-  const [event] = await database.select({ id: events.id }).from(events).where(eq(events.slug, eventSlug)).limit(1);
-  if (!event) throw new PublishingError("event_not_found", "Event not found.");
-  const [widget] = await database.select().from(widgetConfigurations).where(and(
-    eq(widgetConfigurations.eventId, event.id),
-    eq(widgetConfigurations.slug, widgetSlug),
-  )).limit(1);
-  if (!widget) throw new PublishingError("widget_not_found", "That public widget configuration does not exist.");
-  return serializeWidget(widget);
 }
 
 function serializePublication(publication: typeof publications.$inferSelect) {
