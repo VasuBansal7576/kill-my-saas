@@ -121,22 +121,22 @@ function ProductShell() {
       </header>
       <main>
         <Routes>
-          <Route path="/organizer/events/:eventSlug/dashboard" element={<Suspense fallback={<p className="muted">Loading dashboard…</p>}><DashboardPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/settings" element={<Suspense fallback={<p className="muted">Loading event settings…</p>}><EventSettingsPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/cfp" element={<Suspense fallback={<p className="muted">Loading CFP builder…</p>}><CfpBuilderPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/submissions" element={<Suspense fallback={<p className="muted">Loading submissions…</p>}><SubmissionsPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/evaluations" element={<Suspense fallback={<p className="muted">Loading evaluations…</p>}><ReviewsDecisionsPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/speakers" element={<Suspense fallback={<p className="muted">Loading speakers…</p>}><SpeakersPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/speakers/tasks" element={<Suspense fallback={<p className="muted">Loading speaker tasks…</p>}><SpeakerTasksPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/speakers/resources" element={<Suspense fallback={<p className="muted">Loading speaker resources…</p>}><SpeakerResourcesPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/files" element={<Suspense fallback={<p className="muted">Loading files…</p>}><OrganizerFilesPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/communications" element={<Suspense fallback={<p className="muted">Loading communications…</p>}><CommunicationsPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/agenda" element={<Suspense fallback={<p className="muted">Loading agenda…</p>}><AgendaPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/publish" element={<Suspense fallback={<p className="muted">Loading publishing…</p>}><PublishProgramPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/integrations/airtable" element={<Suspense fallback={<p className="muted">Loading Airtable…</p>}><AirtableIntegrationPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/integrations/accelevents" element={<Suspense fallback={<p className="muted">Loading Accelevents…</p>}><AcceleventsIntegrationPage /></Suspense>} />
-          <Route path="/organizer/events/:eventSlug/api" element={<Suspense fallback={<p className="muted">Loading API documentation…</p>}><DeveloperApiPage /></Suspense>} />
-          <Route path="/organizer/organizations/:organizationId/speaker-crm" element={<Suspense fallback={<p className="muted">Loading speaker CRM…</p>}><SpeakerCrmRoute /></Suspense>} />
+          <Route path="events/:eventSlug/dashboard" element={<Suspense fallback={<p className="muted">Loading dashboard…</p>}><DashboardPage /></Suspense>} />
+          <Route path="events/:eventSlug/settings" element={<Suspense fallback={<p className="muted">Loading event settings…</p>}><EventSettingsPage /></Suspense>} />
+          <Route path="events/:eventSlug/cfp" element={<Suspense fallback={<p className="muted">Loading CFP builder…</p>}><CfpBuilderPage /></Suspense>} />
+          <Route path="events/:eventSlug/submissions" element={<Suspense fallback={<p className="muted">Loading submissions…</p>}><SubmissionsPage /></Suspense>} />
+          <Route path="events/:eventSlug/evaluations" element={<Suspense fallback={<p className="muted">Loading evaluations…</p>}><ReviewsDecisionsPage /></Suspense>} />
+          <Route path="events/:eventSlug/speakers" element={<Suspense fallback={<p className="muted">Loading speakers…</p>}><SpeakersPage /></Suspense>} />
+          <Route path="events/:eventSlug/speakers/tasks" element={<Suspense fallback={<p className="muted">Loading speaker tasks…</p>}><SpeakerTasksPage /></Suspense>} />
+          <Route path="events/:eventSlug/speakers/resources" element={<Suspense fallback={<p className="muted">Loading speaker resources…</p>}><SpeakerResourcesPage /></Suspense>} />
+          <Route path="events/:eventSlug/files" element={<Suspense fallback={<p className="muted">Loading files…</p>}><OrganizerFilesPage /></Suspense>} />
+          <Route path="events/:eventSlug/communications" element={<Suspense fallback={<p className="muted">Loading communications…</p>}><CommunicationsPage /></Suspense>} />
+          <Route path="events/:eventSlug/agenda" element={<Suspense fallback={<p className="muted">Loading agenda…</p>}><AgendaPage /></Suspense>} />
+          <Route path="events/:eventSlug/publish" element={<Suspense fallback={<p className="muted">Loading publishing…</p>}><PublishProgramPage /></Suspense>} />
+          <Route path="events/:eventSlug/integrations/airtable" element={<Suspense fallback={<p className="muted">Loading Airtable…</p>}><AirtableIntegrationPage /></Suspense>} />
+          <Route path="events/:eventSlug/integrations/accelevents" element={<Suspense fallback={<p className="muted">Loading Accelevents…</p>}><AcceleventsIntegrationPage /></Suspense>} />
+          <Route path="events/:eventSlug/api" element={<Suspense fallback={<p className="muted">Loading API documentation…</p>}><DeveloperApiPage /></Suspense>} />
+          <Route path="organizations/:organizationId/speaker-crm" element={<Suspense fallback={<p className="muted">Loading speaker CRM…</p>}><SpeakerCrmRoute /></Suspense>} />
           <Route path="*" element={<FoundationPage readiness={readiness} />} />
         </Routes>
       </main>
