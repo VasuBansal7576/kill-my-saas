@@ -57,7 +57,7 @@ await database.transaction(async (transaction) => {
     timezone: fixture.event.timezone,
     location: fixture.event.location,
   }).onConflictDoUpdate({
-    target: [events.organizationId, events.slug],
+    target: events.slug,
     set: {
       name: fixture.event.name,
       startsOn: fixture.event.starts_on,
