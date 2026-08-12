@@ -66,6 +66,36 @@ describe("Airtable synchronization orchestration", () => {
     expect(repository.upsertLink).toHaveBeenCalledWith(expect.objectContaining({ canonicalId: ids.session, airtableRecordId: "rec_session", canonicalRevision: 2 }));
     expect(repository.recordItem).toHaveBeenCalledWith(expect.objectContaining({ operation: "create", status: "synced", providerResponded: true }));
   });
+
+  it("loads canonical records once for an import instead of querying once per Airtable row", async () => {
+    const configuration = config();
+    const repository = fakeRepository(configuration);
+    repository.listCanonicalRecords.mockResolvedValue([{
+      entityType: "session",
+      canonicalId: ids.session,
+      revision: 2,
+      updatedAt: new Date("2027-05-01T10:00:00Z"),
+      fields: { title: "Stateful Edge" },
+    }]);
+    const provider = {
+      listPage: vi.fn().mockResolvedValue({
+        records: [
+          { id: "rec_session", fields: { _programflow_id: ids.session, _programflow_type: "session", "Last modified": "2027-05-02T10:00:00Z", "Research notes": "Priority" } },
+          { id: "rec_unknown", fields: { _programflow_id: crypto.randomUUID(), _programflow_type: "session", "Last modified": "2027-05-02T10:00:00Z", "Research notes": "Ignore" } },
+        ],
+        requestCount: 1,
+      }),
+      create: vi.fn(),
+      update: vi.fn(),
+    };
+    const service = new AirtableIntegrationService(repository.port);
+
+    const receipt = await service.run(actor, event.slug, command("import"), provider);
+
+    expect(repository.listCanonicalRecords).toHaveBeenCalledTimes(1);
+    expect(receipt).toMatchObject({ imported: 1, failed: 1, providerResponded: true });
+    expect(repository.recordItem).toHaveBeenCalledWith(expect.objectContaining({ airtableRecordId: "rec_unknown", errorCode: "canonical_record_not_found" }));
+  });
 });
 
 function fakeRepository(configuration: AirtableConfigurationRecord, initialRun = run(), idempotent = false) {
@@ -82,7 +112,6 @@ function fakeRepository(configuration: AirtableConfigurationRecord, initialRun =
     completeRun,
     recordItem,
     listCanonicalRecords,
-    canonicalRecordExists: vi.fn(async () => true),
     getLinks: vi.fn(async () => new Map()),
     upsertLink,
     applyExternalAttributes: vi.fn(async () => "applied" as const),

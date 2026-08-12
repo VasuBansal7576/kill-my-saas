@@ -118,10 +118,12 @@ export class AirtableIntegrationService {
   ): Promise<AirtableRunResult> {
     const state = counters();
     try {
+      const canonical = await this.repository.listCanonicalRecords(configuration.eventId);
+      const canonicalKeys = new Set(canonical.map(key));
       const external = await listAll(provider, configuration, state);
       for (const record of external) {
         const identity = readCanonicalIdentity(record);
-        if (!identity || !await this.repository.canonicalRecordExists(configuration.eventId, identity.entityType, identity.canonicalId)) continue;
+        if (!identity || !canonicalKeys.has(`${identity.entityType}:${identity.canonicalId}`)) continue;
         await this.repository.upsertLink({
           configurationId: configuration.id,
           ...identity,
@@ -129,7 +131,6 @@ export class AirtableIntegrationService {
           externalModifiedAt: readExternalModifiedAt(record, configuration.modifiedTimeField) ?? undefined,
         });
       }
-      const canonical = await this.repository.listCanonicalRecords(configuration.eventId);
       const links = await this.repository.getLinks(configuration.id);
       const creates = canonical.filter((record) => !links.has(key(record))).map((record) => ({ record }));
       const updates = canonical.flatMap((record) => {
@@ -225,8 +226,10 @@ export class AirtableIntegrationService {
   ): Promise<AirtableRunResult> {
     const state = counters();
     try {
+      const canonical = await this.repository.listCanonicalRecords(configuration.eventId);
+      const canonicalKeys = new Set(canonical.map(key));
       const records = await listAll(provider, configuration, state);
-      for (const record of records) await this.importRecord(configuration, run.id, record, state);
+      for (const record of records) await this.importRecord(configuration, run.id, record, canonicalKeys, state);
     } catch (error) {
       await this.recordProviderFailure(run.id, "import-provider", error, state);
     }
@@ -237,6 +240,7 @@ export class AirtableIntegrationService {
     configuration: AirtableConfigurationRecord,
     runId: string,
     record: AirtableRecord,
+    canonicalKeys: ReadonlySet<string>,
     state: RunCounters,
   ) {
     const identity = readCanonicalIdentity(record);
@@ -254,7 +258,7 @@ export class AirtableIntegrationService {
       state.failed += 1;
       return;
     }
-    if (!await this.repository.canonicalRecordExists(configuration.eventId, identity.entityType, identity.canonicalId)) {
+    if (!canonicalKeys.has(`${identity.entityType}:${identity.canonicalId}`)) {
       await this.repository.recordItem({
         runId,
         ...identity,
@@ -577,7 +581,6 @@ export type AirtableRepositoryPort = Pick<AirtableIntegrationRepository,
   | "completeRun"
   | "recordItem"
   | "listCanonicalRecords"
-  | "canonicalRecordExists"
   | "getLinks"
   | "upsertLink"
   | "applyExternalAttributes"
