@@ -11,7 +11,7 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createToolingDatabase } from "../../../../../packages/database/src/tooling-client";
-import { provisionFirstLogin } from "./resolve-actor";
+import { provisionFirstLogin, sessionTokenFromCookie } from "./resolve-actor";
 
 const databaseUrl = process.env.DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -67,5 +67,14 @@ integration("first-login identity provisioning", () => {
     const roles = await tooling.database.select({ role: eventMemberships.role }).from(eventMemberships)
       .where(eq(eventMemberships.personId, newPersonId!));
     expect(roles).toEqual([{ role: "speaker" }]);
+  });
+});
+
+describe("session cookie parsing", () => {
+  it("extracts only a well-formed Neon bearer token", () => {
+    expect(sessionTokenFromCookie("theme=dark; __Secure-neon-auth.session_token=bearer-token-value-12345.signature"))
+      .toBe("bearer-token-value-12345");
+    expect(sessionTokenFromCookie("__Secure-neon-auth.session_token=short.signature")).toBeNull();
+    expect(sessionTokenFromCookie("__Secure-neon-auth.session_token=%E0%A4%A")).toBeNull();
   });
 });

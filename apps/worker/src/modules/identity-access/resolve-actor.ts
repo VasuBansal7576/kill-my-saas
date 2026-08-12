@@ -9,18 +9,13 @@ import {
   personEmailAliases,
   type Database,
 } from "@programflow/database";
-import { handleAuthRequest } from "@neondatabase/auth/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 import type { Env } from "../../env";
 import type { Actor, ActorContext, EventRole, OrganizationRole } from "./actor";
 
 const SessionUserSchema = z.object({ id: z.string(), email: z.email(), name: z.string().optional() });
-const SessionResponseSchema = z.union([
-  z.object({ user: SessionUserSchema }),
-  z.object({ data: z.object({ user: SessionUserSchema }) }),
-]);
 
 export const resolveActor = createMiddleware<{ Bindings: Env } & ActorContext>(async (context, next) => {
   if (!context.env.NEON_AUTH_BASE_URL || !context.env.DATABASE_URL) {
@@ -30,22 +25,12 @@ export const resolveActor = createMiddleware<{ Bindings: Env } & ActorContext>(a
     );
   }
 
-  const sessionResponse = await handleAuthRequest(
-    context.env.NEON_AUTH_BASE_URL,
-    context.req.raw,
-    "get-session",
-  );
-  if (!sessionResponse.ok) {
+  const database = createDatabase(context.env.DATABASE_URL);
+  const user = await activeSessionUser(database, context.req.header("cookie"));
+  if (!user) {
     return context.json({ error: { code: "unauthorized", message: "Sign in is required." } }, 401);
   }
-
-  const parsed = SessionResponseSchema.safeParse(await sessionResponse.json());
-  if (!parsed.success) {
-    return context.json({ error: { code: "unauthorized", message: "The session is invalid or expired." } }, 401);
-  }
-  const user = "data" in parsed.data ? parsed.data.data.user : parsed.data.user;
   const providerSubject = user.id;
-  const database = createDatabase(context.env.DATABASE_URL);
   let [identity] = await database.select({ personId: identities.personId })
     .from(identities)
     .where(eq(identities.providerSubject, providerSubject))
@@ -78,6 +63,34 @@ export const resolveActor = createMiddleware<{ Bindings: Env } & ActorContext>(a
   context.set("actor", actor);
   await next();
 });
+
+async function activeSessionUser(database: Database, cookieHeader: string | undefined) {
+  const token = sessionTokenFromCookie(cookieHeader);
+  if (!token) return null;
+  const result = await database.execute(sql`
+    select auth_user.id::text as id, auth_user.email, auth_user.name
+    from neon_auth.session as auth_session
+    inner join neon_auth.user as auth_user on auth_user.id = auth_session."userId"
+    where auth_session.token = ${token}
+      and auth_session."expiresAt" > now()
+      and coalesce(auth_user.banned, false) = false
+    limit 1
+  `);
+  return SessionUserSchema.safeParse(result.rows[0]).data ?? null;
+}
+
+export function sessionTokenFromCookie(cookieHeader: string | undefined): string | null {
+  const encoded = cookieHeader?.split(";").map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith("__Secure-neon-auth.session_token="))
+    ?.slice("__Secure-neon-auth.session_token=".length);
+  if (!encoded || encoded.length > 1024) return null;
+  try {
+    const token = decodeURIComponent(encoded).split(".", 1)[0]?.trim();
+    return token && token.length >= 20 ? token : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function provisionFirstLogin(
   database: Database,
