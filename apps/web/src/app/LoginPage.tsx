@@ -10,12 +10,14 @@ export function LoginPage() {
   const eventSlug = searchParams.get("event") ?? "devflow-conf-2027";
   const roleSignup = searchParams.get("mode") === "signup";
   const next = searchParams.get("next") ?? (signingUp ? (roleSignup ? `/cfp/${eventSlug}` : "/onboarding") : null);
-  const accessContext = useMemo(() => {
+  const accessContext = useMemo<"account" | "organizer" | "reviewer" | "speaker">(() => {
     if (next?.startsWith("/reviewer/")) return "reviewer";
     if (next?.startsWith("/cfp/") || next?.startsWith("/speaker/")) return "speaker";
-    return "organizer";
-  }, [next]);
-  const accountLabel = `${accessContext[0]?.toUpperCase()}${accessContext.slice(1)} account`;
+    return signingUp ? "organizer" : "account";
+  }, [next, signingUp]);
+  const accountLabel = accessContext === "account"
+    ? "ProgramFlow account"
+    : `${accessContext[0]?.toUpperCase()}${accessContext.slice(1)} account`;
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,25 +28,30 @@ export function LoginPage() {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
-    const result = signingUp
-      ? await authClient.signUp.email({ email, password, name })
-      : await authClient.signIn.email({ email, password });
-    setSubmitting(false);
-    if (result.error) {
-      setError(result.error.message ?? (signingUp ? "Account creation failed." : "Sign in failed."));
-      return;
+    try {
+      const result = signingUp
+        ? await authClient.signUp.email({ email, password, name })
+        : await authClient.signIn.email({ email, password });
+      if (result.error) {
+        setError(result.error.message ?? (signingUp ? "Account creation failed." : "Sign in failed."));
+        return;
+      }
+      if (next) {
+        navigate(next, { replace: true });
+        return;
+      }
+      const session = await fetch("/api/v1/session");
+      if (!session.ok) {
+        setError("Signed in, but ProgramFlow could not resolve an event role for this account.");
+        return;
+      }
+      const landing = await session.json() as { recommendedPath: string };
+      navigate(landing.recommendedPath, { replace: true });
+    } catch (cause) {
+      setError(authFailureMessage(cause, signingUp));
+    } finally {
+      setSubmitting(false);
     }
-    if (next) {
-      navigate(next, { replace: true });
-      return;
-    }
-    const session = await fetch("/api/v1/session");
-    if (!session.ok) {
-      setError("Signed in, but ProgramFlow could not resolve an event role for this account.");
-      return;
-    }
-    const landing = await session.json() as { recommendedPath: string };
-    navigate(landing.recommendedPath, { replace: true });
   }
 
   return (
@@ -79,7 +86,9 @@ export function LoginPage() {
                 ? "Sign in to continue your proposal and see decisions, sessions, and tasks."
                 : accessContext === "reviewer"
                   ? "Sign in to open only the proposals assigned to you."
-                  : "Sign in to continue running your event program."}</p>
+                  : accessContext === "organizer"
+                    ? "Sign in to continue running your event program."
+                    : "Sign in with the organizer, speaker, or reviewer account supplied to you."}</p>
           </div>
           <form onSubmit={submit}>
             {signingUp ? <label>Your name<input autoFocus autoComplete="name" required value={name} onChange={(event) => setName(event.target.value)} placeholder="Jordan Alvarez" /></label> : null}
@@ -98,4 +107,12 @@ export function LoginPage() {
       </div>
     </main>
   );
+}
+
+function authFailureMessage(cause: unknown, signingUp: boolean): string {
+  const fallback = signingUp ? "Account creation failed. Please try again." : "Sign in failed. Check the email and password, then try again.";
+  if (!(cause instanceof Error)) return fallback;
+  const message = cause.message.trim();
+  if (!message || /fetch|network|failed to fetch/i.test(message)) return fallback;
+  return message;
 }

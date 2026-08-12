@@ -75,7 +75,14 @@ function StandalonePage({ children }: { children: React.ReactNode }) {
 }
 
 function RolePage({ children, label }: { children: React.ReactNode; label: string }) {
-  return <div className="role-page"><header className="role-topbar"><div className="brand"><span>PF</span>ProgramFlow</div><strong>{label}</strong><SignOutButton /></header><StandalonePage>{children}</StandalonePage></div>;
+  const [personName, setPersonName] = useState<string | null>(null);
+  useEffect(() => {
+    void fetch("/api/v1/session")
+      .then((response) => response.ok ? response.json() as Promise<SessionResponse> : null)
+      .then((session) => setPersonName(session?.person.displayName ?? null))
+      .catch(() => setPersonName(null));
+  }, []);
+  return <div className="role-page"><header className="role-topbar"><div className="brand"><span>PF</span>ProgramFlow</div><strong>{label}{personName ? ` · ${personName}` : ""}</strong><SignOutButton /></header><StandalonePage>{children}</StandalonePage></div>;
 }
 
 function ProductShell() {
@@ -100,7 +107,7 @@ function ProductShell() {
       if (!response.ok) throw new Error("Session could not be loaded.");
       const current = await response.json() as SessionResponse;
       if (!current.organizationMemberships.length) {
-        navigate("/onboarding", { replace: true });
+        navigate(current.recommendedPath, { replace: true });
         return;
       }
       if (/^\/organizer\/?$/.test(location.pathname)) {
