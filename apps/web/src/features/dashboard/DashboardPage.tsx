@@ -25,7 +25,7 @@ export function DashboardPage() {
   }, [eventSlug]);
 
   const work = useMemo(() => dashboard ? buildWorkQueue(dashboard) : [], [dashboard]);
-  if (!dashboard) return <section className={styles.loading} aria-live="polite">{error ?? "Loading canonical event metrics…"}</section>;
+  if (!dashboard) return <section className={styles.loading} aria-live="polite">{error ?? "Loading your event dashboard…"}</section>;
 
   const base = `/organizer/events/${encodeURIComponent(eventSlug)}`;
   const maxTrend = Math.max(1, ...dashboard.cfp.submittedTrend.map((point) => point.count));
@@ -34,8 +34,8 @@ export function DashboardPage() {
 
   return <div className={styles.workspace}>
     <header className={styles.hero}>
-      <div><p className={styles.eyebrow}>Event operations</p><h1>{dashboard.event.name}</h1><p>Only persisted work and readiness signals that need an organizer’s attention.</p></div>
-      <div className={styles.freshness}><i /><span><strong>Live event projection</strong><small>Updated {relativeTime(dashboard.generatedAt)}</small></span></div>
+      <div><p className={styles.eyebrow}>Event operations</p><h1>{dashboard.event.name}</h1><p>Real work and readiness signals that need an organizer’s attention.</p></div>
+      <div className={styles.freshness}><i /><span><strong>Live from event data</strong><small>Updated {relativeTime(dashboard.generatedAt)}</small></span></div>
     </header>
 
     <section className={styles.metrics} aria-label="Event lifecycle metrics">
@@ -55,12 +55,12 @@ export function DashboardPage() {
         <div className={styles.workList}>
           {work.length ? work.map((item) => <Link className={styles.workItem} data-tone={item.tone} to={item.to} key={`${item.code}:${item.title}`}>
             <span className={styles.workCode}>{item.code}</span><span><strong>{item.title}</strong><small>{item.detail}</small></span><em>{item.label} →</em>
-          </Link>) : <div className={styles.calm}><span>✓</span><div><strong>No blocking work</strong><small>Every current persisted readiness check is clear.</small></div></div>}
+          </Link>) : <div className={styles.calm}><span>✓</span><div><strong>No blocking work</strong><small>Every current readiness check is clear.</small></div></div>}
         </div>
       </section>
 
       <aside className={styles.panel}>
-        <div className={styles.sectionHead}><div><h2>Program lifecycle</h2><p>Canonical handoff readiness</p></div><span className={dashboard.publication.state === "live" && work.length === 0 ? styles.good : undefined}>{work.length === 0 ? "Healthy" : "Needs attention"}</span></div>
+        <div className={styles.sectionHead}><div><h2>Program lifecycle</h2><p>From call for speakers to public program</p></div><span className={dashboard.publication.state === "live" && work.length === 0 ? styles.good : undefined}>{work.length === 0 ? "Healthy" : "Needs attention"}</span></div>
         <Lifecycle label={`CFP ${label(dashboard.cfp.status)}`} value={dashboard.cfp.forms ? (dashboard.cfp.status === "closed" ? 100 : dashboard.cfp.status === "open" ? 70 : 30) : 0} note={`${dashboard.cfp.submitted} submissions`} />
         <Lifecycle label="Reviews" value={dashboard.reviews.percentComplete} note={`${dashboard.reviews.completed}/${Math.max(0, dashboard.reviews.assigned - dashboard.reviews.recused)} completed`} />
         <Lifecycle label="Speaker onboarding" value={speakerRate} note={`${dashboard.speakers.tasks.overdue} tasks overdue`} />
@@ -79,14 +79,14 @@ export function DashboardPage() {
       </section>
 
       <section className={styles.panel}>
-        <div className={styles.sectionHead}><div><h2>Speaker onboarding</h2><p>SPK-12 task progress from portal completions</p></div><Link to={`${base}/speakers`}>Open roster</Link></div>
+        <div className={styles.sectionHead}><div><h2>Speaker onboarding</h2><p>Task progress from speaker portal completions</p></div><Link to={`${base}/speakers`}>Open roster</Link></div>
         <div className={styles.attentionList}>
           {dashboard.speakers.attention.length ? dashboard.speakers.attention.map((speaker) => <Link to={`${base}/speakers`} key={speaker.eventSpeakerId}><span className={styles.avatar}>{initials(speaker.displayName)}</span><span><strong>{speaker.displayName}</strong><small>{speaker.completed}/{speaker.total} tasks complete</small></span>{speaker.overdue ? <em>{speaker.overdue} overdue</em> : <em>{speaker.total - speaker.completed} left</em>}</Link>) : <div className={styles.empty}>No speaker has an incomplete assigned task.</div>}
         </div>
       </section>
 
       <section className={styles.panel}>
-        <div className={styles.sectionHead}><div><h2>Communication outcomes</h2><p>Persisted recipient delivery status</p></div><Link to={`${base}/communications`}>Open center</Link></div>
+        <div className={styles.sectionHead}><div><h2>Communication outcomes</h2><p>Delivery status for every recipient</p></div><Link to={`${base}/communications`}>Open center</Link></div>
         <div className={styles.outcomes}>
           <Outcome label="Successful" value={dashboard.communications.successful} tone="success" />
           <Outcome label="In flight" value={dashboard.communications.inFlight} tone="violet" />
@@ -96,8 +96,8 @@ export function DashboardPage() {
     </div>
 
     <section className={styles.activityPanel}>
-      <div className={styles.sectionHead}><div><h2>Recent activity</h2><p>Latest persisted lifecycle changes</p></div><span>{dashboard.activity.length} events</span></div>
-      <div className={styles.activityList}>{dashboard.activity.length ? dashboard.activity.map((activity) => <article key={activity.id} data-kind={activity.kind}><i /><span><strong>{activity.title}</strong><small>{activity.detail}</small></span><time dateTime={activity.occurredAt}>{relativeTime(activity.occurredAt)}</time></article>) : <div className={styles.empty}>Activity will appear as canonical event records change.</div>}</div>
+      <div className={styles.sectionHead}><div><h2>Recent activity</h2><p>Latest changes across your event</p></div><span>{dashboard.activity.length} events</span></div>
+      <div className={styles.activityList}>{dashboard.activity.length ? dashboard.activity.map((activity) => <article key={activity.id} data-kind={activity.kind}><i /><span><strong>{activity.title}</strong><small>{activity.detail}</small></span><time dateTime={activity.occurredAt}>{relativeTime(activity.occurredAt)}</time></article>) : <div className={styles.empty}>Activity will appear as your team works on the event.</div>}</div>
     </section>
   </div>;
 }
@@ -117,6 +117,9 @@ function Outcome({ label: text, value, tone }: { label: string; value: number; t
 function buildWorkQueue(data: DashboardSnapshot): WorkItem[] {
   const base = `/organizer/events/${encodeURIComponent(data.event.slug)}`;
   const items: WorkItem[] = [];
+  if (data.cfp.forms === 0) items.push({ tone: "warning", code: "CF", title: "Create your call for speakers", detail: "Add the questions, dates, tracks, and formats speakers need before sharing the call.", label: "Set up CFP", to: `${base}/cfp` });
+  else if (data.cfp.status === "draft") items.push({ tone: "warning", code: "CF", title: "Publish your call for speakers", detail: "The form exists, but speakers cannot submit until you publish it.", label: "Review & publish", to: `${base}/cfp` });
+  else if (data.cfp.status === "open" && data.cfp.submitted === 0) items.push({ tone: "success", code: "CF", title: "Your call for speakers is open", detail: "Share the public link to start collecting proposals.", label: "Open public form", to: `/cfp/${encodeURIComponent(data.event.slug)}` });
   if (data.agenda.conflicts > 0 || data.agenda.unscheduled > 0) items.push({ tone: "danger", code: "AG", title: data.agenda.conflicts ? `Resolve ${data.agenda.conflicts} agenda conflict${data.agenda.conflicts === 1 ? "" : "s"}` : `Place ${data.agenda.unscheduled} unscheduled session${data.agenda.unscheduled === 1 ? "" : "s"}`, detail: `Scheduling revision ${data.agenda.revisionVersion ?? "not created"} · ${data.agenda.scheduled}/${data.agenda.sessions} sessions placed`, label: "Open scheduler", to: `${base}/agenda` });
   if (data.speakers.tasks.overdue > 0 || data.deliverables.overdue > 0) items.push({ tone: "warning", code: "CT", title: `${data.speakers.tasks.overdue + data.deliverables.overdue} overdue onboarding item${data.speakers.tasks.overdue + data.deliverables.overdue === 1 ? "" : "s"}`, detail: `${data.speakers.tasks.overdue} general tasks · ${data.deliverables.overdue} deliverables`, label: "Review files", to: `${base}/files` });
   if (data.reviews.outstanding > 0 || data.reviews.activeConflicts > 0) items.push({ tone: "violet", code: "RV", title: `${data.reviews.outstanding} review${data.reviews.outstanding === 1 ? "" : "s"} incomplete`, detail: `${data.reviews.activeConflicts} active conflict${data.reviews.activeConflicts === 1 ? "" : "s"} · ${data.reviews.percentComplete}% complete`, label: "Open review desk", to: `${base}/evaluations` });

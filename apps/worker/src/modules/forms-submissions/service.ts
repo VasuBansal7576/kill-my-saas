@@ -16,7 +16,7 @@ import {
   type FormFieldDefinition,
   type PublishedFormDefinition,
 } from "@programflow/database";
-import { and, asc, count, desc, eq, inArray, max, ne, or, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, max, ne, or, sql, type SQL } from "drizzle-orm";
 import type { Actor } from "../identity-access/actor";
 import { actorCanAccessEvent } from "../identity-access/actor";
 import {
@@ -108,6 +108,7 @@ export type SubmissionRecord = {
   submitterPersonId: string | null;
   title: string;
   state: "draft" | "submitted";
+  triageState: "unreviewed" | "maybe";
   decision: "accepted" | "rejected" | null;
   routingKey: string | null;
   version: number;
@@ -490,6 +491,25 @@ export async function listOrganizerSubmissions(database: Database, actor: Actor,
   return listSubmissionRecords(database, eq(submissions.eventId, event.id));
 }
 
+export async function setSubmissionTriage(
+  database: Database,
+  actor: Actor,
+  eventSlug: string,
+  submissionId: string,
+  triageState: "unreviewed" | "maybe",
+): Promise<SubmissionRecord> {
+  const event = await requireEvent(database, eventSlug);
+  requireRole(actor, event.id, "organizer");
+  const [submission] = await database.select({ id: submissions.id, eventId: submissions.eventId, state: submissions.state })
+    .from(submissions).where(eq(submissions.id, submissionId)).limit(1);
+  if (!submission || submission.eventId !== event.id) throw new FormsSubmissionsError("submission_not_found", "Submission not found.");
+  if (submission.state !== "submitted") throw new FormsSubmissionsError("conflict", "Only submitted proposals can enter the decision queue.");
+  const [decision] = await database.select({ id: decisions.id }).from(decisions).where(eq(decisions.submissionId, submissionId)).limit(1);
+  if (decision) throw new FormsSubmissionsError("conflict", "A final decision already exists for this proposal.");
+  await database.update(submissions).set({ triageState, updatedAt: new Date() }).where(eq(submissions.id, submissionId));
+  return requireSubmissionRecord(database, submissionId);
+}
+
 export async function listSpeakerSubmissions(database: Database, actor: Actor, eventSlug: string): Promise<SubmissionRecord[]> {
   const event = await requireEvent(database, eventSlug);
   requireRole(actor, event.id, "speaker");
@@ -512,27 +532,72 @@ export async function getSpeakerSubmission(
 }
 
 async function listSubmissionRecords(database: Database, where: SQL<unknown>): Promise<SubmissionRecord[]> {
-  const roots = await database.select().from(submissions).where(where).orderBy(desc(submissions.updatedAt));
-  if (roots.length === 0) return [];
-  const ids = roots.map((root) => root.id);
-  const formVersionIds = [...new Set(roots.map((root) => root.formVersionId))];
-  const [versions, participants, formVersions, decisionRows] = await Promise.all([
-    database.select().from(submissionVersions).where(inArray(submissionVersions.submissionId, ids)),
-    database.select().from(submissionParticipants).where(inArray(submissionParticipants.submissionId, ids)).orderBy(asc(submissionParticipants.sortOrder)),
-    database.select({ id: cfpFormVersions.id, version: cfpFormVersions.version }).from(cfpFormVersions).where(inArray(cfpFormVersions.id, formVersionIds)),
-    database.select({ submissionId: decisions.submissionId, outcome: decisions.outcome }).from(decisions)
-      .where(inArray(decisions.submissionId, ids)),
-  ]);
-  return roots.map((root) => {
-    const current = versions.find((version) => version.submissionId === root.id && version.version === root.currentVersion);
-    if (!current) throw new Error(`Submission ${root.id} has no current version.`);
-    return toSubmissionRecord(
-      root,
-      current,
-      participants.filter((participant) => participant.submissionId === root.id),
-      formVersions.find((version) => version.id === root.formVersionId)?.version ?? 0,
-      decisionRows.find((decision) => decision.submissionId === root.id)?.outcome ?? null,
-    );
+  const result = await database.execute(sql`
+    select
+      ${submissions.id} as id,
+      ${submissions.eventId} as event_id,
+      ${submissions.formId} as form_id,
+      ${submissions.submitterPersonId} as submitter_person_id,
+      ${submissions.state} as state,
+      ${submissions.triageState} as triage_state,
+      ${submissions.routingKey} as routing_key,
+      ${submissions.submittedAt} as submitted_at,
+      ${submissions.updatedAt} as updated_at,
+      current_version.version as content_version,
+      current_version.title as title,
+      current_version.answers as answers,
+      form_version.version as form_version,
+      decision.outcome as decision,
+      coalesce(
+        json_agg(
+          json_build_object(
+            'id', participant.id,
+            'personId', participant.person_id,
+            'name', participant.name,
+            'email', participant.email,
+            'role', participant.role,
+            'sortOrder', participant.sort_order
+          ) order by participant.sort_order
+        ) filter (where participant.id is not null),
+        '[]'::json
+      ) as participants
+    from ${submissions}
+    inner join ${submissionVersions} as current_version
+      on current_version.submission_id = ${submissions.id}
+      and current_version.version = ${submissions.currentVersion}
+    inner join ${cfpFormVersions} as form_version on form_version.id = ${submissions.formVersionId}
+    left join ${decisions} as decision on decision.submission_id = ${submissions.id}
+    left join ${submissionParticipants} as participant on participant.submission_id = ${submissions.id}
+    where ${where}
+    group by
+      ${submissions.id}, current_version.id, form_version.id, decision.id
+    order by ${submissions.updatedAt} desc
+  `);
+  return result.rows.map((value) => {
+    const row = value as {
+      id: string; event_id: string; form_id: string; submitter_person_id: string | null;
+      state: "draft" | "submitted"; triage_state: "unreviewed" | "maybe"; routing_key: string | null;
+      submitted_at: Date | string | null; updated_at: Date | string; content_version: number; title: string;
+      answers: Record<string, unknown>; form_version: number; decision: "accepted" | "rejected" | null;
+      participants: SubmissionRecord["participants"];
+    };
+    return {
+      id: row.id,
+      eventId: row.event_id,
+      formId: row.form_id,
+      formVersion: row.form_version,
+      submitterPersonId: row.submitter_person_id,
+      title: row.title,
+      state: row.state,
+      triageState: row.triage_state,
+      decision: row.decision,
+      routingKey: row.routing_key,
+      version: row.content_version,
+      answers: row.answers,
+      participants: row.participants,
+      submittedAt: row.submitted_at ? new Date(row.submitted_at).toISOString() : null,
+      updatedAt: new Date(row.updated_at).toISOString(),
+    };
   });
 }
 
@@ -564,6 +629,7 @@ function toSubmissionRecord(
     submitterPersonId: root.submitterPersonId,
     title: current.title,
     state: root.state,
+    triageState: root.triageState,
     decision,
     routingKey: root.routingKey,
     version: current.version,

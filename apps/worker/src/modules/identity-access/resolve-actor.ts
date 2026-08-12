@@ -16,6 +16,8 @@ import type { Env } from "../../env";
 import type { Actor, ActorContext, EventRole, OrganizationRole } from "./actor";
 
 const SessionUserSchema = z.object({ id: z.string(), email: z.email(), name: z.string().optional() });
+const actorCache = new Map<string, { actor: Actor; expiresAt: number }>();
+const actorCacheTtlMs = 15_000;
 
 export const resolveActor = createMiddleware<{ Bindings: Env } & ActorContext>(async (context, next) => {
   if (!context.env.NEON_AUTH_BASE_URL || !context.env.DATABASE_URL) {
@@ -26,7 +28,18 @@ export const resolveActor = createMiddleware<{ Bindings: Env } & ActorContext>(a
   }
 
   const database = createDatabase(context.env.DATABASE_URL);
-  const user = await activeSessionUser(database, context.req.header("cookie"));
+  const sessionToken = sessionTokenFromCookie(context.req.header("cookie"));
+  if (!sessionToken) {
+    return context.json({ error: { code: "unauthorized", message: "Sign in is required." } }, 401);
+  }
+  const cached = actorCache.get(sessionToken);
+  if (cached && cached.expiresAt > Date.now()) {
+    context.set("actor", cached.actor);
+    await next();
+    return;
+  }
+  actorCache.delete(sessionToken);
+  const user = await activeSessionUser(database, sessionToken);
   if (!user) {
     return context.json({ error: { code: "unauthorized", message: "Sign in is required." } }, 401);
   }
@@ -60,13 +73,18 @@ export const resolveActor = createMiddleware<{ Bindings: Env } & ActorContext>(a
     organizationRoles: organizationRows.map((row) => ({ ...row, role: row.role as OrganizationRole })),
     eventRoles: eventRows.map((row) => ({ ...row, role: row.role as EventRole })),
   };
+  if (actor.organizationRoles.length > 0 || actor.eventRoles.length > 0) {
+    actorCache.set(sessionToken, { actor, expiresAt: Date.now() + actorCacheTtlMs });
+    if (actorCache.size > 500) {
+      const oldest = actorCache.keys().next().value as string | undefined;
+      if (oldest) actorCache.delete(oldest);
+    }
+  }
   context.set("actor", actor);
   await next();
 });
 
-async function activeSessionUser(database: Database, cookieHeader: string | undefined) {
-  const token = sessionTokenFromCookie(cookieHeader);
-  if (!token) return null;
+async function activeSessionUser(database: Database, token: string) {
   const result = await database.execute(sql`
     select auth_user.id::text as id, auth_user.email, auth_user.name
     from neon_auth.session as auth_session
@@ -77,6 +95,11 @@ async function activeSessionUser(database: Database, cookieHeader: string | unde
     limit 1
   `);
   return SessionUserSchema.safeParse(result.rows[0]).data ?? null;
+}
+
+export function invalidateActorCache(cookieHeader: string | undefined) {
+  const token = sessionTokenFromCookie(cookieHeader);
+  if (token) actorCache.delete(token);
 }
 
 export function sessionTokenFromCookie(cookieHeader: string | undefined): string | null {

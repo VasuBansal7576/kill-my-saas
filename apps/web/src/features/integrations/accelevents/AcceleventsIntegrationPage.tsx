@@ -63,7 +63,7 @@ export function AcceleventsIntegrationPage() {
       const result = await runAccelevents(workspace, mode, sourceRunId);
       await load();
       if (result.mode === "preview") setNotice(`Dry-run persisted: ${result.planned} canonical records inspected, ${result.failed} mapping failure(s), and no provider call made.`);
-      else if (result.status === "blocked_external") setNotice("Run persisted as blocked_external. No Accelevents response is claimed; configure the Worker token and retry.");
+      else if (result.status === "blocked_external") setNotice("Accelevents is not connected yet. No external records were changed; add the API token and retry.");
       else if (!result.providerResponded) setNotice("The run ended without an Accelevents response and is not presented as a live sync.");
       else setNotice(`Accelevents responded: ${result.synced} synced, ${result.skipped} unchanged, ${result.failed} failed. Inspect record attempts below.`);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not run Accelevents synchronization."); }
@@ -109,7 +109,7 @@ export function AcceleventsIntegrationPage() {
         <button type="button" disabled={Boolean(busy)} onClick={() => void run("preview")}>{busy === "preview" ? "Previewing…" : "Preview / dry-run"}</button>
         <button className={styles.primary} type="button" disabled={Boolean(busy)} onClick={() => void run("manual")}>{busy === "manual" ? "Syncing…" : "Sync approved records"}</button>
         <button type="button" disabled={Boolean(busy) || !last || !retryable} onClick={() => last && void run("retry", last.id)}>{busy === "retry" ? "Retrying…" : "Retry failed records"}</button>
-        <small>A completion state requires an Accelevents HTTP response. Missing credentials persist as <code>blocked_external</code>.</small>
+        <small>A run is marked complete only after Accelevents responds. Missing credentials are shown as “Needs setup.”</small>
       </aside>
     </section>
 

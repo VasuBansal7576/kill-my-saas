@@ -13,6 +13,7 @@ import { and, eq } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import type { Env } from "../../env";
 import type { ActorContext } from "./actor";
+import { invalidateActorCache } from "./resolve-actor";
 
 export const workspaceRoutes = new Hono<{ Bindings: Env } & ActorContext>();
 
@@ -38,6 +39,7 @@ workspaceRoutes.post("/onboarding", async (context) => {
       await transaction.insert(eventMemberships).values({ eventId: event.id, personId: actor.personId, role: "organizer" });
       return { organization, event };
     });
+    invalidateActorCache(context.req.header("cookie"));
     return context.json({ ...result, recommendedPath: `/organizer/events/${result.event.slug}/dashboard` }, 201);
   } catch (error) {
     if (isUniqueViolation(error)) return slugConflict(context);
@@ -65,6 +67,7 @@ workspaceRoutes.post("/organizer/organizations/:organizationId/events", async (c
       return created;
     });
     if (!event) return context.json({ error: { code: "organization_not_found", message: "Organization not found." } }, 404);
+    invalidateActorCache(context.req.header("cookie"));
     return context.json({ event, recommendedPath: `/organizer/events/${event.slug}/dashboard` }, 201);
   } catch (error) {
     if (isUniqueViolation(error)) return slugConflict(context);

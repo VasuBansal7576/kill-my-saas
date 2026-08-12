@@ -10,6 +10,7 @@ export const formTarget = pgEnum("form_target", ["abstract", "session"]);
 export const formStatus = pgEnum("form_status", ["draft", "published", "closed"]);
 export const formFieldType = pgEnum("form_field_type", ["short_text", "long_text", "select", "multi_select", "checkbox", "date", "file"]);
 export const submissionState = pgEnum("submission_state", ["draft", "submitted"]);
+export const submissionTriageState = pgEnum("submission_triage_state", ["unreviewed", "maybe"]);
 export const participantRole = pgEnum("participant_role", ["author", "co_author", "presenter"]);
 
 export type FormFieldDefinition = {
@@ -109,6 +110,7 @@ export const submissions = pgTable("submissions", {
   submitterPersonId: uuid("submitter_person_id").references(() => people.id),
   title: text("title").notNull(),
   state: submissionState("state").notNull().default("draft"),
+  triageState: submissionTriageState("triage_state").notNull().default("unreviewed"),
   routingKey: text("routing_key"),
   currentVersion: integer("current_version").notNull().default(1),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),

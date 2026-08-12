@@ -4,18 +4,21 @@ import "./forms-submissions.css";
 import { fieldIsVisible, readApi, type FormField, type ParticipantRole, type PublicForm, type SubmissionRecord } from "./model";
 
 type ParticipantInput = { name: string; email: string; role: ParticipantRole };
+type LocalProposal = { title: string; answers: Record<string, unknown>; participants: ParticipantInput[]; savedAt: string };
 
 export function PublicCfpPage() {
   const { eventSlug = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [localProposal] = useState(() => readLocalProposal(eventSlug));
   const [publicForm, setPublicForm] = useState<PublicForm | null>(null);
   const [submissions, setSubmissions] = useState<SubmissionRecord[]>([]);
-  const [title, setTitle] = useState("");
-  const [answers, setAnswers] = useState<Record<string, unknown>>({});
-  const [participants, setParticipants] = useState<ParticipantInput[]>([]);
+  const [title, setTitle] = useState(localProposal?.title ?? "");
+  const [answers, setAnswers] = useState<Record<string, unknown>>(localProposal?.answers ?? {});
+  const [participants, setParticipants] = useState<ParticipantInput[]>(localProposal?.participants ?? []);
   const [state, setState] = useState<"loading" | "idle" | "saving" | "submitted" | "error">("loading");
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(localProposal ? "Your unfinished proposal was restored on this device." : null);
   const [authenticated, setAuthenticated] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const submissionId = searchParams.get("submission");
 
   useEffect(() => {
@@ -33,19 +36,29 @@ export function PublicCfpPage() {
           if (!active) return;
         setSubmissions(speakerData.submissions);
           const submission = speakerData.submissions.find((candidate) => candidate.id === submissionId);
-          setTitle(submission?.title ?? "");
-          setAnswers(submission?.answers ?? {});
-          setParticipants(submission?.participants.map(({ name, email, role }) => ({ name, email, role })) ?? []);
+          if (submission) {
+            setTitle(submission.title);
+            setAnswers(submission.answers);
+            setParticipants(submission.participants.map(({ name, email, role }) => ({ name, email, role })));
+          }
       }
+      setAuthChecked(true);
       setState("idle");
       } catch (error) {
         if (!active) return;
+      setAuthChecked(true);
       setMessage(error instanceof Error ? error.message : "The call for speakers could not be loaded.");
       setState("error");
       }
     })();
     return () => { active = false; };
   }, [eventSlug, submissionId]);
+
+  useEffect(() => {
+    if (!authChecked || authenticated || submissionId) return;
+    if (!title.trim() && Object.keys(answers).length === 0 && participants.length === 0) return;
+    writeLocalProposal(eventSlug, { title, answers, participants, savedAt: new Date().toISOString() });
+  }, [answers, authChecked, authenticated, eventSlug, participants, submissionId, title]);
 
   const selected = submissions.find((candidate) => candidate.id === submissionId) ?? null;
   const definition = publicForm?.form.definition;
@@ -65,6 +78,7 @@ export function PublicCfpPage() {
         body: JSON.stringify({ title, answers, participants: compactParticipants(participants), saveAsDraft }),
       }));
       setSubmissions((current) => [saved, ...current.filter((submission) => submission.id !== saved.id)]);
+      clearLocalProposal(eventSlug);
       setSearchParams({ submission: saved.id });
       setState(saveAsDraft ? "idle" : "submitted");
       setMessage(saveAsDraft ? "Draft saved. You can close this page and resume later." : publicForm.form.definition.successCopy);
@@ -100,15 +114,27 @@ export function PublicCfpPage() {
               {submissions.map((submission) => <button type="button" key={submission.id} className={submission.id === selected?.id ? "active" : ""} onClick={() => setSearchParams({ submission: submission.id })}><span>{submission.title}</span><em>{submission.state}</em></button>)}
               <button type="button" onClick={() => { setSearchParams({}); setTitle(""); setAnswers({}); setParticipants([]); }}>+ Start another proposal</button>
             </div>
-          ) : <p className="cfp-signin-note">{authenticated
-            ? "Your submitted proposals will appear here."
-            : <>Sign in to save and return to proposals. <Link to={`/login?event=${encodeURIComponent(eventSlug)}&next=${encodeURIComponent(`/cfp/${eventSlug}`)}`}>Sign in</Link> or <Link to={`/login?mode=signup&event=${encodeURIComponent(eventSlug)}&next=${encodeURIComponent(`/cfp/${eventSlug}`)}`}>create a speaker account</Link>.</>}
-          </p>}
+          ) : authenticated ? <p className="cfp-signin-note">Your submitted proposals will appear here.</p> : null}
         </section>
 
         <section className="cfp-public-card cfp-proposal-form">
           <div className="section-head"><h2>{selected ? "Edit proposal" : "New proposal"}</h2><span>{form.definition.target}</span></div>
-          {!isOpen ? <div className="cfp-closed-message" role="status">This call is {form.availability}. New proposals and edits are locked.</div> : (
+          {!isOpen ? <div className="cfp-closed-message" role="status">This call is {form.availability}. New proposals and edits are locked.</div> : !authChecked ? (
+            <div className="cfp-auth-gate" aria-live="polite"><span className="cfp-auth-icon">PF</span><h2>Checking speaker access…</h2><p>Your proposal workspace will open in a moment.</p></div>
+          ) : !authenticated ? (
+            <div className="cfp-auth-gate">
+              <span className="cfp-auth-icon">→</span>
+              <p className="eyebrow">Speaker access</p>
+              <h2>Sign in before you start</h2>
+              <p>Your account keeps drafts safe, lets you edit while the call is open, and gives you one place for decisions and speaker tasks.</p>
+              {hasLocalProposal(eventSlug) ? <div className="cfp-restored-note">We found unfinished work on this device. Sign in and it will be restored here.</div> : null}
+              <div className="cfp-auth-actions">
+                <Link className="primary-action" to={`/login?event=${encodeURIComponent(eventSlug)}&next=${encodeURIComponent(`/cfp/${eventSlug}`)}`}>Sign in to continue</Link>
+                <Link className="secondary-action" to={`/login?mode=signup&event=${encodeURIComponent(eventSlug)}&next=${encodeURIComponent(`/cfp/${eventSlug}`)}`}>Create speaker account</Link>
+              </div>
+              <small>No organizer access is granted. Speaker accounts can only see their own proposals and event work.</small>
+            </div>
+          ) : (
             <form onSubmit={(event_) => { event_.preventDefault(); void save(false); }}>
               <p className="cfp-instructions">{form.definition.instructionsCopy}</p>
               <label>Proposal title <span aria-hidden="true">*</span><input value={title} minLength={3} maxLength={180} required onChange={(event_) => setTitle(event_.target.value)} /></label>
@@ -165,4 +191,34 @@ function compactParticipants(participants: ParticipantInput[]) {
 function formatDate(value: string | null) {
   if (!value) return "later";
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function localProposalKey(eventSlug: string) {
+  return `programflow:cfp:${eventSlug}:proposal`;
+}
+
+function readLocalProposal(eventSlug: string): LocalProposal | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = window.localStorage.getItem(localProposalKey(eventSlug));
+    return value ? JSON.parse(value) as LocalProposal : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalProposal(eventSlug: string, proposal: LocalProposal) {
+  try {
+    window.localStorage.setItem(localProposalKey(eventSlug), JSON.stringify(proposal));
+  } catch {
+    // Storage can be disabled; authenticated server drafts remain the durable path.
+  }
+}
+
+function clearLocalProposal(eventSlug: string) {
+  try { window.localStorage.removeItem(localProposalKey(eventSlug)); } catch { /* no-op */ }
+}
+
+function hasLocalProposal(eventSlug: string) {
+  return readLocalProposal(eventSlug) !== null;
 }

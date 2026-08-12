@@ -6,17 +6,79 @@ import { fieldIsVisible, readApi, type FormField, type PublicForm, type Submissi
 export function SubmissionsPage() {
   const { eventSlug = "" } = useParams();
   const [submissions, setSubmissions] = useState<SubmissionRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [manualForm, setManualForm] = useState<PublicForm | null>(null);
   const [showManual, setShowManual] = useState(false);
+  const [filter, setFilter] = useState<"all" | "unreviewed" | "maybe" | "accepted" | "rejected">("all");
+  const [decisionTarget, setDecisionTarget] = useState<SubmissionRecord | null>(null);
+  const [decisionReason, setDecisionReason] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const visibleSubmissions = submissions.filter((submission) => {
+    if (filter === "all") return true;
+    if (filter === "accepted" || filter === "rejected") return submission.decision === filter;
+    return !submission.decision && submission.triageState === filter;
+  });
+
+  async function reloadSubmissions() {
+    const result = await readApi<{ submissions: SubmissionRecord[] }>(await fetch(`/api/v1/organizer/events/${eventSlug}/submissions`));
+    setSubmissions(result.submissions);
+  }
+
+  async function markMaybe(submission: SubmissionRecord) {
+    setBusyId(submission.id);
+    setMessage(null);
+    try {
+      const updated = await readApi<SubmissionRecord>(await fetch(`/api/v1/organizer/events/${eventSlug}/submissions/${submission.id}/triage`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state: submission.triageState === "maybe" ? "unreviewed" : "maybe" }),
+      }));
+      setSubmissions((current) => current.map((candidate) => candidate.id === updated.id ? updated : candidate));
+      setMessage(updated.triageState === "maybe" ? `“${updated.title}” moved to Maybe.` : `“${updated.title}” moved back to Unreviewed.`);
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "The decision queue could not be updated.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function decide(outcome: "accepted" | "rejected") {
+    if (!decisionTarget) return;
+    setBusyId(decisionTarget.id);
+    setMessage(null);
+    try {
+      await readApi(await fetch(`/api/v1/organizer/events/${eventSlug}/evaluations/decisions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ submissionId: decisionTarget.id, outcome, reason: decisionReason, idempotencyKey: crypto.randomUUID() }),
+      }));
+      await reloadSubmissions();
+      setMessage(outcome === "accepted"
+        ? `“${decisionTarget.title}” was accepted. Its linked session, speaker record, onboarding, and notification handoffs were created atomically.`
+        : `“${decisionTarget.title}” was rejected and the submitter notification was queued.`);
+      setDecisionTarget(null);
+      setDecisionReason("");
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "The decision could not be recorded.");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   useEffect(() => {
-    void Promise.all([
-      fetch(`/api/v1/organizer/events/${eventSlug}/submissions`).then((response) => readApi<{ submissions: SubmissionRecord[] }>(response)),
-      fetch(`/api/v1/public/cfp/${eventSlug}`).then((response) => readApi<PublicForm>(response)),
-    ])
-      .then(([result, form]) => { setSubmissions(result.submissions); setManualForm(form); })
-      .catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Submissions could not be loaded."));
+    let active = true;
+    void fetch(`/api/v1/organizer/events/${eventSlug}/submissions`)
+      .then((response) => readApi<{ submissions: SubmissionRecord[] }>(response))
+      .then((result) => { if (active) setSubmissions(result.submissions); })
+      .catch((error: unknown) => { if (active) setMessage(error instanceof Error ? error.message : "Submissions could not be loaded."); })
+      .finally(() => { if (active) setLoading(false); });
+    void fetch(`/api/v1/public/cfp/${eventSlug}`)
+      .then((response) => readApi<PublicForm>(response))
+      .then((form) => { if (active) setManualForm(form); })
+      .catch(() => undefined);
+    return () => { active = false; };
   }, [eventSlug]);
 
   return (
@@ -31,9 +93,13 @@ export function SubmissionsPage() {
         setShowManual(false);
         setMessage("Manual submission persisted with organizer provenance and routed to Reviews.");
       }} /> : null}
-      <section className="cfp-panel submission-inbox">
-        <div className="submission-row submission-header"><span>Proposal</span><span>Participants</span><span>Route</span><span>Status</span><span>Updated</span></div>
-        {submissions.map((submission) => (
+      <div className="submission-queue-tabs" aria-label="Decision queue filters">
+        {(["all", "unreviewed", "maybe", "accepted", "rejected"] as const).map((value) => <button type="button" key={value} className={filter === value ? "active" : ""} onClick={() => setFilter(value)}>{humanize(value)} <span>{submissions.filter((submission) => value === "all" ? true : value === "accepted" || value === "rejected" ? submission.decision === value : !submission.decision && submission.triageState === value).length}</span></button>)}
+      </div>
+      <section className="cfp-panel submission-inbox" aria-busy={loading}>
+        <div className="submission-row submission-header"><span>Proposal</span><span>Participants</span><span>Route</span><span>Decision</span><span>Actions</span></div>
+        {loading ? <div className="submission-loading" aria-live="polite"><i /><span><strong>Loading decision queue…</strong><small>Reading the latest proposals and outcomes.</small></span></div> : null}
+        {!loading ? visibleSubmissions.map((submission) => (
           <article className="submission-row" key={submission.id}>
             <div>
               <strong>{submission.title}</strong><small>Form v{submission.formVersion} · content v{submission.version}</small>
@@ -47,12 +113,18 @@ export function SubmissionsPage() {
             </div>
             <div><strong>{submission.participants[0]?.name ?? "No participant yet"}</strong><small>{submission.participants.length > 1 ? `+${submission.participants.length - 1} co-presenter(s)` : submission.participants[0]?.email ?? "Draft contact incomplete"}</small></div>
             <span>{submission.routingKey ?? "General queue"}</span>
-            <span className={`submission-state ${submission.state}`}>{submission.state}</span>
-            <time dateTime={submission.updatedAt}>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(submission.updatedAt))}</time>
+            <span className={`submission-state ${submission.decision ?? submission.triageState}`}>{submission.decision ?? submission.triageState}</span>
+            <div className="submission-decision-actions">
+              {submission.state === "submitted" && !submission.decision ? <>
+                <button type="button" disabled={busyId === submission.id} onClick={() => setDecisionTarget(submission)}>Accept / reject</button>
+                <button type="button" disabled={busyId === submission.id} className={submission.triageState === "maybe" ? "active" : ""} onClick={() => void markMaybe(submission)}>{submission.triageState === "maybe" ? "Undo maybe" : "Maybe"}</button>
+              </> : <small>{submission.decision === "accepted" ? "Session handoff complete" : submission.decision === "rejected" ? "Final outcome recorded" : "Draft is private"}</small>}
+            </div>
           </article>
-        ))}
-        {submissions.length === 0 && !message ? <div className="cfp-empty"><strong>No proposals yet.</strong><p>Published form submissions will appear here without re-entry.</p></div> : null}
+        )) : null}
+        {!loading && visibleSubmissions.length === 0 && !message ? <div className="cfp-empty"><strong>{submissions.length ? `No ${filter} proposals.` : "No proposals yet."}</strong><p>{submissions.length ? "Choose another decision queue to keep working." : "Published form submissions will appear here without re-entry."}</p></div> : null}
       </section>
+      {decisionTarget ? <div className="submission-decision-backdrop"><section className="submission-decision-dialog" role="dialog" aria-modal="true" aria-labelledby="submission-decision-title"><p className="eyebrow">Final program decision</p><h2 id="submission-decision-title">{decisionTarget.title}</h2><p>Accept creates the linked session, speaker record, onboarding handoff, and notification job. Reject records the final outcome and queues its message.</p><label>Private decision note<textarea autoFocus rows={5} value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} placeholder="Why is this the right program decision?" /></label><footer><button type="button" className="secondary-action" onClick={() => { setDecisionTarget(null); setDecisionReason(""); }}>Cancel</button><button type="button" className="secondary-action danger" disabled={busyId === decisionTarget.id || decisionReason.trim().length < 3} onClick={() => void decide("rejected")}>Reject</button><button type="button" className="primary-action" disabled={busyId === decisionTarget.id || decisionReason.trim().length < 3} onClick={() => void decide("accepted")}>{busyId === decisionTarget.id ? "Recording…" : "Accept & create session"}</button></footer></section></div> : null}
     </div>
   );
 }

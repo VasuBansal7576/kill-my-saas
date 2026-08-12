@@ -59,7 +59,7 @@ export function AirtableIntegrationPage() {
       const receipt = await runAirtableSync(workspace, direction);
       await load();
       if (receipt.status === "blocked_external") {
-        setNotice("Sync was recorded as blocked_external. No Airtable response was claimed.");
+        setNotice("Airtable is not connected yet. No records were changed; add the connection details and token, then retry.");
       } else if (!receipt.providerResponded) {
         setNotice("The attempt ended without an Airtable response and is not presented as a live sync.");
       } else if (receipt.status === "complete") {
@@ -111,7 +111,7 @@ export function AirtableIntegrationPage() {
         <p>Export reconciles existing <code>_programflow_id</code> values before create/update. Import validates those IDs and rejects newer-local conflicts.</p>
         <button className={styles.primary} type="button" disabled={Boolean(busy)} onClick={() => void sync("export")}>{busy === "export" ? "Exporting…" : "Export canonical records"}</button>
         <button type="button" disabled={Boolean(busy)} onClick={() => void sync("import")}>{busy === "import" ? "Importing…" : "Import Airtable attributes"}</button>
-        <small>Completion appears only after an Airtable HTTP response. Missing base, table, or token is persisted as blocked_external.</small>
+        <small>A run is marked complete only after Airtable responds. Missing connection details are shown as “Needs setup.”</small>
       </aside>
     </section>
 

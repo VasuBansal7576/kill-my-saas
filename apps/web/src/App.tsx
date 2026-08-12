@@ -67,7 +67,7 @@ export function App() {
 }
 
 function HomePage() {
-  return <main className="home-page"><section className="home-card"><div className="brand"><span>PF</span>ProgramFlow</div><p className="eyebrow">Conference program operations</p><h1>Build the program. Share the experience.</h1><p>Run submissions, reviews, speaker onboarding, content, scheduling, and publication from one canonical workspace.</p><div className="home-actions"><NavLink className="home-primary" to="/signup">Create your workspace</NavLink><NavLink to="/login">Sign in</NavLink></div><small className="home-proof">Real accounts · persisted PostgreSQL data · role-scoped workspaces</small></section></main>;
+  return <main className="home-page"><section className="home-card"><div className="brand"><span>PF</span>ProgramFlow</div><p className="eyebrow">Conference program operations</p><h1>Build the program. Share the experience.</h1><p>Run submissions, reviews, speaker onboarding, content, scheduling, and publication from one connected workspace.</p><div className="home-actions"><NavLink className="home-primary" to="/signup">Create your workspace</NavLink><NavLink to="/login">Sign in</NavLink></div><small className="home-proof">Real accounts · saved event data · separate workspaces for every role</small></section></main>;
 }
 
 function StandalonePage({ children }: { children: React.ReactNode }) {
@@ -101,6 +101,10 @@ function ProductShell() {
       const current = await response.json() as SessionResponse;
       if (!current.organizationMemberships.length) {
         navigate("/onboarding", { replace: true });
+        return;
+      }
+      if (/^\/organizer\/?$/.test(location.pathname)) {
+        navigate(current.recommendedPath, { replace: true });
         return;
       }
       setSession(current);
@@ -212,7 +216,7 @@ function FoundationPage({ readiness }: { readiness: ReadinessResponse | null }) 
   return (
     <>
       <div className="page-head">
-        <div><p className="eyebrow">Foundation</p><h1>Build the program with confidence.</h1><p>One canonical lifecycle from submissions to a published agenda.</p></div>
+        <div><p className="eyebrow">Workspace setup</p><h1>Build the program with confidence.</h1><p>One connected workflow from submissions to a published agenda.</p></div>
         <div className={`readiness ${readiness?.status === "ready" ? "ready" : "pending"}`}>
           <span />
           <div><strong>{readiness?.status === "ready" ? "Environment ready" : "Configuration required"}</strong><small>{configured} of 6 service boundaries configured</small></div>
@@ -220,7 +224,7 @@ function FoundationPage({ readiness }: { readiness: ReadinessResponse | null }) 
       </div>
       <section className="workspace-grid">
         <article className="primary-panel">
-          <div className="section-head"><h2>Program lifecycle</h2><span>Canonical state</span></div>
+          <div className="section-head"><h2>Program lifecycle</h2><span>Live progress</span></div>
           {["Call for speakers", "Reviews and decisions", "Speaker onboarding", "Program content", "Agenda", "Publication"].map((label, index) => (
             <div className="stage" key={label}>
               <span>{String(index + 1).padStart(2, "0")}</span>

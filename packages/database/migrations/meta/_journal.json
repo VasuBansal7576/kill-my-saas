@@ -57,6 +57,13 @@
       "when": 1786516821611,
       "tag": "0007_fat_moira_mactaggert",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786540690447,
+      "tag": "0008_aberrant_the_hand",
+      "breakpoints": true
     }
   ]
 }

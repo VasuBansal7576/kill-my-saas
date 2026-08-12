@@ -315,7 +315,13 @@ function recentActivity(rows: DashboardRows): DashboardSnapshot["activity"] {
     ...rows.decisions.map((row) => ({ id: `decision:${row.id}`, kind: "decision" as const, title: `${row.outcome === "accepted" ? "Accepted" : "Rejected"} decision recorded`, detail: row.notifiedAt ? "Submitter notified" : "Notification outstanding", occurredAt: row.decidedAt.toISOString() })),
     ...rows.taskAssignments.filter((row) => row.completedAt).map((row) => ({ id: `task:${row.id}`, kind: "task" as const, title: `${row.displayName} completed onboarding`, detail: "Speaker task completed", occurredAt: row.completedAt!.toISOString() })),
     ...rows.deliverables.filter((row) => row.status !== "pending").map((row) => ({ id: `deliverable:${row.id}`, kind: "deliverable" as const, title: `Deliverable ${row.status.replace("_", " ")}`, detail: "Speaker content workflow updated", occurredAt: row.updatedAt.toISOString() })),
-    ...rows.recipients.filter((row) => row.lastOutcomeAt).map((row) => ({ id: `communication:${row.id}`, kind: "communication" as const, title: `Communication ${row.status.replace("_", " ")}`, detail: "Recipient outcome recorded", occurredAt: row.lastOutcomeAt!.toISOString() })),
+    ...rows.recipients.filter((row) => row.lastOutcomeAt).map((row) => ({ id: `communication:${row.id}`, kind: "communication" as const, title: communicationActivityTitle(row.status), detail: row.status === "blocked_external" ? "Connect an email provider, then retry this recipient" : "Recipient outcome recorded", occurredAt: row.lastOutcomeAt!.toISOString() })),
     ...(rows.publication ? [{ id: "publication", kind: "publication" as const, title: rows.publication.state === "live" ? "Public program is live" : `Publication ${rows.publication.state}`, detail: `Public revision ${rows.publication.publicRevision}`, occurredAt: rows.publication.updatedAt.toISOString() }] : []),
   ].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)).slice(0, 8);
+}
+
+function communicationActivityTitle(status: DashboardRows["recipients"][number]["status"]) {
+  if (status === "blocked_external") return "Email delivery needs setup";
+  if (status === "accepted") return "Message sent to email provider";
+  return `Communication ${status.replace("_", " ")}`;
 }

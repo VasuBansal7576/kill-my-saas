@@ -175,7 +175,15 @@ function DeliveryLog({ campaigns, busy, onAction }: { campaigns: CommunicationCa
   }) : <p className={styles.empty}>No communications have been queued yet.</p>}</section>;
 }
 
-function Status({ value }: { value: string }) { return <i className={`${styles.status} ${styles[value] ?? ""}`}>{value.replaceAll("_", " ")}</i>; }
+function Status({ value }: { value: string }) { return <i className={`${styles.status} ${styles[value] ?? ""}`}>{humanStatus(value)}</i>; }
+function humanStatus(value: string) {
+  const labels: Record<string, string> = {
+    blocked_external: "Needs email setup",
+    partial_failure: "Partially sent",
+    accepted: "Sent to provider",
+  };
+  return labels[value] ?? value.replaceAll("_", " ");
+}
 function countStatuses(recipients: CommunicationRecipient[]) { return { delivered: recipients.filter((recipient) => recipient.status === "delivered").length, failed: recipients.filter((recipient) => ["failed", "bounced", "blocked_external"].includes(recipient.status)).length }; }
 function formatDate(value: string) { return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)); }
 function preview(template: string, speaker: AudienceSpeaker, eventName: string) { return template.replace(/{{\s*first_name\s*}}/g, speaker.displayName.split(/\s+/)[0] ?? speaker.displayName).replace(/{{\s*recipient_name\s*}}/g, speaker.displayName).replace(/{{\s*event_name\s*}}/g, eventName).replace(/{{\s*email\s*}}/g, speaker.email ?? ""); }

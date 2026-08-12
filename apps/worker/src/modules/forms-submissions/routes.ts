@@ -1,5 +1,6 @@
 import { createDatabase } from "@programflow/database";
 import { Hono, type Context } from "hono";
+import { z } from "zod";
 import type { Env } from "../../env";
 import type { ActorContext } from "../identity-access/actor";
 import { DraftSubmissionInputSchema, FormConfigurationInputSchema, SubmissionInputSchema } from "./domain";
@@ -15,6 +16,7 @@ import {
   listOrganizerSubmissions,
   listSpeakerSubmissions,
   publishForm,
+  setSubmissionTriage,
   updateForm,
   updateSpeakerSubmission,
 } from "./service";
@@ -111,6 +113,24 @@ organizerFormsSubmissionsRoutes.post("/:eventSlug/submissions/manual", async (co
       formId,
       parsed.data,
     ), 201);
+  } catch (error) {
+    return formsError(context, error);
+  }
+});
+
+organizerFormsSubmissionsRoutes.put("/:eventSlug/submissions/:submissionId/triage", async (context) => {
+  const database = databaseFrom(context);
+  if (!database) return databaseRequired(context);
+  const parsed = z.object({ state: z.enum(["unreviewed", "maybe"]) }).safeParse(await context.req.json().catch(() => null));
+  if (!parsed.success) return invalidBody(context, "invalid_submission_triage", parsed.error.flatten().fieldErrors);
+  try {
+    return context.json(await setSubmissionTriage(
+      database,
+      context.get("actor"),
+      context.req.param("eventSlug"),
+      context.req.param("submissionId"),
+      parsed.data.state,
+    ));
   } catch (error) {
     return formsError(context, error);
   }
