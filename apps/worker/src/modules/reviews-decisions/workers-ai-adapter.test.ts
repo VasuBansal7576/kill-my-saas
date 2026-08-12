@@ -16,6 +16,14 @@ describe("Workers AI review adapter", () => {
     expect(result.reasoning.length).toBeGreaterThan(20);
   });
 
+  it("accepts structured JSON returned by current Workers AI models", async () => {
+    const adapter = new WorkersAiReviewAdapter({
+      async run() { return { response: { score: 91, reasoning: "The abstract identifies concrete evidence, implementation failures, and a reusable decision framework." } }; },
+    });
+    await expect(adapter.assess({ submissionId: "s", title: "T", abstract: "A", criteria: [] }))
+      .resolves.toMatchObject({ score: 91 });
+  });
+
   it("rejects malformed provider output instead of manufacturing a fallback score", async () => {
     const adapter = new WorkersAiReviewAdapter({ async run() { return { response: "Looks good" }; } });
     await expect(adapter.assess({ submissionId: "s", title: "T", abstract: "A", criteria: [] })).rejects.toThrow();

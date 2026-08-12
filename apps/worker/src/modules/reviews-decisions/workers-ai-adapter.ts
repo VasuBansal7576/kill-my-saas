@@ -10,7 +10,7 @@ const ModelOutputSchema = z.object({
   reasoning: z.string().trim().min(20).max(5_000),
 });
 
-const WorkersAiResponseSchema = z.object({ response: z.string() });
+const WorkersAiResponseSchema = z.object({ response: z.unknown() });
 
 export class WorkersAiReviewAdapter implements ReviewAiPort {
   readonly provider = "cloudflare_workers_ai";
@@ -41,7 +41,7 @@ export class WorkersAiReviewAdapter implements ReviewAiPort {
       temperature: 0,
     });
     const response = WorkersAiResponseSchema.parse(raw).response;
-    const parsed = ModelOutputSchema.parse(JSON.parse(stripCodeFence(response)));
+    const parsed = ModelOutputSchema.parse(typeof response === "string" ? JSON.parse(stripCodeFence(response)) : response);
     return {
       provider: this.provider,
       model: this.model,
