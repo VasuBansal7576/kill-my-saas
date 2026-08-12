@@ -11,7 +11,7 @@
 .metric strong { font-size: 25px; font-weight: 650; }
 .danger { color: #e3616c; }
 .layout { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(310px,.65fr); gap: 18px; align-items: start; }
-.layout main, .layout aside, .portalList, .stack { display: grid; gap: 14px; }
+.layout > section, .layout aside, .portalList, .stack { display: grid; gap: 14px; }
 .panel { padding: 17px; border: 1px solid #292929; border-radius: 8px; background: #151515; }
 .panel p { color: #898989; font-size: 10px; line-height: 1.6; }
 .sectionHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 13px; }

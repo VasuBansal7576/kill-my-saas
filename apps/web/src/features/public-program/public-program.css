@@ -218,4 +218,6 @@
 
 @media (max-width: 650px) {
   .widget-form-row.simple { grid-template-columns: 1fr; }
+  .public-program-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; padding-inline: 10px; overflow: visible; }
+  .public-program-nav a { justify-content: center; padding-inline: 8px; text-align: center; white-space: normal; }
 }

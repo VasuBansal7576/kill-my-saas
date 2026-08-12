@@ -340,7 +340,7 @@ export function OrganizerFilesPage() {
         <Metric label="Awaiting review" value={counts.review} />
       </section>
       <div className={styles.layout}>
-        <main>
+        <section>
           <section className={styles.panel}>
             <div className={styles.sectionHead}>
               <h2>Deliverables dashboard & file library</h2>
@@ -562,7 +562,7 @@ export function OrganizerFilesPage() {
               </form>
             </section>
           ) : null}
-        </main>
+        </section>
         <aside>
           <form
             className={styles.panel}

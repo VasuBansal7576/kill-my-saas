@@ -80,9 +80,10 @@ export function WorkspaceOnboardingPage({ additionalEvent = false }: { additiona
   const fillSlug = (source: keyof SetupFields, target: keyof SetupFields) => {
     if (!getValues(target)) setValue(target, slugify(getValues(source)), { shouldValidate: true });
   };
+  const Landmark = additionalEvent ? "section" : "main";
 
   return (
-    <main className="login-page onboarding-page">
+    <Landmark className="login-page onboarding-page">
       <section className="login-card onboarding-card">
         <div className="brand login-brand"><span>PF</span>ProgramFlow</div>
         <p className="eyebrow">{additionalEvent ? "New event" : "First-run setup"}</p>
@@ -112,7 +113,7 @@ export function WorkspaceOnboardingPage({ additionalEvent = false }: { additiona
           <button type="submit" disabled={isSubmitting || session === null}>{isSubmitting ? "Creating…" : additionalEvent ? "Create event" : "Create workspace"}</button>
         </form>
       </section>
-    </main>
+    </Landmark>
   );
 }
 

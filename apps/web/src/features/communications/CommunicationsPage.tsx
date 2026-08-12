@@ -136,7 +136,7 @@ export function CommunicationsPage() {
         {workspace.templates.length ? workspace.templates.map((template) => <button className={template.id === templateId ? styles.activeTemplate : ""} type="button" key={template.id} onClick={() => chooseTemplate(template)}><strong>{template.name}</strong><small>{template.mergeFields.length ? template.mergeFields.map((field) => `{{${field}}}`).join(" · ") : "No merge fields"}</small><em>v{template.revision}</em></button>) : <p className={styles.empty}>Create the first event template.</p>}
       </aside>
 
-      <main className={styles.composer}>
+      <section className={styles.composer}>
         <div className={styles.sectionHead}><div><span>New message</span><h2>Message and audience</h2></div><div className={styles.actions}><button type="button" disabled={busy} onClick={() => void saveTemplate()}>Save template</button><button className={styles.primary} type="button" disabled={busy || !selected.size} onClick={() => void send()}>{busy ? "Queueing…" : `Send to ${selected.size || 0}`}</button></div></div>
         <div className={styles.messageFields}>
           <label>Message name<input value={compose.name} onChange={(event) => setCompose({ ...compose, name: event.target.value })} /></label>
@@ -155,7 +155,7 @@ export function CommunicationsPage() {
           </div>
           <div className={styles.audienceRows}>{speakers.map((speaker) => <label key={speaker.personId}><input type="checkbox" checked={selected.has(speaker.personId)} disabled={!speaker.email} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(speaker.personId)) next.delete(speaker.personId); else next.add(speaker.personId); return next; })} /><span><strong>{speaker.displayName}</strong><small>{speaker.email ?? "Missing email address"} · {speaker.company || "No company"}</small></span><em>{speaker.taskProgress.overdue ? `${speaker.taskProgress.overdue} overdue` : speaker.status}</em></label>)}</div>
         </section>
-      </main>
+      </section>
 
       <aside className={styles.preview}>
         <div className={styles.sectionHead}><div><span>Recipient preview</span><h2>Preview</h2></div><em>{previewSpeaker?.displayName ?? "No audience"}</em></div>

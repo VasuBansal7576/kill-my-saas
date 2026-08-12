@@ -17,7 +17,7 @@ export function SpeakerSubmissionsPage() {
   }, [eventSlug]);
 
   return (
-    <main className="speaker-submissions">
+    <section className="speaker-submissions">
       <div className="page-head cfp-page-head">
         <div><p className="eyebrow">Speaker portal</p><h1>Your proposals</h1><p>Resume drafts and track every submitted proposal from one private workspace.</p></div>
         <Link className="primary-action" to={`/cfp/${eventSlug}`}>Start a proposal</Link>
@@ -42,6 +42,6 @@ export function SpeakerSubmissionsPage() {
         ))}
         {submissions.length === 0 && !message ? <div className="cfp-panel cfp-empty"><strong>No proposals yet.</strong><p>Start from the public call for speakers form.</p></div> : null}
       </div>
-    </main>
+    </section>
   );
 }

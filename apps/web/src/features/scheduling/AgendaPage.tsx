@@ -180,10 +180,10 @@ export function AgendaPage() {
         </form>
       </aside>
 
-      <main className="agenda-canvas">
+      <section className="agenda-canvas">
         {workspace.conflicts.length > 0 ? <section className="agenda-conflicts" aria-live="polite"><header><strong>{workspace.conflicts.length} conflict{workspace.conflicts.length === 1 ? "" : "s"}</strong><span>Speaker double-bookings remain visible; room overlaps are blocked before persistence.</span></header>{workspace.conflicts.map((conflict) => <div key={conflict.id}><i />{conflict.message}<time>{formatTime(conflict.startsAt, workspace.event.timezone)}–{formatTime(conflict.endsAt, workspace.event.timezone)}</time></div>)}</section> : null}
         {view === "day" ? <DayView workspace={workspace} day={activeDay} setDay={setDay} selectedSessionId={selectedSessionId} conflicts={conflicts} busy={busy} drop={drop} placeAt={placeAt} select={setSelectedSessionId} unplace={unplace} /> : <GroupedView workspace={workspace} view={view} conflicts={conflicts} select={setSelectedSessionId} unplace={unplace} />}
-      </main>
+      </section>
     </div>
   </div>;
 }
