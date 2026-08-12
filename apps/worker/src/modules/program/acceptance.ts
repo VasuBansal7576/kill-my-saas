@@ -1,5 +1,6 @@
 import type { AcceptanceHandoff } from "@programflow/contracts";
 import {
+  decisionAuditEvents,
   decisions,
   eventFormats,
   eventMemberships,
@@ -81,19 +82,42 @@ export async function decideSubmission(
 
     const [existingDecision] = await transaction.select().from(decisions)
       .where(eq(decisions.submissionId, submission.id)).limit(1);
-    if (existingDecision && existingDecision.outcome !== command.outcome) {
-      throw new AcceptanceError("decision_conflict", "This submission already has a different final decision.");
+    const decisionChanged = Boolean(existingDecision && existingDecision.outcome !== command.outcome);
+    if (decisionChanged && (existingDecision?.outcome !== "rejected" || command.outcome !== "accepted")) {
+      throw new AcceptanceError("decision_conflict", "An accepted submission cannot be rejected without an explicit session-withdrawal workflow.");
     }
 
-    const decision = existingDecision ?? (await transaction.insert(decisions).values({
-      submissionId: submission.id,
-      outcome: command.outcome,
-      reason: command.reason?.trim() ?? "",
-      idempotencyKey: command.idempotencyKey,
-      decidedByPersonId: actor.personId,
-    }).returning())[0];
+    const reason = command.reason?.trim() ?? "";
+    const decision = existingDecision
+      ? decisionChanged
+        ? (await transaction.update(decisions).set({
+          outcome: command.outcome,
+          reason,
+          idempotencyKey: command.idempotencyKey,
+          decidedByPersonId: actor.personId,
+          decidedAt: new Date(),
+          notifiedAt: null,
+          updatedAt: new Date(),
+        }).where(eq(decisions.id, existingDecision.id)).returning())[0]
+        : existingDecision
+      : (await transaction.insert(decisions).values({
+        submissionId: submission.id,
+        outcome: command.outcome,
+        reason,
+        idempotencyKey: command.idempotencyKey,
+        decidedByPersonId: actor.personId,
+      }).returning())[0];
 
     if (!decision) throw new AcceptanceError("decision_conflict", "The decision could not be recorded.");
+    if (!existingDecision || decisionChanged) {
+      await transaction.insert(decisionAuditEvents).values({
+        decisionId: decision.id,
+        outcome: command.outcome,
+        reason,
+        actorPersonId: actor.personId,
+        idempotencyKey: command.idempotencyKey,
+      }).onConflictDoNothing({ target: decisionAuditEvents.idempotencyKey });
+    }
 
     let sessionId: string | null = null;
     const eventSpeakerIds: string[] = [];
@@ -231,7 +255,9 @@ export async function decideSubmission(
         aggregateId: decision.id,
         eventType,
         payload,
-        idempotencyKey: `decision:${decision.id}:${eventType}`,
+        idempotencyKey: decisionChanged
+          ? `decision:${decision.id}:${eventType}:transition:${command.idempotencyKey}`
+          : `decision:${decision.id}:${eventType}`,
       }).onConflictDoNothing();
     }
 
