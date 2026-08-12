@@ -357,10 +357,6 @@ function ProductShell() {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
 
   useEffect(() => {
-    setMobileNavigationOpen(false);
-  }, [location.pathname]);
-
-  useEffect(() => {
     void fetch("/api/v1/session")
       .then(async (response) => {
         if (response.status === 401) {
@@ -436,9 +432,10 @@ function ProductShell() {
             className="event-switcher"
             aria-label="Switch event"
             value={activeEvent?.slug ?? ""}
-            onChange={(event) =>
-              navigate(`/organizer/events/${event.target.value}/dashboard`)
-            }
+            onChange={(event) => {
+              setMobileNavigationOpen(false);
+              navigate(`/organizer/events/${event.target.value}/dashboard`);
+            }}
           >
             {session.eventMemberships
               .filter((event) => event.roles.includes("organizer"))

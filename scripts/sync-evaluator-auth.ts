@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { createAuthClient } from "@neondatabase/auth";
+import { createAuthClient, isAuthApiError } from "@neondatabase/auth";
+import { BetterAuthVanillaAdapter } from "@neondatabase/auth/vanilla/adapters";
 import {
   buildEvaluatorAuthLogins,
   ensureEvaluatorAuthLogins,
@@ -10,6 +11,7 @@ import {
 const appEnvironment = process.env.APP_ENV;
 const confirmation = process.env.EVALUATION_SEED_CONFIRM;
 const authBaseUrl = process.env.NEON_AUTH_BASE_URL;
+const authOrigin = process.env.EVALUATOR_AUTH_ORIGIN;
 
 if (!appEnvironment || !["local", "preview", "evaluation"].includes(appEnvironment)) {
   throw new Error("Evaluator auth synchronization is allowed only in local, preview, or evaluation environments.");
@@ -18,31 +20,51 @@ if (confirmation !== "DevFlow Conf 2027") {
   throw new Error("Set EVALUATION_SEED_CONFIRM=\"DevFlow Conf 2027\" to synchronize evaluator auth intentionally.");
 }
 if (!authBaseUrl) throw new Error("NEON_AUTH_BASE_URL is required.");
+if (!authOrigin) throw new Error("EVALUATOR_AUTH_ORIGIN is required.");
 
 const fixtureJson = JSON.parse(await readFile("docs/fixtures/evaluator-personas.json", "utf8")) as unknown;
 const overrides = parseStringRecord("EVALUATOR_PERSONA_EMAILS_JSON", process.env.EVALUATOR_PERSONA_EMAILS_JSON ?? "{}");
 const passwords = parseStringRecord("EVALUATOR_PERSONA_PASSWORDS_JSON", process.env.EVALUATOR_PERSONA_PASSWORDS_JSON);
 const logins = buildEvaluatorAuthLogins(fixtureJson, overrides, passwords);
-const authClient = createAuthClient(authBaseUrl);
+const authClient = createAuthClient(authBaseUrl, {
+  adapter: BetterAuthVanillaAdapter({
+    fetchOptions: { headers: { Origin: new URL(authOrigin).origin } },
+  }),
+});
 
 const result = await ensureEvaluatorAuthLogins(logins, {
   async verify(login) {
-    const response = await authClient.signIn.email({ email: login.email, password: login.password });
-    if (response.error) {
-      if (response.error.code === "INVALID_EMAIL_OR_PASSWORD") return false;
-      throw authOperationError("verify", login, response.error);
+    try {
+      const response = await authClient.signIn.email({ email: login.email, password: login.password });
+      if (response.error) {
+        if (isInvalidCredentials(response.error)) return false;
+        throw authOperationError("verify", login, response.error);
+      }
+      return normalizeEmail(response.data.user.email) === normalizeEmail(login.email);
+    } catch (caught) {
+      if (isAuthApiError(caught) && isInvalidCredentials(caught)) return false;
+      throw caught;
     }
-    return normalizeEmail(response.data.user.email) === normalizeEmail(login.email);
   },
   async signUp(login) {
-    const response = await authClient.signUp.email({
-      email: login.email,
-      password: login.password,
-      name: login.name,
-    });
-    if (response.error) throw authOperationError("create", login, response.error);
+    try {
+      const response = await authClient.signUp.email({
+        email: login.email,
+        password: login.password,
+        name: login.name,
+      });
+      if (response.error) throw authOperationError("create", login, response.error);
+    } catch (caught) {
+      if (isAuthApiError(caught)) throw authOperationError("create", login, caught);
+      throw caught;
+    }
   },
 });
+
+function isInvalidCredentials(error: { status?: number; code?: string }): boolean {
+  return error.status === 401
+    || ["INVALID_EMAIL_OR_PASSWORD", "invalid_credentials"].includes(error.code ?? "");
+}
 
 console.info(JSON.stringify({
   personas: new Set(logins.map((login) => login.persona)).size,
