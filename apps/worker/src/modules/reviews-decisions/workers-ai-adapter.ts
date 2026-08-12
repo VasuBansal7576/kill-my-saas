@@ -14,7 +14,7 @@ const WorkersAiResponseSchema = z.object({ response: z.string() });
 
 export class WorkersAiReviewAdapter implements ReviewAiPort {
   readonly provider = "cloudflare_workers_ai";
-  readonly model = "@cf/meta/llama-3.1-8b-instruct";
+  readonly model = "@cf/meta/llama-3.2-3b-instruct";
   readonly promptVersion = "review-triage-v1";
 
   constructor(private readonly binding: WorkersAiBinding) {}
