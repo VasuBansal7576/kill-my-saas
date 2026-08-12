@@ -20,6 +20,7 @@ integration("first-login identity provisioning", () => {
   const ids = { organization: crypto.randomUUID(), event: crypto.randomUUID(), knownPerson: crypto.randomUUID() };
   const eventSlug = `identity-${ids.event}`;
   const knownEmail = `known-${ids.knownPerson}@example.com`;
+  const knownAliasEmail = `known-alias-${ids.knownPerson}@example.com`;
   const newEmail = `new-${crypto.randomUUID()}@example.com`;
   const organizerEmail = `organizer-${crypto.randomUUID()}@example.com`;
   const tooling = createToolingDatabase(databaseUrl!);
@@ -40,6 +41,7 @@ integration("first-login identity provisioning", () => {
     await tooling.database.insert(cfpForms).values({ eventId: ids.event, name: "Talks", target: "session", status: "published" });
     await tooling.database.insert(people).values({ id: ids.knownPerson, stableKey: `known-${ids.knownPerson}`, displayName: "Known Reviewer", canonicalEmail: knownEmail });
     await tooling.database.insert(personEmailAliases).values({ personId: ids.knownPerson, email: knownEmail, normalizedEmail: knownEmail, isCanonical: true });
+    await tooling.database.insert(personEmailAliases).values({ personId: ids.knownPerson, email: knownAliasEmail, normalizedEmail: knownAliasEmail, isCanonical: false });
     await tooling.database.insert(eventMemberships).values({ eventId: ids.event, personId: ids.knownPerson, role: "reviewer" });
   });
 
@@ -62,6 +64,12 @@ integration("first-login identity provisioning", () => {
   it("links seeded personas and enrolls only new speakers through an open CFP", async () => {
     await expect(provisionFirstLogin(database, { id: "known-auth-subject", email: knownEmail, name: "Known Reviewer" }, "/api/v1/organizer/events/anything"))
       .resolves.toBe(ids.knownPerson);
+    await expect(provisionFirstLogin(database, { id: "known-alias-auth-subject", email: knownAliasEmail, name: "Known Reviewer" }, "/api/v1/reviewer/rounds/anything"))
+      .resolves.toBe(ids.knownPerson);
+
+    const knownRoles = await tooling.database.select({ role: eventMemberships.role }).from(eventMemberships)
+      .where(eq(eventMemberships.personId, ids.knownPerson));
+    expect(knownRoles).toEqual([{ role: "reviewer" }]);
 
     const newPersonId = await provisionFirstLogin(database, { id: "new-auth-subject", email: newEmail, name: "New Speaker" }, `/api/v1/speaker/events/${eventSlug}/submissions`);
     expect(newPersonId).toBeTruthy();

@@ -110,6 +110,13 @@ await database.transaction(async (transaction) => {
 
     for (const [index, email] of [persona.canonical_email, ...persona.aliases].filter((value): value is string => Boolean(value)).entries()) {
       const normalizedEmail = normalizeEmail(email);
+      const [existingAlias] = await transaction.select({ personId: personEmailAliases.personId })
+        .from(personEmailAliases)
+        .where(eq(personEmailAliases.normalizedEmail, normalizedEmail))
+        .limit(1);
+      if (existingAlias && existingAlias.personId !== personId) {
+        throw new Error(`Evaluator email ${email} is already linked to a different canonical person.`);
+      }
       await transaction.insert(personEmailAliases).values({
         id: deterministicUuid(`${persona.canonical_person_key}:email:${normalizedEmail}`),
         personId,
@@ -118,7 +125,7 @@ await database.transaction(async (transaction) => {
         isCanonical: index === 0,
       }).onConflictDoUpdate({
         target: personEmailAliases.normalizedEmail,
-        set: { personId, email, isCanonical: index === 0, updatedAt: new Date() },
+        set: { email, isCanonical: index === 0, updatedAt: new Date() },
       });
     }
 

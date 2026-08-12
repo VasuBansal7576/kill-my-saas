@@ -110,7 +110,7 @@ export const identities = pgTable("identities", {
   ...timestamps,
 }, (table) => [
   uniqueIndex("identities_provider_subject_unique").on(table.provider, table.providerSubject),
-  uniqueIndex("identities_person_provider_unique").on(table.personId, table.provider),
+  index("identities_person_provider_idx").on(table.personId, table.provider),
 ]);
 
 export const organizationMemberships = pgTable("organization_memberships", {

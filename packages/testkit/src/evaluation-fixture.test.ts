@@ -1,5 +1,11 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { applyPersonaEmailOverrides } from "./evaluation-fixture";
+import {
+  applyPersonaEmailOverrides,
+  buildEvaluatorAuthLogins,
+  ensureEvaluatorAuthLogins,
+  normalizeEmail,
+} from "./evaluation-fixture";
 
 const fixture = {
   schema_version: 1,
@@ -14,17 +20,92 @@ const fixture = {
     rooms: [],
   },
   personas: [
-    { persona: "organizer", canonical_person_key: "jordan", name: "Jordan", canonical_email: "jordan@example.com", aliases: [], memberships: [{ scope: "event", role: "organizer" }], login_required: true },
+    { persona: "organizer", canonical_person_key: "jordan", name: "Jordan", canonical_email: "jordan@example.com", aliases: ["sbek-organizer@example.com"], memberships: [{ scope: "event", role: "organizer" }], login_required: true },
     { persona: "speaker", canonical_person_key: "priya", name: "Priya", canonical_email: "priya@example.com", aliases: [], memberships: [{ scope: "event", role: "speaker" }], login_required: true },
   ],
+  required_evaluator_config_personas: ["organizer", "speaker"],
 };
 
 describe("evaluator identity overrides", () => {
+  it("normalizes compatibility addresses before uniqueness checks", () => {
+    expect(normalizeEmail("  JORDAN＠EXAMPLE.COM  ")).toBe("jordan@example.com");
+  });
+
   it("preserves the previous address as an alias and rejects cross-person collisions", () => {
     const overridden = applyPersonaEmailOverrides(fixture, { organizer: "live@example.com" });
     expect(overridden.personas[0]?.canonical_email).toBe("live@example.com");
     expect(overridden.personas[0]?.aliases).toContain("jordan@example.com");
     expect(() => applyPersonaEmailOverrides(fixture, { organizer: "priya@example.com" })).toThrow(/resolves to both/);
   });
-});
 
+  it("builds canonical and legacy logins with one persona password", () => {
+    const logins = buildEvaluatorAuthLogins(fixture, {}, {
+      organizer: "organizer-test-password",
+      speaker: "speaker-test-password",
+    });
+
+    expect(logins.filter((login) => login.persona === "organizer")).toEqual([
+      expect.objectContaining({ email: "jordan@example.com", password: "organizer-test-password", canonicalPersonKey: "jordan" }),
+      expect.objectContaining({ email: "sbek-organizer@example.com", password: "organizer-test-password", canonicalPersonKey: "jordan" }),
+    ]);
+  });
+
+  it("adds a runtime evaluator override without dropping canonical or legacy addresses", () => {
+    const logins = buildEvaluatorAuthLogins(fixture, { organizer: "jordan+eval@example.net" }, {
+      organizer: "organizer-test-password",
+      speaker: "speaker-test-password",
+    });
+
+    expect(logins.filter((login) => login.persona === "organizer").map((login) => login.email)).toEqual([
+      "jordan+eval@example.net",
+      "jordan@example.com",
+      "sbek-organizer@example.com",
+    ]);
+  });
+
+  it("covers every documented canonical and legacy login for the four evaluator personas", () => {
+    const registry = JSON.parse(readFileSync(
+      new URL("../../../docs/fixtures/evaluator-personas.json", import.meta.url),
+      "utf8",
+    )) as unknown;
+    const logins = buildEvaluatorAuthLogins(registry, {}, {
+      organizer: "organizer-test-password",
+      speaker: "speaker-test-password",
+      speaker2: "speaker-two-test-password",
+      reviewer: "reviewer-test-password",
+    });
+
+    expect(logins.map((login) => login.email)).toEqual([
+      "jordan.organizer@sbek-test.example.com",
+      "sbek-organizer@example.com",
+      "priya.speaker@sbek-test.example.com",
+      "sbek-speaker@example.com",
+      "marcus.speaker@sbek-test.example.com",
+      "sbek-speaker2@example.com",
+      "sam.reviewer@sbek-test.example.com",
+      "sbek-reviewer@example.com",
+    ]);
+  });
+
+  it("idempotently creates a missing canonical Neon Auth login and verifies every password", async () => {
+    const existing = new Map([["sbek-organizer@example.com", "organizer-test-password"]]);
+    const logins = buildEvaluatorAuthLogins(fixture, {}, {
+      organizer: "organizer-test-password",
+      speaker: "speaker-test-password",
+    }).filter((login) => login.persona === "organizer");
+
+    const result = await ensureEvaluatorAuthLogins(logins, {
+      async signUp(login) {
+        if (existing.has(login.email)) return "existing";
+        existing.set(login.email, login.password);
+        return "created";
+      },
+      async verify(login) {
+        return existing.get(login.email) === login.password;
+      },
+    });
+
+    expect(result).toEqual({ created: 1, existing: 1, verified: 2 });
+    expect(existing.get("jordan@example.com")).toBe("organizer-test-password");
+  });
+});

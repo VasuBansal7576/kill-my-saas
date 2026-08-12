@@ -17,6 +17,7 @@
     "dev": "WRANGLER_WRITE_LOGS=false vite",
     "lint": "eslint .",
     "seed:evaluation": "tsx scripts/seed-evaluation.ts",
+    "sync:evaluator-auth": "tsx scripts/sync-evaluator-auth.ts",
     "test": "vitest run",
     "typecheck": "tsc -b"
   },

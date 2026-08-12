@@ -28,12 +28,26 @@ export const EvaluationFixtureSchema = z.object({
     rooms: z.array(z.string()),
   }),
   personas: z.array(PersonaSchema),
+  required_evaluator_config_personas: z.array(z.string()).default([]),
 });
 
 export type EvaluationFixture = z.infer<typeof EvaluationFixtureSchema>;
 
 export function normalizeEmail(email: string): string {
-  return email.trim().toLocaleLowerCase("en-US");
+  return email.trim().normalize("NFKC").toLocaleLowerCase("en-US");
+}
+
+export interface EvaluatorAuthLogin {
+  persona: string;
+  canonicalPersonKey: string;
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface EvaluatorAuthRegistrar {
+  signUp(login: EvaluatorAuthLogin): Promise<unknown>;
+  verify(login: EvaluatorAuthLogin): Promise<boolean>;
 }
 
 export function applyPersonaEmailOverrides(
@@ -65,3 +79,63 @@ export function applyPersonaEmailOverrides(
   return { ...fixture, personas };
 }
 
+export function buildEvaluatorAuthLogins(
+  input: unknown,
+  overrides: Readonly<Record<string, string | undefined>>,
+  passwords: Readonly<Record<string, string | undefined>>,
+): EvaluatorAuthLogin[] {
+  const fixture = applyPersonaEmailOverrides(input, overrides);
+  const requiredPersonas = new Set(fixture.required_evaluator_config_personas);
+  const logins: EvaluatorAuthLogin[] = [];
+
+  for (const personaName of requiredPersonas) {
+    const persona = fixture.personas.find((candidate) => candidate.persona === personaName);
+    if (!persona?.login_required || !persona.canonical_person_key || !persona.canonical_email) {
+      throw new Error(`Required evaluator persona ${personaName} has no complete login identity.`);
+    }
+    const password = passwords[personaName];
+    if (!password) throw new Error(`A password is required for evaluator persona ${personaName}.`);
+
+    const seen = new Set<string>();
+    for (const email of [persona.canonical_email, ...persona.aliases]) {
+      const normalized = normalizeEmail(email);
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      logins.push({
+        persona: persona.persona,
+        canonicalPersonKey: persona.canonical_person_key,
+        name: persona.name,
+        email,
+        password,
+      });
+    }
+  }
+
+  return logins;
+}
+
+export async function ensureEvaluatorAuthLogins(
+  logins: readonly EvaluatorAuthLogin[],
+  registrar: EvaluatorAuthRegistrar,
+): Promise<{ created: number; existing: number; verified: number }> {
+  let created = 0;
+  let existing = 0;
+  let verified = 0;
+
+  for (const login of logins) {
+    if (await registrar.verify(login)) {
+      existing += 1;
+      verified += 1;
+      continue;
+    }
+
+    await registrar.signUp(login);
+    if (!await registrar.verify(login)) {
+      throw new Error(`Evaluator login verification failed for ${login.persona} at ${login.email}.`);
+    }
+    created += 1;
+    verified += 1;
+  }
+
+  return { created, existing, verified };
+}
