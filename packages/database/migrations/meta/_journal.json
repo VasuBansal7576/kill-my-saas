@@ -50,6 +50,13 @@
       "when": 1786479699444,
       "tag": "0006_youthful_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786516821611,
+      "tag": "0007_fat_moira_mactaggert",
+      "breakpoints": true
     }
   ]
 }

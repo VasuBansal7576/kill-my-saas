@@ -13,6 +13,7 @@ export function EventSettingsPage() {
   const { eventSlug = "" } = useParams();
   const [state, setState] = useState<"loading" | "idle" | "saving" | "saved" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
+  const [eventName, setEventName] = useState("Event settings");
   const { register, handleSubmit, reset, formState: { errors } } = useForm<EventFormValues>();
 
   useEffect(() => {
@@ -22,6 +23,7 @@ export function EventSettingsPage() {
         return response.json() as Promise<EventConfiguration>;
       })
       .then((configuration) => {
+        setEventName(configuration.name);
         reset(toFormValues(configuration));
         setState("idle");
       })
@@ -44,14 +46,16 @@ export function EventSettingsPage() {
       setState("error");
       return;
     }
-    reset(toFormValues(await response.json() as EventConfiguration));
+    const configuration = await response.json() as EventConfiguration;
+    setEventName(configuration.name);
+    reset(toFormValues(configuration));
     setState("saved");
   });
 
   return (
     <>
       <div className="page-head settings-head">
-        <div><p className="eyebrow">Event configuration</p><h1>DevFlow Conf 2027</h1><p>Canonical dates, location, catalogs, and public brand.</p></div>
+        <div><p className="eyebrow">Event configuration</p><h1>{eventName}</h1><p>Canonical dates, location, catalogs, and public brand.</p></div>
         <button className="primary-action" form="event-settings" disabled={state === "loading" || state === "saving"}>{state === "saving" ? "Saving…" : "Save changes"}</button>
       </div>
       {message ? <div className="form-error settings-error" role="alert">{message}</div> : null}
@@ -105,4 +109,3 @@ function toInput(values: EventFormValues): EventConfigurationInput {
     rooms: lines(values.rooms),
   };
 }
-

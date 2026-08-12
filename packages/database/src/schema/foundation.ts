@@ -41,7 +41,7 @@ export const events = pgTable("events", {
   branding: jsonb("branding").$type<{ primaryColor: string; logoUrl?: string }>().notNull().default({ primaryColor: "#2d63e2" }),
   ...timestamps,
 }, (table) => [
-  uniqueIndex("events_organization_slug_unique").on(table.organizationId, table.slug),
+  uniqueIndex("events_slug_unique").on(table.slug),
   index("events_organization_idx").on(table.organizationId),
 ]);
 

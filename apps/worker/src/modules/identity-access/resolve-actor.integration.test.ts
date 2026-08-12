@@ -21,6 +21,7 @@ integration("first-login identity provisioning", () => {
   const eventSlug = `identity-${ids.event}`;
   const knownEmail = `known-${ids.knownPerson}@example.com`;
   const newEmail = `new-${crypto.randomUUID()}@example.com`;
+  const organizerEmail = `organizer-${crypto.randomUUID()}@example.com`;
   const tooling = createToolingDatabase(databaseUrl!);
   const database = tooling.database as unknown as Database;
 
@@ -44,7 +45,7 @@ integration("first-login identity provisioning", () => {
 
   afterAll(async () => {
     const createdPeople = await tooling.database.select({ id: people.id }).from(people)
-      .where(inArray(people.canonicalEmail, [knownEmail, newEmail]));
+      .where(inArray(people.canonicalEmail, [knownEmail, newEmail, organizerEmail]));
     const personIds = createdPeople.map((person) => person.id);
     if (personIds.length) {
       await tooling.database.delete(identities).where(inArray(identities.personId, personIds));
@@ -67,6 +68,18 @@ integration("first-login identity provisioning", () => {
     const roles = await tooling.database.select({ role: eventMemberships.role }).from(eventMemberships)
       .where(eq(eventMemberships.personId, newPersonId!));
     expect(roles).toEqual([{ role: "speaker" }]);
+  });
+
+  it("provisions a real account before first-run workspace creation without granting a role", async () => {
+    const personId = await provisionFirstLogin(database, {
+      id: "new-organizer-auth-subject",
+      email: organizerEmail,
+      name: "New Organizer",
+    }, "/api/v1/session");
+    expect(personId).toBeTruthy();
+    const roles = await tooling.database.select({ role: eventMemberships.role }).from(eventMemberships)
+      .where(eq(eventMemberships.personId, personId!));
+    expect(roles).toEqual([]);
   });
 });
 

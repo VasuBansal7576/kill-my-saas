@@ -1,14 +1,16 @@
 import { type FormEvent, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { authClient } from "./auth-client";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const signingUp = searchParams.get("mode") === "signup";
+  const signingUp = location.pathname === "/signup" || searchParams.get("mode") === "signup";
   const eventSlug = searchParams.get("event") ?? "devflow-conf-2027";
-  const next = searchParams.get("next") ?? (signingUp ? `/cfp/${eventSlug}` : null);
-  const accountLabel = next?.startsWith("/reviewer/") ? "Reviewer account" : "Speaker account";
+  const roleSignup = searchParams.get("mode") === "signup";
+  const next = searchParams.get("next") ?? (signingUp ? (roleSignup ? `/cfp/${eventSlug}` : "/onboarding") : null);
+  const accountLabel = !roleSignup ? "Organizer account" : next?.startsWith("/reviewer/") ? "Reviewer account" : "Speaker account";
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -56,7 +58,7 @@ export function LoginPage() {
         </form>
         <p>{signingUp
           ? <>Already have an account? <Link to={`/login?event=${encodeURIComponent(eventSlug)}`}>Sign in</Link></>
-          : <>Submitting a proposal? <Link to={`/login?mode=signup&event=${encodeURIComponent(eventSlug)}&next=${encodeURIComponent(`/cfp/${eventSlug}`)}`}>Create a speaker account</Link></>}
+          : <>New to ProgramFlow? <Link to="/signup">Create an organizer workspace</Link></>}
         </p>
       </section>
     </main>

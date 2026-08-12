@@ -102,6 +102,10 @@ export async function provisionFirstLogin(
     .from(personEmailAliases).where(eq(personEmailAliases.normalizedEmail, normalizedEmail)).limit(1);
   if (knownAlias) return linkIdentity(database, knownAlias.personId, user.id);
 
+  if (requestPath === "/api/v1/session" || requestPath === "/api/v1/onboarding") {
+    return provisionAccount(database, user, normalizedEmail);
+  }
+
   const eventSlug = speakerEnrollmentSlug(requestPath);
   if (!eventSlug) return null;
   const now = new Date();
@@ -140,6 +144,35 @@ export async function provisionFirstLogin(
       eventId: openForm.eventId,
       personId: person.id,
       role: "speaker",
+    }).onConflictDoNothing();
+    return person.id;
+  });
+}
+
+async function provisionAccount(
+  database: Database,
+  user: z.infer<typeof SessionUserSchema>,
+  normalizedEmail: string,
+): Promise<string | null> {
+  return database.transaction(async (transaction) => {
+    const [created] = await transaction.insert(people).values({
+      stableKey: `neon-auth:${user.id}`,
+      displayName: (user.name?.trim() || user.email.split("@")[0] || "Organizer").slice(0, 200),
+      canonicalEmail: user.email,
+    }).onConflictDoNothing({ target: people.canonicalEmail }).returning({ id: people.id });
+    const [person] = created ? [created] : await transaction.select({ id: people.id })
+      .from(people).where(eq(people.canonicalEmail, user.email)).limit(1);
+    if (!person) return null;
+    await transaction.insert(personEmailAliases).values({
+      personId: person.id,
+      email: user.email,
+      normalizedEmail,
+      isCanonical: true,
+    }).onConflictDoNothing({ target: personEmailAliases.normalizedEmail });
+    await transaction.insert(identities).values({
+      personId: person.id,
+      provider: "neon_auth",
+      providerSubject: user.id,
     }).onConflictDoNothing();
     return person.id;
   });

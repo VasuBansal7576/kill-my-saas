@@ -1,6 +1,6 @@
 import type { ReadinessResponse } from "@programflow/contracts";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 
 const LoginPage = lazy(async () => ({ default: (await import("./app/LoginPage")).LoginPage }));
 const EventSettingsPage = lazy(async () => ({ default: (await import("./features/event-configuration/EventSettingsPage")).EventSettingsPage }));
@@ -29,29 +29,22 @@ const PublicItineraryPage = lazy(async () => ({ default: (await import("./featur
 const PublicSpeakerGalleryPage = lazy(async () => ({ default: (await import("./features/public-program")).PublicSpeakerGalleryPage }));
 const DashboardPage = lazy(async () => ({ default: (await import("./features/dashboard")).DashboardPage }));
 const DeveloperApiPage = lazy(async () => ({ default: (await import("./features/api-docs")).DeveloperApiPage }));
+const WorkspaceOnboardingPage = lazy(async () => ({ default: (await import("./app/WorkspaceOnboardingPage")).WorkspaceOnboardingPage }));
 
-const navigation = [
-  ["Dashboard", "/organizer/events/devflow-conf-2027/dashboard"],
-  ["Event", "/organizer/events/devflow-conf-2027/settings"],
-  ["Call for speakers", "/organizer/events/devflow-conf-2027/cfp"],
-  ["Submissions", "/organizer/events/devflow-conf-2027/submissions"],
-  ["Evaluations", "/organizer/events/devflow-conf-2027/evaluations"],
-  ["Speakers", "/organizer/events/devflow-conf-2027/speakers"],
-  ["Files", "/organizer/events/devflow-conf-2027/files"],
-  ["Communications", "/organizer/events/devflow-conf-2027/communications"],
-  ["Agenda", "/organizer/events/devflow-conf-2027/agenda"],
-  ["Publish", "/organizer/events/devflow-conf-2027/publish"],
-  ["Speaker CRM", "/organizer/organizations/314a7cef-1e90-4413-80cd-6e1cd0212cdd/speaker-crm"],
-  ["Integrations", "/organizer/events/devflow-conf-2027/integrations/airtable"],
-  ["Accelevents", "/organizer/events/devflow-conf-2027/integrations/accelevents"],
-  ["API", "/organizer/events/devflow-conf-2027/api"],
-] as const;
+type SessionResponse = {
+  person: { id: string; displayName: string; email: string | null };
+  organizationMemberships: Array<{ id: string; slug: string; name: string; roles: string[] }>;
+  eventMemberships: Array<{ id: string; organizationId: string; slug: string; name: string; startsOn: string; endsOn: string; location: string; roles: string[] }>;
+  recommendedPath: string;
+};
 
 export function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<Suspense fallback={<div className="login-page">Loading sign in…</div>}><LoginPage /></Suspense>} />
+      <Route path="/signup" element={<Suspense fallback={<div className="login-page">Loading account setup…</div>}><LoginPage /></Suspense>} />
+      <Route path="/onboarding" element={<Suspense fallback={<div className="login-page">Loading workspace setup…</div>}><WorkspaceOnboardingPage /></Suspense>} />
       <Route path="/cfp/:eventSlug" element={<StandalonePage><PublicCfpPage /></StandalonePage>} />
       <Route path="/reviewer/events/:eventSlug/reviews" element={<RolePage label="Reviewer workspace"><ReviewerQueuePage /></RolePage>} />
       <Route path="/speaker/events/:eventSlug/submissions" element={<RolePage label="Speaker submissions"><SpeakerSubmissionsPage /></RolePage>} />
@@ -74,8 +67,7 @@ export function App() {
 }
 
 function HomePage() {
-  const eventSlug = "devflow-conf-2027";
-  return <main className="home-page"><section className="home-card"><div className="brand"><span>PF</span>ProgramFlow</div><p className="eyebrow">DevFlow Conf 2027</p><h1>Build the program. Share the experience.</h1><p>Submit a session, manage the conference, or explore the published agenda from one canonical program.</p><div className="home-actions"><NavLink className="home-primary" to="/login">Sign in to your workspace</NavLink><NavLink to={`/cfp/${eventSlug}`}>Call for speakers</NavLink><NavLink to={`/program/${eventSlug}/sessions`}>Browse sessions</NavLink><NavLink to={`/program/${eventSlug}/speakers`}>Meet the speakers</NavLink><NavLink to={`/program/${eventSlug}/agenda`}>View agenda</NavLink><NavLink to={`/program/${eventSlug}/itinerary`}>Build an itinerary</NavLink></div></section></main>;
+  return <main className="home-page"><section className="home-card"><div className="brand"><span>PF</span>ProgramFlow</div><p className="eyebrow">Conference program operations</p><h1>Build the program. Share the experience.</h1><p>Run submissions, reviews, speaker onboarding, content, scheduling, and publication from one canonical workspace.</p><div className="home-actions"><NavLink className="home-primary" to="/signup">Create your workspace</NavLink><NavLink to="/login">Sign in</NavLink></div><small className="home-proof">Real accounts · persisted PostgreSQL data · role-scoped workspaces</small></section></main>;
 }
 
 function StandalonePage({ children }: { children: React.ReactNode }) {
@@ -87,7 +79,10 @@ function RolePage({ children, label }: { children: React.ReactNode; label: strin
 }
 
 function ProductShell() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [readiness, setReadiness] = useState<ReadinessResponse | null>(null);
+  const [session, setSession] = useState<SessionResponse | null>(null);
 
   useEffect(() => {
     void fetch("/api/v1/health/ready")
@@ -96,31 +91,60 @@ function ProductShell() {
       .catch(() => setReadiness(null));
   }, []);
 
+  useEffect(() => {
+    void fetch("/api/v1/session").then(async (response) => {
+      if (response.status === 401) {
+        navigate(`/login?next=${encodeURIComponent(location.pathname)}`, { replace: true });
+        return;
+      }
+      if (!response.ok) throw new Error("Session could not be loaded.");
+      const current = await response.json() as SessionResponse;
+      if (!current.organizationMemberships.length) {
+        navigate("/onboarding", { replace: true });
+        return;
+      }
+      setSession(current);
+    }).catch(() => navigate("/login", { replace: true }));
+  }, [location.pathname, navigate]);
+
+  if (!session) return <div className="product-shell-loading">Loading your workspace…</div>;
+
+  const routeEventSlug = /^\/organizer\/events\/([^/]+)/.exec(location.pathname)?.[1];
+  const activeEvent = session.eventMemberships.find((event) => event.slug === routeEventSlug)
+    ?? session.eventMemberships.find((event) => event.roles.includes("organizer"));
+  const activeOrganization = session.organizationMemberships.find((organization) => organization.id === activeEvent?.organizationId)
+    ?? session.organizationMemberships[0];
+  const navigation = activeEvent && activeOrganization ? organizerNavigation(activeEvent.slug, activeOrganization.id) : [];
+  const initials = session.person.displayName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toLocaleUpperCase("en-US");
+
   return (
     <div className="product-shell">
       <aside className="sidebar">
         <div className="brand"><span>PF</span>ProgramFlow</div>
-        <div className="event-card">
-          <strong>DevFlow Conf 2027</strong>
-          <small>12–14 May · San Francisco</small>
+        {activeEvent ? <div className="event-card">
+          <strong>{activeEvent.name}</strong>
+          <small>{activeEvent.startsOn}–{activeEvent.endsOn} · {activeEvent.location}</small>
           <i><b /></i>
-        </div>
+        </div> : null}
+        {session.eventMemberships.filter((event) => event.roles.includes("organizer")).length > 1 ? <select className="event-switcher" aria-label="Switch event" value={activeEvent?.slug ?? ""} onChange={(event) => navigate(`/organizer/events/${event.target.value}/dashboard`)}>{session.eventMemberships.filter((event) => event.roles.includes("organizer")).map((event) => <option key={event.id} value={event.slug}>{event.name}</option>)}</select> : null}
         <nav aria-label="Organizer navigation">
           <p>Program lifecycle</p>
           {navigation.map(([label, to]) => (
             <NavLink key={to} to={to}>{label}</NavLink>
           ))}
+          <NavLink to="/organizer/new-event">+ New event</NavLink>
         </nav>
-        <div className="account"><span>JA</span><div><strong>Jordan Alvarez</strong><small>Event organizer</small></div></div>
+        <div className="account"><span>{initials}</span><div><strong>{session.person.displayName}</strong><small>Event organizer</small></div></div>
       </aside>
       <header className="topbar">
-        <span>DevFlow Conf 2027</span>
+        <span>{activeEvent?.name ?? activeOrganization?.name ?? "ProgramFlow"}</span>
         <div className="command">Search or jump to… <kbd>⌘ K</kbd></div>
         <button type="button">Help</button>
         <SignOutButton />
       </header>
       <main>
         <Routes>
+          <Route path="new-event" element={<Suspense fallback={<p className="muted">Loading event setup…</p>}><WorkspaceOnboardingPage additionalEvent /></Suspense>} />
           <Route path="events/:eventSlug/dashboard" element={<Suspense fallback={<p className="muted">Loading dashboard…</p>}><DashboardPage /></Suspense>} />
           <Route path="events/:eventSlug/settings" element={<Suspense fallback={<p className="muted">Loading event settings…</p>}><EventSettingsPage /></Suspense>} />
           <Route path="events/:eventSlug/cfp" element={<Suspense fallback={<p className="muted">Loading CFP builder…</p>}><CfpBuilderPage /></Suspense>} />
@@ -153,6 +177,26 @@ function SignOutButton() {
       .then(({ authClient }) => authClient.signOut())
       .finally(() => navigate("/login", { replace: true }));
   }}>{busy ? "Signing out…" : "Sign out"}</button>;
+}
+
+function organizerNavigation(eventSlug: string, organizationId: string) {
+  const base = `/organizer/events/${encodeURIComponent(eventSlug)}`;
+  return [
+    ["Dashboard", `${base}/dashboard`],
+    ["Event", `${base}/settings`],
+    ["Call for speakers", `${base}/cfp`],
+    ["Submissions", `${base}/submissions`],
+    ["Evaluations", `${base}/evaluations`],
+    ["Speakers", `${base}/speakers`],
+    ["Files", `${base}/files`],
+    ["Communications", `${base}/communications`],
+    ["Agenda", `${base}/agenda`],
+    ["Publish", `${base}/publish`],
+    ["Speaker CRM", `/organizer/organizations/${organizationId}/speaker-crm`],
+    ["Integrations", `${base}/integrations/airtable`],
+    ["Accelevents", `${base}/integrations/accelevents`],
+    ["API", `${base}/api`],
+  ] as const;
 }
 
 function SpeakerCrmRoute() {
