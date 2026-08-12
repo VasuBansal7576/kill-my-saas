@@ -10,6 +10,7 @@ import {
   filesDeliverablesOrganizerRoutes,
   filesDeliverablesSpeakerRoutes,
 } from "./modules/files-deliverables";
+import { storageIsConfigured } from "./modules/files-deliverables/storage";
 import {
   organizerFormsSubmissionsRoutes,
   publicFormsSubmissionsRoutes,
@@ -138,7 +139,7 @@ export function createApp() {
       database: status(Boolean(context.env.DATABASE_URL), "Neon PostgreSQL connection"),
       auth: status(Boolean(context.env.NEON_AUTH_BASE_URL && context.env.NEON_AUTH_COOKIE_SECRET), "Neon Auth endpoint and cookie signing"),
       email: status(Boolean(context.env.BREVO_API_KEY), "Brevo transactional email"),
-      files: status(Boolean(context.env.FILES), "Cloudflare R2 binding"),
+      files: status(storageIsConfigured(context.env), "Neon private object storage"),
       queue: status(Boolean(context.env.JOBS), "Cloudflare Queue binding"),
       ai: status(Boolean(context.env.AI), "Cloudflare Workers AI binding"),
     };

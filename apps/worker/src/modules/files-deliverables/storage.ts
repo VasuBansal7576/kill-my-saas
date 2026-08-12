@@ -1,3 +1,6 @@
+import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import type { Env } from "../../env";
+
 export interface StoredObjectMetadata {
   byteSize: number;
   mediaType: string;
@@ -14,7 +17,7 @@ export interface PrivateFileStore {
 }
 
 export class StorageUnavailableError extends Error {
-  readonly code = "r2_not_configured";
+  readonly code = "storage_not_configured";
 }
 
 export class StorageValidationError extends Error {
@@ -23,15 +26,46 @@ export class StorageValidationError extends Error {
   }
 }
 
-export class R2PrivateFileStore implements PrivateFileStore {
-  readonly configured: boolean;
+type StorageConfiguration = Pick<Env,
+  | "FILES_ACCESS_KEY_ID"
+  | "FILES_BUCKET"
+  | "FILES_ENDPOINT_URL"
+  | "FILES_REGION"
+  | "FILES_SECRET_ACCESS_KEY"
+>;
 
-  constructor(private readonly bucket?: R2Bucket) {
-    this.configured = Boolean(bucket);
+export function storageIsConfigured(configuration: StorageConfiguration): boolean {
+  return Boolean(
+    configuration.FILES_ACCESS_KEY_ID
+    && configuration.FILES_BUCKET
+    && configuration.FILES_ENDPOINT_URL
+    && configuration.FILES_REGION
+    && configuration.FILES_SECRET_ACCESS_KEY,
+  );
+}
+
+export class NeonS3PrivateFileStore implements PrivateFileStore {
+  readonly configured: boolean;
+  private readonly client?: S3Client;
+
+  constructor(private readonly configuration: StorageConfiguration) {
+    this.configured = storageIsConfigured(configuration);
+    if (this.configured) {
+      this.client = new S3Client({
+        region: configuration.FILES_REGION,
+        endpoint: configuration.FILES_ENDPOINT_URL,
+        credentials: {
+          accessKeyId: configuration.FILES_ACCESS_KEY_ID!,
+          secretAccessKey: configuration.FILES_SECRET_ACCESS_KEY!,
+        },
+        forcePathStyle: true,
+        requestChecksumCalculation: "WHEN_REQUIRED",
+      });
+    }
   }
 
   async putQuarantine(storageKey: string, body: ReadableStream | null, expected: StoredObjectMetadata): Promise<void> {
-    const bucket = this.requireBucket();
+    const { bucket, client } = this.requireStorage();
     if (!body) throw new StorageValidationError("size_mismatch", "The upload body is empty.");
     const bytes = new Uint8Array(await new Response(body).arrayBuffer());
     if (bytes.byteLength !== expected.byteSize) {
@@ -44,49 +78,84 @@ export class R2PrivateFileStore implements PrivateFileStore {
     if (!magicBytesMatch(bytes, expected.mediaType)) {
       throw new StorageValidationError("media_type_mismatch", "The uploaded bytes do not match the declared file type.");
     }
-    await bucket.put(storageKey, bytes, {
-      httpMetadata: { contentType: expected.mediaType },
-      customMetadata: { checksumSha256: checksum },
-    });
+    await client.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: storageKey,
+      Body: bytes,
+      ContentType: expected.mediaType,
+      Metadata: { checksumsha256: checksum },
+    }));
   }
 
   async inspect(storageKey: string): Promise<StoredObjectMetadata | null> {
-    const object = await this.requireBucket().head(storageKey);
-    if (!object) return null;
-    return {
-      byteSize: object.size,
-      mediaType: object.httpMetadata?.contentType ?? "application/octet-stream",
-      checksumSha256: object.customMetadata?.checksumSha256 ?? "",
-    };
+    const { bucket, client } = this.requireStorage();
+    try {
+      const object = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: storageKey }));
+      return {
+        byteSize: object.ContentLength ?? 0,
+        mediaType: object.ContentType ?? "application/octet-stream",
+        checksumSha256: object.Metadata?.checksumsha256 ?? "",
+      };
+    } catch (error) {
+      if (isMissingObject(error)) return null;
+      throw error;
+    }
   }
 
   async read(storageKey: string): Promise<Uint8Array | null> {
-    const object = await this.requireBucket().get(storageKey);
-    return object ? new Uint8Array(await object.arrayBuffer()) : null;
+    const object = await this.get(storageKey);
+    return object?.bytes ?? null;
   }
 
   async putBundle(storageKey: string, contents: Uint8Array): Promise<void> {
-    await this.requireBucket().put(storageKey, contents, {
-      httpMetadata: { contentType: "application/zip", contentDisposition: "attachment" },
-    });
+    const { bucket, client } = this.requireStorage();
+    await client.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: storageKey,
+      Body: contents,
+      ContentType: "application/zip",
+      ContentDisposition: "attachment",
+    }));
   }
 
   async download(storageKey: string, filename: string, mediaType: string): Promise<Response | null> {
-    const object = await this.requireBucket().get(storageKey);
+    const object = await this.get(storageKey);
     if (!object) return null;
     const headers = new Headers();
-    object.writeHttpMetadata(headers);
     headers.set("content-type", mediaType);
     headers.set("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
     headers.set("cache-control", "private, no-store");
-    headers.set("etag", object.httpEtag);
-    return new Response(object.body, { headers });
+    if (object.etag) headers.set("etag", object.etag);
+    return new Response(Uint8Array.from(object.bytes).buffer, { headers });
   }
 
-  private requireBucket(): R2Bucket {
-    if (!this.bucket) throw new StorageUnavailableError("Cloudflare R2 is not configured.");
-    return this.bucket;
+  private requireStorage(): { bucket: string; client: S3Client } {
+    if (!this.client || !this.configuration.FILES_BUCKET) {
+      throw new StorageUnavailableError("Private object storage is not configured.");
+    }
+    return { bucket: this.configuration.FILES_BUCKET, client: this.client };
   }
+
+  private async get(storageKey: string): Promise<{ bytes: Uint8Array; etag?: string } | null> {
+    const { bucket, client } = this.requireStorage();
+    try {
+      const object = await client.send(new GetObjectCommand({ Bucket: bucket, Key: storageKey }));
+      if (!object.Body) return null;
+      return {
+        bytes: await object.Body.transformToByteArray(),
+        ...(object.ETag ? { etag: object.ETag } : {}),
+      };
+    } catch (error) {
+      if (isMissingObject(error)) return null;
+      throw error;
+    }
+  }
+}
+
+function isMissingObject(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+  return candidate.$metadata?.httpStatusCode === 404 || candidate.name === "NoSuchKey" || candidate.name === "NotFound";
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {

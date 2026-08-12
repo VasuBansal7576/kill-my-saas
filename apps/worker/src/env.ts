@@ -9,7 +9,11 @@ export interface Env {
   BREVO_SENDER_NAME?: string;
   BREVO_WEBHOOK_TOKEN?: string;
   DATABASE_URL?: string;
-  FILES: R2Bucket;
+  FILES_ACCESS_KEY_ID?: string;
+  FILES_BUCKET?: string;
+  FILES_ENDPOINT_URL?: string;
+  FILES_REGION?: string;
+  FILES_SECRET_ACCESS_KEY?: string;
   GIT_COMMIT_SHA?: string;
   JOBS: Queue;
   NEON_AUTH_BASE_URL?: string;

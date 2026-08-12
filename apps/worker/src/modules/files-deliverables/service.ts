@@ -212,7 +212,7 @@ export async function requestUpload(database: Database, actor: Actor, commandVal
       status,
       idempotencyKey: command.idempotencyKey,
       expiresAt,
-      failureCode: storage.configured ? null : "r2_not_configured",
+      failureCode: storage.configured ? null : "storage_not_configured",
     }).returning())[0];
   });
   if (!created) throw new FilesDeliverablesError("conflict", "The upload authorization could not be persisted.");
@@ -466,7 +466,7 @@ export async function requestBundleExport(database: Database, actor: Actor, even
     status,
     selection: { deliverableIds, grouping },
     manifest,
-    failureCode: storage.configured ? null : "r2_not_configured",
+    failureCode: storage.configured ? null : "storage_not_configured",
   }).returning();
   if (!record) throw new FilesDeliverablesError("conflict", "The export request could not be persisted.");
   return record;

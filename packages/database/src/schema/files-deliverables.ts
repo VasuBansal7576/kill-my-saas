@@ -44,8 +44,8 @@ export const deliverables = pgTable("deliverables", {
 
 /**
  * A persisted authorization for one immutable quarantine object. The browser
- * never chooses an R2 key and finalization can only consume the reservation
- * once. `blocked_external` records a truthful missing/unavailable R2 boundary.
+ * never chooses an object key and finalization can only consume the reservation
+ * once. `blocked_external` records a truthful unavailable storage boundary.
  */
 export const fileUploadAuthorizations = pgTable("file_upload_authorizations", {
   id: uuid("id").primaryKey().defaultRandom(),

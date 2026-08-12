@@ -13,9 +13,6 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
   },
-  "r2_buckets": [
-    { "binding": "FILES", "bucket_name": "programflow-files-local", "remote": false }
-  ],
   "queues": {
     "producers": [
       { "binding": "JOBS", "queue": "programflow-jobs-local", "remote": false }
@@ -28,11 +25,14 @@
   "env": {
     "evaluation": {
       "name": "programflow-evaluation",
-      "vars": { "APP_ENV": "evaluation" },
+      "vars": {
+        "APP_ENV": "evaluation",
+        "FILES_BUCKET": "programflow-files",
+        "FILES_ENDPOINT_URL": "https://br-delicate-hall-aywwqjp5.storage.c-5.us-east-2.aws.neon.tech",
+        "FILES_REGION": "us-east-2",
+        "NEON_AUTH_BASE_URL": "https://ep-twilight-dream-ayz0fzm7.neonauth.c-5.us-east-2.aws.neon.tech/neondb/auth"
+      },
       "ai": { "binding": "AI", "remote": true },
-      "r2_buckets": [
-        { "binding": "FILES", "bucket_name": "programflow-files-evaluation" }
-      ],
       "queues": {
         "producers": [
           { "binding": "JOBS", "queue": "programflow-jobs-evaluation" }
@@ -45,11 +45,14 @@
     },
     "production": {
       "name": "programflow-production",
-      "vars": { "APP_ENV": "production" },
+      "vars": {
+        "APP_ENV": "production",
+        "FILES_BUCKET": "programflow-files",
+        "FILES_ENDPOINT_URL": "https://br-damp-leaf-ay3y6zv0.storage.c-5.us-east-2.aws.neon.tech",
+        "FILES_REGION": "us-east-2",
+        "NEON_AUTH_BASE_URL": "https://ep-broad-dust-ayiylwto.neonauth.c-5.us-east-2.aws.neon.tech/neondb/auth"
+      },
       "ai": { "binding": "AI", "remote": true },
-      "r2_buckets": [
-        { "binding": "FILES", "bucket_name": "programflow-files-production" }
-      ],
       "queues": {
         "producers": [
           { "binding": "JOBS", "queue": "programflow-jobs-production" }

@@ -36,7 +36,7 @@ import {
   updateSpeakerContent,
   uploadQuarantineObject,
 } from "./service";
-import { R2PrivateFileStore } from "./storage";
+import { NeonS3PrivateFileStore } from "./storage";
 
 type FileContext = { Bindings: Env } & ActorContext;
 
@@ -148,7 +148,7 @@ function parameter(context: Context<FileContext>, name: string): string {
 }
 
 function storage(context: Context<FileContext>) {
-  return new R2PrivateFileStore((context.env as Env & { FILES?: R2Bucket }).FILES);
+  return new NeonS3PrivateFileStore(context.env);
 }
 
 function fileError(context: Context<FileContext>, error: unknown) {

@@ -8,6 +8,7 @@ import { getCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
 import type { Env } from "../../env";
 import type { ActorContext } from "../identity-access/actor";
+import { NeonS3PrivateFileStore } from "../files-deliverables/storage";
 import { SchedulingRepository, SchedulingService } from "../scheduling";
 import {
   PausePublicationSchema,
@@ -105,15 +106,15 @@ publishingPublicRoutes.get("/:eventSlug/speakers/:personId/headshot", async (con
   const parsed = z.uuid().safeParse(context.req.param("personId"));
   if (!parsed.success) return context.json({ error: { code: "headshot_not_found", message: "Headshot not found." } }, 404);
   const file = await getPublicHeadshot(database, context.req.param("eventSlug"), parsed.data);
-  const object = await context.env.FILES.get(file.storageKey);
-  if (!object) return context.json({ error: { code: "headshot_not_found", message: "Headshot not found." } }, 404);
+  const bytes = await new NeonS3PrivateFileStore(context.env).read(file.storageKey);
+  if (!bytes) return context.json({ error: { code: "headshot_not_found", message: "Headshot not found." } }, 404);
   const headers = new Headers({
     "content-type": file.mediaType,
     "cache-control": "public, max-age=3600, immutable",
     etag: `"${file.checksumSha256}"`,
     "content-disposition": "inline",
   });
-  return new Response(object.body, { headers });
+  return new Response(Uint8Array.from(bytes).buffer, { headers });
 }));
 
 publishingPublicRoutes.get("/:eventSlug/anonymous-itinerary", async (context) => publicRun(context, async (database) => {
