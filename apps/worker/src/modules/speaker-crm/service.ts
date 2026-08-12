@@ -472,12 +472,17 @@ async function persistContact(database: Database, organizationId: string, input:
     personId = created.id;
   }
   await database.insert(personEmailAliases).values({ personId, email: input.email, normalizedEmail, isCanonical: true }).onConflictDoNothing();
-  await database.insert(speakerProfiles).values({ personId, biography: input.biography, company: input.company, jobTitle: input.jobTitle }).onConflictDoUpdate({ target: speakerProfiles.personId, set: {
-    biography: sql<string>`coalesce(nullif(${speakerProfiles.biography}, ''), ${input.biography})`,
-    company: sql<string>`coalesce(nullif(${speakerProfiles.company}, ''), ${input.company})`,
-    jobTitle: sql<string>`coalesce(nullif(${speakerProfiles.jobTitle}, ''), ${input.jobTitle})`,
-    updatedAt: new Date(),
-  } });
+  const [existingProfile] = await database.select().from(speakerProfiles).where(eq(speakerProfiles.personId, personId)).limit(1);
+  if (existingProfile) {
+    await database.update(speakerProfiles).set({
+      biography: existingProfile.biography || input.biography,
+      company: existingProfile.company || input.company,
+      jobTitle: existingProfile.jobTitle || input.jobTitle,
+      updatedAt: new Date(),
+    }).where(eq(speakerProfiles.personId, personId));
+  } else {
+    await database.insert(speakerProfiles).values({ personId, biography: input.biography, company: input.company, jobTitle: input.jobTitle });
+  }
   const [existing] = await database.select().from(crmContacts).where(and(eq(crmContacts.organizationId, organizationId), eq(crmContacts.personId, personId))).limit(1);
   if (existing) {
     if (existing.mergedIntoContactId) throw new SpeakerCrmError("conflict", "This email belongs to a contact already merged into another record.");
