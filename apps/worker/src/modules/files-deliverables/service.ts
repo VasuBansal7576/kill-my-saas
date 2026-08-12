@@ -19,7 +19,7 @@ import {
   speakerTasks,
   type Database,
 } from "@programflow/database";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Actor } from "../identity-access/actor";
 import { actorCanAccessEvent } from "../identity-access/actor";
 import type { CreateFileRequestInput, UpdateSessionContentInput, UpdateSpeakerContentInput } from "./contracts";
@@ -45,7 +45,7 @@ export class FilesDeliverablesError extends Error {
 export interface DeliverableRow {
   id: string;
   eventId: string;
-  taskAssignmentId: string;
+  taskAssignmentId: string | null;
   eventSpeakerId: string;
   personId: string;
   speakerName: string;
@@ -217,6 +217,80 @@ export async function requestUpload(database: Database, actor: Actor, commandVal
   });
   if (!created) throw new FilesDeliverablesError("conflict", "The upload authorization could not be persisted.");
   return uploadAuthorizationResponse(created, storage.configured);
+}
+
+export async function requestProfileHeadshotUpload(
+  database: Database,
+  actor: Actor,
+  eventSlug: string,
+  command: { originalName: string; mediaType: "image/png" | "image/jpeg" | "image/webp"; byteSize: number; checksumSha256: string; idempotencyKey: string },
+  storage: PrivateFileStore,
+) {
+  const event = await requireEvent(database, actor, eventSlug, "speaker");
+  const [speaker] = await database.select({ id: eventSpeakers.id }).from(eventSpeakers)
+    .where(and(eq(eventSpeakers.eventId, event.id), eq(eventSpeakers.personId, actor.personId))).limit(1);
+  if (!speaker) throw new FilesDeliverablesError("task_not_found", "Your speaker profile was not found for this event.");
+  const [existing] = await database.select().from(fileUploadAuthorizations)
+    .where(and(eq(fileUploadAuthorizations.eventId, event.id), eq(fileUploadAuthorizations.idempotencyKey, command.idempotencyKey))).limit(1);
+  if (existing) return uploadAuthorizationResponse(existing, storage.configured);
+
+  const [profileDeliverable] = await database.select({ id: deliverables.id }).from(deliverables)
+    .where(and(eq(deliverables.eventId, event.id), eq(deliverables.eventSpeakerId, speaker.id), isNull(deliverables.taskAssignmentId))).limit(1);
+  const authorizationId = crypto.randomUUID();
+  const storageKey = `events/${event.id}/quarantine/${authorizationId}`;
+  const expiresAt = new Date(Date.now() + 15 * 60_000);
+  const status = storage.configured ? "authorized" : "blocked_external";
+  const created = await database.transaction(async (transaction) => {
+    let deliverableId = profileDeliverable?.id;
+    if (!deliverableId) {
+      const [profileFile] = await transaction.insert(deliverables).values({
+        eventId: event.id,
+        eventSpeakerId: speaker.id,
+      }).returning({ id: deliverables.id });
+      deliverableId = profileFile?.id;
+    }
+    if (!deliverableId) throw new FilesDeliverablesError("conflict", "The profile file container could not be created.");
+    const [file] = await transaction.insert(fileObjects).values({
+      eventId: event.id,
+      ownerPersonId: actor.personId,
+      storageKey,
+      originalName: command.originalName,
+      mediaType: command.mediaType,
+      byteSize: command.byteSize,
+      checksumSha256: command.checksumSha256,
+    }).returning({ id: fileObjects.id });
+    if (!file) throw new FilesDeliverablesError("conflict", "The profile image record could not be created.");
+    return (await transaction.insert(fileUploadAuthorizations).values({
+      id: authorizationId,
+      eventId: event.id,
+      deliverableId,
+      requestedByPersonId: actor.personId,
+      fileObjectId: file.id,
+      status,
+      idempotencyKey: command.idempotencyKey,
+      expiresAt,
+      failureCode: storage.configured ? null : "storage_not_configured",
+    }).returning())[0];
+  });
+  if (!created) throw new FilesDeliverablesError("conflict", "The profile image upload could not be authorized.");
+  return uploadAuthorizationResponse(created, storage.configured);
+}
+
+export async function downloadOwnHeadshot(database: Database, actor: Actor, eventSlug: string, storage: PrivateFileStore) {
+  const event = await requireEvent(database, actor, eventSlug, "speaker");
+  const [file] = await database.select({ storageKey: fileObjects.storageKey, mediaType: fileObjects.mediaType }).from(eventSpeakers)
+    .innerJoin(speakerProfiles, eq(speakerProfiles.personId, eventSpeakers.personId))
+    .innerJoin(fileObjects, eq(fileObjects.id, speakerProfiles.headshotFileId))
+    .where(and(eq(eventSpeakers.eventId, event.id), eq(eventSpeakers.personId, actor.personId), eq(fileObjects.verificationStatus, "verified"))).limit(1);
+  if (!file) throw new FilesDeliverablesError("file_not_found", "Your verified profile headshot was not found.");
+  try {
+    const bytes = await storage.read(file.storageKey);
+    if (!bytes) throw new FilesDeliverablesError("file_not_found", "Your verified profile headshot is missing from storage.");
+    return new Response(Uint8Array.from(bytes).buffer, { headers: { "content-type": file.mediaType, "cache-control": "private, no-store" } });
+  } catch (error) {
+    if (error instanceof StorageUnavailableError) throw new FilesDeliverablesError("storage_unavailable", error.message);
+    throw error;
+  }
 }
 
 export async function uploadQuarantineObject(database: Database, actor: Actor, authorizationId: string, body: ReadableStream | null, storage: PrivateFileStore) {
@@ -531,7 +605,7 @@ async function loadFileRequest(database: Database, eventId: string, taskId: stri
   const rows = await loadDeliverables(database, eventId);
   const assignmentIds = await database.select({ id: speakerTaskAssignments.id }).from(speakerTaskAssignments).where(eq(speakerTaskAssignments.taskId, taskId));
   const allowed = new Set(assignmentIds.map((row) => row.id));
-  return rows.filter((row) => allowed.has(row.taskAssignmentId));
+  return rows.filter((row) => row.taskAssignmentId !== null && allowed.has(row.taskAssignmentId));
 }
 
 async function loadDeliverable(database: Database, eventId: string, deliverableId: string, speakerPersonId?: string) {
@@ -548,7 +622,7 @@ async function loadDeliverables(database: Database, eventId: string, speakerPers
   const rows = await database.select({
     id: deliverables.id,
     eventId: deliverables.eventId,
-    taskAssignmentId: speakerTaskAssignments.id,
+    taskAssignmentId: deliverables.taskAssignmentId,
     eventSpeakerId: eventSpeakers.id,
     personId: eventSpeakers.personId,
     speakerName: people.displayName,
@@ -561,8 +635,8 @@ async function loadDeliverables(database: Database, eventId: string, speakerPers
     latestVersion: deliverables.latestVersion,
     configuration: speakerTasks.configuration,
   }).from(deliverables)
-    .innerJoin(speakerTaskAssignments, eq(speakerTaskAssignments.id, deliverables.taskAssignmentId))
-    .innerJoin(speakerTasks, eq(speakerTasks.id, speakerTaskAssignments.taskId))
+    .leftJoin(speakerTaskAssignments, eq(speakerTaskAssignments.id, deliverables.taskAssignmentId))
+    .leftJoin(speakerTasks, eq(speakerTasks.id, speakerTaskAssignments.taskId))
     .innerJoin(eventSpeakers, eq(eventSpeakers.id, deliverables.eventSpeakerId))
     .innerJoin(people, eq(people.id, eventSpeakers.personId))
     .leftJoin(sessions, eq(sessions.id, deliverables.sessionId))
@@ -592,9 +666,12 @@ async function loadDeliverables(database: Database, eventId: string, speakerPers
   }).from(fileComments).innerJoin(people, eq(people.id, fileComments.authorPersonId))
     .where(inArray(fileComments.deliverableVersionId, versionIds)).orderBy(asc(fileComments.createdAt)) : [];
   return rows.map((row) => {
-    const policy = filePolicy(row.configuration);
+    const directProfileFile = row.taskAssignmentId === null;
+    const policy = directProfileFile ? profileHeadshotPolicy() : filePolicy(row.configuration);
     return {
       ...row,
+      taskTitle: row.taskTitle ?? "Profile headshot",
+      instructions: row.instructions ?? "Speaker-managed profile photo.",
       ...policy,
       versions: versionRows.filter((version) => version.deliverableId === row.id).map((version) => ({
         ...version,
@@ -630,15 +707,15 @@ async function requireUploadAuthorization(database: Database, actor: Actor, id: 
   }).from(fileUploadAuthorizations)
     .innerJoin(fileObjects, eq(fileObjects.id, fileUploadAuthorizations.fileObjectId))
     .innerJoin(deliverables, eq(deliverables.id, fileUploadAuthorizations.deliverableId))
-    .innerJoin(speakerTaskAssignments, eq(speakerTaskAssignments.id, deliverables.taskAssignmentId))
-    .innerJoin(speakerTasks, eq(speakerTasks.id, speakerTaskAssignments.taskId))
+    .leftJoin(speakerTaskAssignments, eq(speakerTaskAssignments.id, deliverables.taskAssignmentId))
+    .leftJoin(speakerTasks, eq(speakerTasks.id, speakerTaskAssignments.taskId))
     .innerJoin(eventSpeakers, eq(eventSpeakers.id, deliverables.eventSpeakerId))
     .where(eq(fileUploadAuthorizations.id, id)).limit(1);
   if (!row) throw new FilesDeliverablesError("file_not_found", "Upload authorization not found.");
   const organizer = actorCanAccessEvent(actor, row.eventId, "organizer");
   const ownSpeaker = actorCanAccessEvent(actor, row.eventId, "speaker") && row.ownerPersonId === actor.personId;
   if (!organizer && !ownSpeaker) throw new FilesDeliverablesError("forbidden", "This upload authorization belongs to another speaker.");
-  return { ...row, handoff: filePolicy(row.handoffConfiguration).handoff };
+  return { ...row, handoff: row.taskAssignmentId === null ? "speaker_headshot" as const : filePolicy(row.handoffConfiguration).handoff };
 }
 
 async function requireVersionAccess(database: Database, actor: Actor, eventId: string, versionId: string) {
@@ -732,13 +809,18 @@ function uploadAuthorizationResponse(row: typeof fileUploadAuthorizations.$infer
   };
 }
 
-function filePolicy(value: Record<string, unknown>): FileRequestConfiguration {
+function filePolicy(value: Record<string, unknown> | null): FileRequestConfiguration {
+  value ??= {};
   const acceptedMediaTypes = Array.isArray(value.acceptedMediaTypes) ? value.acceptedMediaTypes.filter((item): item is string => typeof item === "string") : ["application/pdf"];
   return {
     acceptedMediaTypes,
     maxByteSize: typeof value.maxByteSize === "number" ? value.maxByteSize : 100 * 1024 * 1024,
     handoff: value.handoff === "speaker_headshot" ? "speaker_headshot" : "session_file",
   };
+}
+
+function profileHeadshotPolicy(): FileRequestConfiguration {
+  return { acceptedMediaTypes: ["image/png", "image/jpeg", "image/webp"], maxByteSize: 10 * 1024 * 1024, handoff: "speaker_headshot" };
 }
 
 function profileSnapshot(value: { biography: string; company: string; jobTitle: string; socialLinks: Record<string, string>; headshotFileId: string | null }) {

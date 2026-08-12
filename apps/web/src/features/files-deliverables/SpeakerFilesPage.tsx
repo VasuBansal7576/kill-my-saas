@@ -19,10 +19,14 @@ export function SpeakerFilesPage() {
   async function upload(row: Deliverable, file: File) {
     setBusy(row.id);
     try {
-      const authorization = await requestJson<{ id: string; status: string; uploadUrl: string | null; failureCode: string | null }>("/api/v1/speaker/files/uploads", jsonRequest("POST", {
-        eventId: row.eventId, taskAssignmentId: row.taskAssignmentId, originalName: file.name, mediaType: file.type, byteSize: file.size,
-        checksumSha256: await sha256(file), idempotencyKey: crypto.randomUUID(),
-      }));
+      const authorization = await requestJson<{ id: string; status: string; uploadUrl: string | null; failureCode: string | null }>(
+        row.taskAssignmentId === null ? `/api/v1/speaker/events/${eventSlug}/profile/headshot-uploads` : "/api/v1/speaker/files/uploads",
+        jsonRequest("POST", {
+          ...(row.taskAssignmentId === null ? {} : { eventId: row.eventId, taskAssignmentId: row.taskAssignmentId }),
+          originalName: file.name, mediaType: file.type, byteSize: file.size,
+          checksumSha256: await sha256(file), idempotencyKey: crypto.randomUUID(),
+        }),
+      );
       if (!authorization.uploadUrl) throw new Error(`Upload blocked by external storage: ${authorization.failureCode ?? authorization.status}.`);
       const uploaded = await fetch(authorization.uploadUrl, { method: "PUT", headers: { "content-type": file.type }, body: file });
       if (!uploaded.ok) throw new Error((await uploaded.json().catch(() => null) as { error?: { message?: string } } | null)?.error?.message ?? "The private upload failed.");

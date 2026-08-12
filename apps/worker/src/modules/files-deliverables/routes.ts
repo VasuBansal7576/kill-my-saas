@@ -6,6 +6,7 @@ import type { ActorContext } from "../identity-access/actor";
 import {
   CommentSchema,
   CreateFileRequestSchema,
+  ProfileHeadshotUploadSchema,
   RequestBundleExportSchema,
   RestoreVersionSchema,
   ReviewDeliverableSchema,
@@ -19,6 +20,7 @@ import {
   createFileRequest,
   downloadBundle,
   downloadVersion,
+  downloadOwnHeadshot,
   finalizeUpload,
   getSessionContent,
   getSpeakerContent,
@@ -28,6 +30,7 @@ import {
   processBundleExport,
   requestBundleExport,
   requestUpload,
+  requestProfileHeadshotUpload,
   restoreSessionVersion,
   restoreSpeakerVersion,
   reviewDeliverable,
@@ -103,6 +106,12 @@ filesDeliverablesOrganizerRoutes.post("/files/uploads/:authorizationId/finalize"
 
 filesDeliverablesSpeakerRoutes.get("/events/:eventSlug/files", handle(async (context, database) =>
   context.json(await listOwnDeliverables(database, context.get("actor"), parameter(context, "eventSlug")))));
+
+filesDeliverablesSpeakerRoutes.post("/events/:eventSlug/profile/headshot-uploads", validated(ProfileHeadshotUploadSchema, async (context, database, input) =>
+  context.json(await requestProfileHeadshotUpload(database, context.get("actor"), parameter(context, "eventSlug"), input, storage(context)), 201)));
+
+filesDeliverablesSpeakerRoutes.get("/events/:eventSlug/profile/headshot", handle(async (context, database) =>
+  downloadOwnHeadshot(database, context.get("actor"), parameter(context, "eventSlug"), storage(context))));
 
 filesDeliverablesSpeakerRoutes.post("/files/uploads", handle(async (context, database) =>
   context.json(await requestUpload(database, context.get("actor"), await context.req.json().catch(() => null), storage(context)), 201)));

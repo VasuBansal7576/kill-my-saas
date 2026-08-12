@@ -33,6 +33,7 @@
 .avatar, .largeAvatar { flex: 0 0 auto; display: grid; place-items: center; border: 1px solid #353535; background: #202020; color: #aaa; font-weight: 800; }
 .avatar { width: 30px; height: 30px; border-radius: 8px; font-size: 9px; }
 .largeAvatar { width: 62px; height: 62px; margin-bottom: 10px; border-radius: 14px; font-size: 17px; }
+.profileImage { width: 62px; height: 62px; margin-bottom: 10px; border-radius: 14px; object-fit: cover; }
 .status { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border: 1px solid #353535; border-radius: 999px; color: #999; background: #1b1b1b; font-size: 8px; font-weight: 750; text-transform: capitalize; }
 .invited { border-color: rgba(108,148,249,.35); color: #8daaf4; background: rgba(108,148,249,.08); }
 .onboarding { border-color: rgba(214,162,76,.35); color: #deb56d; background: rgba(214,162,76,.08); }

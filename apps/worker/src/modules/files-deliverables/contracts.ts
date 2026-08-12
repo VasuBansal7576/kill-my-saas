@@ -45,6 +45,14 @@ export const RequestBundleExportSchema = z.object({
   grouping: z.enum(["session", "speaker", "flat"]).default("session"),
 });
 
+export const ProfileHeadshotUploadSchema = z.object({
+  originalName: z.string().trim().min(1).max(255),
+  mediaType: z.enum(["image/png", "image/jpeg", "image/webp"]),
+  byteSize: z.number().int().positive().max(10 * 1024 * 1024),
+  checksumSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  idempotencyKey: z.string().trim().min(12).max(200),
+});
+
 export type CreateFileRequestInput = z.infer<typeof CreateFileRequestSchema>;
 export type UpdateSessionContentInput = z.infer<typeof UpdateSessionContentSchema>;
 export type UpdateSpeakerContentInput = z.infer<typeof UpdateSpeakerContentSchema>;
