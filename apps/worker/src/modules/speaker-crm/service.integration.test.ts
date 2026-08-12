@@ -87,6 +87,9 @@ integration("organization Speaker CRM persisted round trip", () => {
     expect(result.imported).toBe(3);
     const filtered = await listCrmDirectory(database, actor, ids.organization, { search: "Priya", companies: [], jobTitles: ["Staff Engineer"], tags: ["AI"], metadata: {}, company: undefined, jobTitle: undefined, tag: undefined });
     expect(filtered).toHaveLength(1);
+    await tooling.database.update(speakerProfiles).set({ biography: "Current speaker-authored biography" }).where(eq(speakerProfiles.personId, filtered[0]!.personId));
+    expect((await importCrmContacts(database, actor, ids.organization, "name,email,bio\nPriya Raman,priya.one@example.com,Stale import biography")).reused).toBe(1);
+    expect((await getCrmContact(database, actor, ids.organization, filtered[0]!.contactId)).biography).toBe("Current speaker-authored biography");
     const duplicates = await listDuplicateCandidates(database, actor, ids.organization);
     expect(duplicates[0]?.contacts).toHaveLength(2);
     const primaryContactId = duplicates[0]!.contacts[0]!.contactId;

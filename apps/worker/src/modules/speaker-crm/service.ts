@@ -470,12 +470,12 @@ async function persistContact(database: Database, organizationId: string, input:
     const [created] = await database.insert(people).values({ stableKey: `crm:${normalizedEmail}`, displayName: input.displayName, canonicalEmail: normalizedEmail }).returning({ id: people.id });
     if (!created) throw new SpeakerCrmError("conflict", "The canonical person could not be created.");
     personId = created.id;
-  } else await database.update(people).set({ displayName: input.displayName, updatedAt: new Date() }).where(eq(people.id, personId));
+  }
   await database.insert(personEmailAliases).values({ personId, email: input.email, normalizedEmail, isCanonical: true }).onConflictDoNothing();
   await database.insert(speakerProfiles).values({ personId, biography: input.biography, company: input.company, jobTitle: input.jobTitle }).onConflictDoUpdate({ target: speakerProfiles.personId, set: {
-    biography: input.biography || sql`${speakerProfiles.biography}`,
-    company: input.company || sql`${speakerProfiles.company}`,
-    jobTitle: input.jobTitle || sql`${speakerProfiles.jobTitle}`,
+    biography: sql<string>`coalesce(nullif(${speakerProfiles.biography}, ''), ${input.biography})`,
+    company: sql<string>`coalesce(nullif(${speakerProfiles.company}, ''), ${input.company})`,
+    jobTitle: sql<string>`coalesce(nullif(${speakerProfiles.jobTitle}, ''), ${input.jobTitle})`,
     updatedAt: new Date(),
   } });
   const [existing] = await database.select().from(crmContacts).where(and(eq(crmContacts.organizationId, organizationId), eq(crmContacts.personId, personId))).limit(1);
