@@ -4,7 +4,6 @@ import {
   eventMemberships,
   events,
   identities,
-  organizationMemberships,
   people,
   personEmailAliases,
   type Database,
@@ -13,9 +12,20 @@ import { and, eq, sql } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 import type { Env } from "../../env";
-import type { Actor, ActorContext, EventRole, OrganizationRole } from "./actor";
+import type { Actor, ActorContext } from "./actor";
 
-const SessionUserSchema = z.object({ id: z.string(), email: z.email(), name: z.string().optional() });
+const SessionUserSchema = z.object({ id: z.string(), email: z.email(), name: z.string().nullish() });
+const SessionActorSchema = SessionUserSchema.extend({
+  personId: z.string().uuid().nullable(),
+  organizationRoles: z.array(z.object({
+    organizationId: z.string().uuid(),
+    role: z.literal("organizer"),
+  })),
+  eventRoles: z.array(z.object({
+    eventId: z.string().uuid(),
+    role: z.enum(["organizer", "speaker", "reviewer"]),
+  })),
+});
 const actorCache = new Map<string, { actor: Actor; expiresAt: number }>();
 const actorCacheTtlMs = 15_000;
 
@@ -39,39 +49,32 @@ export const resolveActor = createMiddleware<{ Bindings: Env } & ActorContext>(a
     return;
   }
   actorCache.delete(sessionToken);
-  const user = await activeSessionUser(database, sessionToken);
-  if (!user) {
+  let session = await activeSessionActor(database, sessionToken);
+  if (!session) {
     return context.json({ error: { code: "unauthorized", message: "Sign in is required." } }, 401);
   }
-  const providerSubject = user.id;
-  let [identity] = await database.select({ personId: identities.personId })
-    .from(identities)
-    .where(eq(identities.providerSubject, providerSubject))
-    .limit(1);
-  if (!identity) {
-    const personId = await provisionFirstLogin(database, user, context.req.path);
+  if (!session.personId) {
+    const personId = await provisionFirstLogin(database, session, context.req.path);
     if (!personId) {
       return context.json(
         { error: { code: "identity_not_provisioned", message: "This identity has not been linked to a ProgramFlow person." } },
         403,
       );
     }
-    identity = { personId };
+    session = await activeSessionActor(database, sessionToken);
+    if (!session?.personId) {
+      return context.json(
+        { error: { code: "identity_not_provisioned", message: "This identity has not been linked to a ProgramFlow person." } },
+        403,
+      );
+    }
   }
 
-  const [organizationRows, eventRows] = await Promise.all([
-    database.select({ organizationId: organizationMemberships.organizationId, role: organizationMemberships.role })
-      .from(organizationMemberships)
-      .where(eq(organizationMemberships.personId, identity.personId)),
-    database.select({ eventId: eventMemberships.eventId, role: eventMemberships.role })
-      .from(eventMemberships)
-      .where(eq(eventMemberships.personId, identity.personId)),
-  ]);
   const actor: Actor = {
-    identityId: providerSubject,
-    personId: identity.personId,
-    organizationRoles: organizationRows.map((row) => ({ ...row, role: row.role as OrganizationRole })),
-    eventRoles: eventRows.map((row) => ({ ...row, role: row.role as EventRole })),
+    identityId: session.id,
+    personId: session.personId,
+    organizationRoles: session.organizationRoles,
+    eventRoles: session.eventRoles,
   };
   if (actor.organizationRoles.length > 0 || actor.eventRoles.length > 0) {
     actorCache.set(sessionToken, { actor, expiresAt: Date.now() + actorCacheTtlMs });
@@ -84,17 +87,40 @@ export const resolveActor = createMiddleware<{ Bindings: Env } & ActorContext>(a
   await next();
 });
 
-async function activeSessionUser(database: Database, token: string) {
+async function activeSessionActor(database: Database, token: string) {
   const result = await database.execute(sql`
-    select auth_user.id::text as id, auth_user.email, auth_user.name
+    select
+      auth_user.id::text as id,
+      auth_user.email,
+      auth_user.name,
+      identity.person_id::text as "personId",
+      coalesce((
+        select jsonb_agg(jsonb_build_object(
+          'organizationId', membership.organization_id::text,
+          'role', membership.role
+        ) order by membership.organization_id)
+        from organization_memberships as membership
+        where membership.person_id = identity.person_id
+      ), '[]'::jsonb) as "organizationRoles",
+      coalesce((
+        select jsonb_agg(jsonb_build_object(
+          'eventId', membership.event_id::text,
+          'role', membership.role
+        ) order by membership.event_id, membership.role)
+        from event_memberships as membership
+        where membership.person_id = identity.person_id
+      ), '[]'::jsonb) as "eventRoles"
     from neon_auth.session as auth_session
     inner join neon_auth.user as auth_user on auth_user.id = auth_session."userId"
+    left join identities as identity
+      on identity.provider = 'neon_auth'
+      and identity.provider_subject = auth_user.id::text
     where auth_session.token = ${token}
       and auth_session."expiresAt" > now()
       and coalesce(auth_user.banned, false) = false
     limit 1
   `);
-  return SessionUserSchema.safeParse(result.rows[0]).data ?? null;
+  return SessionActorSchema.safeParse(result.rows[0]).data ?? null;
 }
 
 export function invalidateActorCache(cookieHeader: string | undefined) {

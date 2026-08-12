@@ -155,7 +155,7 @@ export function createApp() {
     const dependencies = {
       database: status(Boolean(context.env.DATABASE_URL), "Neon PostgreSQL connection"),
       auth: status(Boolean(context.env.NEON_AUTH_BASE_URL && context.env.NEON_AUTH_COOKIE_SECRET), "Neon Auth endpoint and cookie signing"),
-      email: status(Boolean(context.env.BREVO_API_KEY), "Brevo transactional email"),
+      email: status(Boolean(context.env.BREVO_API_KEY && context.env.BREVO_SENDER_EMAIL), "Brevo transactional email"),
       files: status(storageIsConfigured(context.env), "Neon private object storage"),
       queue: status(Boolean(context.env.JOBS), "Cloudflare Queue binding"),
       ai: status(Boolean(context.env.AI), "Cloudflare Workers AI binding"),
