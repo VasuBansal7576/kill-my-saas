@@ -13,7 +13,7 @@ export function EvaluationEntryPage() {
     <section className={styles.entryHero}>
       <div className={styles.heroCopy}>
         <p className={styles.eyebrow}>Conference program operations · Live evaluation</p>
-        <h1>From first proposal to the published program. No re-entry.</h1>
+        <h1>From first proposal to the published program. No re‑entry.</h1>
         <p className={styles.entryLead}>ProgramFlow carries the same conference data through review, decisions, speaker onboarding, content, scheduling, and every attendee view.</p>
         <div className={styles.primaryEntryActions}>
           <Link className={styles.primaryAction} to={`/events/${eventSlug}/sessions`}>Explore the live program</Link>
