@@ -3,10 +3,25 @@ export type ReviewCriterion =
   | { key: string; label: string; type: "dropdown"; required: boolean; weight: number; options: Array<{ label: string; score: number }> }
   | { key: string; label: string; type: "free_text"; required: boolean; weight: 0 };
 
+export interface OrganizerReviewSubmission {
+  submissionId: string;
+  title: string;
+  track: string | null;
+  routingKey: string | null;
+  authorName: string;
+  submittedAt: string;
+  decision: "accepted" | "rejected" | null;
+  assignments: Array<{
+    roundId: string;
+    reviewerName: string;
+    status: "assigned" | "in_progress" | "submitted" | "recused";
+  }>;
+}
+
 export interface ReviewsWorkspace {
   event: { id: string; slug: string; name: string; timezone: string };
   reviewers: Array<{ personId: string; name: string }>;
-  submissions: Array<{ submissionId: string; title: string; track: string | null; routingKey: string | null }>;
+  submissions: OrganizerReviewSubmission[];
   plans: Array<{
     id: string;
     name: string;

@@ -7,7 +7,7 @@ import {
   formatEventDateTime,
 } from "../../app/event-time";
 import { jsonRequest, reviewsRequest } from "./api";
-import { reviewCriterionSummary } from "./presentation";
+import { organizerSubmissionAssignmentLabel, reviewCriterionSummary } from "./presentation";
 import type { ReviewCriterion, ReviewsWorkspace } from "./types";
 import "./reviews-decisions.css";
 import "./scorecard-editor.css";
@@ -451,7 +451,7 @@ export function ReviewsDecisionsPage() {
                     key={submission.submissionId}
                     value={submission.submissionId}
                   >
-                    {submission.title}
+                    {organizerSubmissionAssignmentLabel(submission, activeAssignmentRoundId, workspace.event.timezone)}
                   </option>
                 ))}
               </select>
@@ -488,6 +488,7 @@ export function ReviewsDecisionsPage() {
               <label key={submission.submissionId}>
                 <input
                   type="checkbox"
+                  aria-label={`Select ${organizerSubmissionAssignmentLabel(submission, activeAssignmentRoundId, workspace.event.timezone)}`}
                   checked={selectedSubmissions.includes(
                     submission.submissionId,
                   )}
@@ -500,9 +501,7 @@ export function ReviewsDecisionsPage() {
                 <span>
                   <strong>{submission.title}</strong>
                   <small>
-                    {submission.routingKey ??
-                      submission.track ??
-                      "General queue"}
+                    {organizerSubmissionAssignmentLabel(submission, activeAssignmentRoundId, workspace.event.timezone).replace(`${submission.title} — `, "")} · Route {submission.routingKey ?? submission.track ?? "General queue"}
                   </small>
                 </span>
               </label>

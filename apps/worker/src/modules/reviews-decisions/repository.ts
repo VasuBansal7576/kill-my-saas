@@ -174,12 +174,14 @@ export class ReviewsDecisionsRepository {
       .orderBy(asc(people.displayName));
   }
 
-  async listSubmittedProposals(eventId: string): Promise<Array<{ submissionId: string; title: string; track: string | null; routingKey: string | null }>> {
+  async listSubmittedProposals(eventId: string) {
     const rows = await this.database.select({
       submissionId: submissions.id,
       title: submissionVersions.title,
       answers: submissionVersions.answers,
       routingKey: submissions.routingKey,
+      submittedAt: submissions.submittedAt,
+      createdAt: submissions.createdAt,
     }).from(submissions)
       .innerJoin(submissionVersions, and(
         eq(submissionVersions.submissionId, submissions.id),
@@ -187,7 +189,40 @@ export class ReviewsDecisionsRepository {
       ))
       .where(and(eq(submissions.eventId, eventId), eq(submissions.state, "submitted")))
       .orderBy(asc(submissionVersions.title));
-    return rows.map((row) => ({ submissionId: row.submissionId, title: row.title, track: optionalStringAnswer(row.answers.track), routingKey: row.routingKey }));
+    const submissionIds = rows.map((row) => row.submissionId);
+    const [participantRows, assignmentRows, decisionRows] = submissionIds.length === 0 ? [[], [], []] : await Promise.all([
+      this.database.select({
+        submissionId: submissionParticipants.submissionId,
+        name: submissionParticipants.name,
+        role: submissionParticipants.role,
+        sortOrder: submissionParticipants.sortOrder,
+      }).from(submissionParticipants)
+        .where(inArray(submissionParticipants.submissionId, submissionIds))
+        .orderBy(asc(submissionParticipants.sortOrder)),
+      this.database.select({
+        submissionId: reviewAssignments.submissionId,
+        roundId: reviewAssignments.roundId,
+        reviewerName: people.displayName,
+        status: reviewAssignments.status,
+      }).from(reviewAssignments)
+        .innerJoin(people, eq(people.id, reviewAssignments.reviewerPersonId))
+        .where(inArray(reviewAssignments.submissionId, submissionIds)),
+      this.database.select({ submissionId: decisions.submissionId, outcome: decisions.outcome })
+        .from(decisions)
+        .where(inArray(decisions.submissionId, submissionIds)),
+    ]);
+    return rows.map((row) => ({
+      submissionId: row.submissionId,
+      title: row.title,
+      track: optionalStringAnswer(row.answers.track),
+      routingKey: row.routingKey,
+      authorName: participantRows.find((participant) => participant.submissionId === row.submissionId && participant.role === "author")?.name
+        ?? participantRows.find((participant) => participant.submissionId === row.submissionId)?.name
+        ?? "Author unavailable",
+      submittedAt: (row.submittedAt ?? row.createdAt).toISOString(),
+      decision: decisionRows.find((decision) => decision.submissionId === row.submissionId)?.outcome ?? null,
+      assignments: assignmentRows.filter((assignment) => assignment.submissionId === row.submissionId).map(({ roundId, reviewerName, status }) => ({ roundId, reviewerName, status })),
+    }));
   }
 
   async listAiAssessments(eventId: string) {

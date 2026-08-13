@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { reviewerAssignmentsForFilter } from "./presentation";
-import type { ReviewerQueue } from "./types";
+import { organizerSubmissionAssignmentLabel, reviewerAssignmentsForFilter } from "./presentation";
+import type { OrganizerReviewSubmission, ReviewerQueue } from "./types";
 
 const assignment = (assignmentId: string, status: ReviewerQueue["assignments"][number]["status"]) => ({ assignmentId, status }) as ReviewerQueue["assignments"][number];
 
@@ -20,5 +20,23 @@ describe("reviewer queue presentation", () => {
     expect(page).toContain('aria-label="Filter review assignments"');
     expect(css).toContain(".rd-queue-items {");
     expect(css).toContain("overflow-x: auto");
+  });
+
+  it("disambiguates duplicate organizer assignment titles with persisted identity and state", () => {
+    const submission = {
+      submissionId: "019b9cf7-12ab-7000-8000-123456789abc",
+      title: "Same title",
+      track: "Platform",
+      routingKey: "platform",
+      authorName: "Priya Raman",
+      submittedAt: "2027-05-13T01:30:00.000Z",
+      decision: null,
+      assignments: [{ roundId: "round-1", reviewerName: "Sam Whitfield", status: "in_progress" }],
+    } satisfies OrganizerReviewSubmission;
+
+    const label = organizerSubmissionAssignmentLabel(submission, "round-1", "America/Los_Angeles");
+    expect(label).toContain("Same title — Priya Raman · #019b9cf7");
+    expect(label).toContain("May 12, 2027");
+    expect(label).toContain("1 assigned · 1 in progress · No decision");
   });
 });
