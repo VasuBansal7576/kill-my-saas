@@ -70,6 +70,7 @@
 .agenda-cell > button { width: 100%; display: grid; gap: 7px; padding: 10px; border: 1px solid color-mix(in srgb, var(--event-color) 35%, #333); border-radius: 7px; background: color-mix(in srgb, var(--event-color) 8%, #181818); color: inherit; text-align: left; }
 .agenda-cell > button strong { font-size: 10px; }
 .agenda-cell > button small { color: #777; font-size: 8px; }
+.public-agenda-mobile, .public-agenda-mobile-note { display: none; }
 .itinerary-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .public-segmented { display: flex; padding: 3px; border: 1px solid #303030; border-radius: 7px; background: #151515; }
 .public-segmented button { padding: 7px 10px; border: 0; border-radius: 5px; background: transparent; color: #777; font-size: 9px; }
@@ -196,6 +197,21 @@
   .public-modal { padding: 22px; }
   .public-modal dl { grid-template-columns: 1fr; }
   .itinerary-actions { align-items: stretch; flex-direction: column; }
+  .public-day-nav { margin-top: 22px; padding-bottom: 4px; scroll-snap-type: x proximity; }
+  .public-day-nav button { min-width: min(78vw, 280px); min-height: 54px; scroll-snap-align: start; }
+  .public-agenda { display: none; }
+  .public-agenda-mobile-note { display: block; margin: 4px 0 12px; color: #999; font-size: 12px; line-height: 1.5; }
+  .public-agenda-mobile { display: grid; gap: 18px; }
+  .agenda-mobile-time { display: grid; gap: 8px; }
+  .agenda-mobile-time > header { position: sticky; z-index: 2; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; padding: 9px 11px; border: 1px solid #303030; border-radius: 7px; background: rgba(21, 21, 21, .96); backdrop-filter: blur(10px); }
+  .agenda-mobile-time > header time { color: #eee; font-size: 13px; font-weight: 750; }
+  .agenda-mobile-time > header span { color: #999; font-size: 11px; }
+  .agenda-mobile-time > div { display: grid; gap: 8px; }
+  .agenda-mobile-time button { width: 100%; min-height: 112px; display: grid; gap: 8px; padding: 14px; border: 1px solid color-mix(in srgb, var(--event-color) 35%, #333); border-radius: 8px; background: color-mix(in srgb, var(--event-color) 8%, #181818); color: inherit; text-align: left; }
+  .agenda-mobile-time button:focus-visible { outline: 3px solid var(--event-color); outline-offset: 2px; }
+  .agenda-mobile-time button strong { font-size: 15px; line-height: 1.35; }
+  .agenda-mobile-time button small { color: #aaa; font-size: 12px; }
+  .agenda-mobile-room { color: #ddd; font-size: 12px; font-weight: 750; }
 }
 
 /* Readability and touch-target pass for core public navigation and status UI. */

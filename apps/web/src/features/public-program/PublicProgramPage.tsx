@@ -241,21 +241,34 @@ function SpeakerGallery({ speakers, open }: { speakers: PublicSpeaker[]; open(sp
   </button>)}</section>;
 }
 
-function Agenda({ program, day, setDay, open }: { program: PublishedProgram; day: string; setDay(value: string): void; open(session: PublicSession): void }) {
+export function Agenda({ program, day, setDay, open }: { program: PublishedProgram; day: string; setDay(value: string): void; open(session: PublicSession): void }) {
   const sessions = sessionsByStart(program.sessions.filter((session) => session.day === day));
   const times = startTimes(sessions);
   return <>
     <DayNavigation days={program.days} active={day} setActive={setDay} />
-    {sessions.length === 0 ? <Empty>No approved sessions are scheduled on this day.</Empty> : <section className="public-agenda" style={{ "--room-count": program.rooms.length } as CSSProperties}>
-      <div className="agenda-corner">Time</div>{program.rooms.map((room) => <div className="agenda-room" key={room.id}>{room.name}</div>)}
-      {times.flatMap((startsAt) => [
-        <time className="agenda-time" key={`time-${startsAt}`}>{new Intl.DateTimeFormat(undefined, { timeZone: program.event.timezone, hour: "numeric", minute: "2-digit" }).format(new Date(startsAt))}</time>,
-        ...program.rooms.map((room) => {
-          const matches = sessionsAtTime(sessions, startsAt).filter((session) => session.room.id === room.id);
-          return <div className="agenda-cell" key={`${startsAt}-${room.id}`}>{matches.map((session) => <button type="button" key={session.id} onClick={() => open(session)}><Tags session={session} /><strong>{session.title}</strong><small>{formatRange(session, program.event.timezone)}</small></button>)}</div>;
-        }),
-      ])}
-    </section>}
+    {sessions.length === 0 ? <Empty>No approved sessions are scheduled on this day.</Empty> : <>
+      <p className="public-agenda-mobile-note">Sessions are grouped by start time. Every card names its room.</p>
+      <section className="public-agenda-mobile" aria-label={`${formatDay(day)} agenda by start time`}>
+        {times.map((startsAt) => {
+          const matches = sessionsAtTime(sessions, startsAt);
+          const time = formatEventDateTime(startsAt, program.event.timezone, "time");
+          return <section className="agenda-mobile-time" key={startsAt}>
+            <header><time dateTime={startsAt}>{time}</time><span>{matches.length} session{matches.length === 1 ? "" : "s"}</span></header>
+            <div>{matches.map((session) => <button type="button" key={session.id} aria-label={`${session.title}, ${session.room.name}, ${formatRange(session, program.event.timezone)}`} onClick={() => open(session)}><span className="agenda-mobile-room">{session.room.name}</span><Tags session={session} /><strong>{session.title}</strong><small>{formatRange(session, program.event.timezone)}</small></button>)}</div>
+          </section>;
+        })}
+      </section>
+      <section className="public-agenda" aria-label={`${formatDay(day)} agenda grid`} style={{ "--room-count": program.rooms.length } as CSSProperties}>
+        <div className="agenda-corner">Time</div>{program.rooms.map((room) => <div className="agenda-room" key={room.id}>{room.name}</div>)}
+        {times.flatMap((startsAt) => [
+          <time className="agenda-time" key={`time-${startsAt}`}>{new Intl.DateTimeFormat(undefined, { timeZone: program.event.timezone, hour: "numeric", minute: "2-digit" }).format(new Date(startsAt))}</time>,
+          ...program.rooms.map((room) => {
+            const matches = sessionsAtTime(sessions, startsAt).filter((session) => session.room.id === room.id);
+            return <div className="agenda-cell" key={`${startsAt}-${room.id}`}>{matches.map((session) => <button type="button" key={session.id} onClick={() => open(session)}><Tags session={session} /><strong>{session.title}</strong><small>{formatRange(session, program.event.timezone)}</small></button>)}</div>;
+          }),
+        ])}
+      </section>
+    </>}
   </>;
 }
 
