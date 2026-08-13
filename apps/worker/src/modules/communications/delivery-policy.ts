@@ -1,8 +1,15 @@
 import type { communicationRecipients } from "@programflow/database";
 
 type DeliveryStatus = typeof communicationRecipients.$inferSelect.status;
+export type RecipientDeliveryTruth = "delivered" | "in_flight" | "failed";
 
 export const MAX_DELIVERY_ATTEMPTS = 3;
+
+export function deliveryTruthForStatus(status: DeliveryStatus): RecipientDeliveryTruth {
+  if (status === "delivered") return "delivered";
+  if (status === "queued" || status === "sending" || status === "accepted") return "in_flight";
+  return "failed";
+}
 
 export interface DeliveryRetryAssessment {
   eligible: boolean;
@@ -11,7 +18,7 @@ export interface DeliveryRetryAssessment {
 }
 
 export function assessDeliveryProof(input: { status: DeliveryStatus; providerMessageId: string | null }) {
-  if (input.status === "delivered") {
+  if (deliveryTruthForStatus(input.status) === "delivered") {
     return {
       claim: "delivered" as const,
       delivered: true,

@@ -31,7 +31,7 @@ import type { ReviewReminderPort } from "../reviews-decisions";
 import type { CreatePlacementCalendar, QueueOrganizerCommunication } from "./contracts";
 import { BrevoProviderError, type EmailProviderPort, type ProviderOutcome } from "./brevo-adapter";
 import { buildSpeakerCalendar } from "./icalendar";
-import { assessDeliveryProof, assessDeliveryRetry, MAX_DELIVERY_ATTEMPTS } from "./delivery-policy";
+import { assessDeliveryProof, assessDeliveryRetry, deliveryTruthForStatus, MAX_DELIVERY_ATTEMPTS } from "./delivery-policy";
 import { findMergeFields, MergeFieldError, renderMergeFields } from "./merge-fields";
 
 type QueueCommunicationCommand = z.infer<typeof QueueCommunicationCommandSchema>;
@@ -905,9 +905,8 @@ async function recomputeCommunicationStatus(
   const recipients = await transaction.select({ status: communicationRecipients.status }).from(communicationRecipients)
     .where(eq(communicationRecipients.communicationId, communicationId));
   if (!recipients.length) return;
-  const terminalFailure = new Set<DeliveryState>(["bounced", "failed", "blocked_external"]);
-  const pending = recipients.some((recipient) => ["queued", "sending", "accepted"].includes(recipient.status));
-  const failures = recipients.filter((recipient) => terminalFailure.has(recipient.status));
+  const pending = recipients.some((recipient) => deliveryTruthForStatus(recipient.status) === "in_flight");
+  const failures = recipients.filter((recipient) => deliveryTruthForStatus(recipient.status) === "failed");
   const status = pending
     ? "sending"
     : failures.length === 0

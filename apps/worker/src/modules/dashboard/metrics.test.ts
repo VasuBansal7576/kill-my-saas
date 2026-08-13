@@ -66,8 +66,28 @@ describe("organizer dashboard metric definitions", () => {
     expect(dashboard.speakers).toMatchObject({ accepted: 2, ready: 1, needingAttention: 2, tasks: { total: 3, completed: 1, overdue: 1 } });
     expect(dashboard.speakers.attention[0]).toMatchObject({ displayName: "Priya Raman", completed: 1, total: 2, overdue: 1 });
     expect(dashboard.deliverables).toMatchObject({ total: 2, approved: 1, outstanding: 1, overdue: 1, awaitingReview: 1, missing: 0 });
-    expect(dashboard.communications).toEqual({ recipients: 4, successful: 2, inFlight: 1, failed: 1, deliveryRate: 50, undelivered: 2 });
+    expect(dashboard.communications).toEqual({ recipients: 4, successful: 1, inFlight: 2, failed: 1, deliveryRate: 25, undelivered: 3 });
     expect(dashboard.integrations).toEqual({ failures: 3, providers: [{ provider: "airtable", status: "partial", failedItems: 3 }] });
+  });
+
+  it("keeps provider-accepted recipients in flight until delivered evidence arrives", () => {
+    const now = new Date("2027-05-10T12:00:00.000Z");
+    const rows = emptyRows();
+    rows.recipients.push(...Array.from({ length: 12 }, (_, index) => ({
+      id: `accepted-${index + 1}`,
+      status: "accepted" as const,
+      updatedAt: now,
+      lastOutcomeAt: now,
+    })));
+
+    expect(deriveDashboardSnapshot(event, rows, now).communications).toEqual({
+      recipients: 12,
+      successful: 0,
+      inFlight: 12,
+      failed: 0,
+      deliveryRate: 0,
+      undelivered: 12,
+    });
   });
 
   it("counts room and shared-speaker overlaps while treating back-to-back placements as conflict-free", () => {

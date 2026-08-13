@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { assessDeliveryProof, assessDeliveryRetry, MAX_DELIVERY_ATTEMPTS } from "./delivery-policy";
+import { assessDeliveryProof, assessDeliveryRetry, deliveryTruthForStatus, MAX_DELIVERY_ATTEMPTS } from "./delivery-policy";
 
 describe("truthful delivery proof and bounded retries", () => {
+  it("classifies provider acceptance as in flight rather than delivered", () => {
+    expect(deliveryTruthForStatus("accepted")).toBe("in_flight");
+    expect(deliveryTruthForStatus("sending")).toBe("in_flight");
+    expect(deliveryTruthForStatus("delivered")).toBe("delivered");
+  });
+
   it("does not present provider queue acceptance as delivery", () => {
     expect(assessDeliveryProof({ status: "accepted", providerMessageId: "brevo-message-1" })).toEqual({
       claim: "provider_accepted",

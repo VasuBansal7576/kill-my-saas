@@ -26,6 +26,7 @@ import {
 import { and, desc, eq, isNull } from "drizzle-orm";
 import type { Actor } from "../identity-access/actor";
 import { actorCanAccessEvent } from "../identity-access/actor";
+import { deliveryTruthForStatus } from "../communications/delivery-policy";
 import { deriveScheduleConflicts } from "../scheduling/rules";
 import type { SchedulePlacement, ScheduleRoom, ScheduleSession } from "../scheduling/types";
 import type { DashboardRows, DashboardSnapshot } from "./types";
@@ -220,9 +221,9 @@ export function deriveDashboardSnapshot(
     ? 0
     : Math.max(0, Math.round(((scheduled - conflicts) / rows.sessions.length) * 100));
 
-  const successfulRecipients = rows.recipients.filter((recipient) => recipient.status === "accepted" || recipient.status === "delivered").length;
-  const inFlightRecipients = rows.recipients.filter((recipient) => recipient.status === "queued" || recipient.status === "sending").length;
-  const failedRecipients = rows.recipients.filter((recipient) => recipient.status === "bounced" || recipient.status === "failed" || recipient.status === "blocked_external").length;
+  const deliveredRecipients = rows.recipients.filter((recipient) => deliveryTruthForStatus(recipient.status) === "delivered").length;
+  const inFlightRecipients = rows.recipients.filter((recipient) => deliveryTruthForStatus(recipient.status) === "in_flight").length;
+  const failedRecipients = rows.recipients.filter((recipient) => deliveryTruthForStatus(recipient.status) === "failed").length;
   const acceptedSpeakers = rows.speakers.filter((speaker) => speaker.status !== "withdrawn");
   const approvedDeliverables = rows.deliverables.filter((deliverable) => deliverable.status === "approved").length;
   const cfpStatus = deriveCfpStatus(rows.forms, now);
@@ -274,11 +275,11 @@ export function deriveDashboardSnapshot(
     },
     communications: {
       recipients: rows.recipients.length,
-      successful: successfulRecipients,
+      successful: deliveredRecipients,
       inFlight: inFlightRecipients,
       failed: failedRecipients,
-      deliveryRate: rows.recipients.length === 0 ? 0 : Math.round((successfulRecipients / rows.recipients.length) * 100),
-      undelivered: rows.recipients.length - successfulRecipients,
+      deliveryRate: rows.recipients.length === 0 ? 0 : Math.round((deliveredRecipients / rows.recipients.length) * 100),
+      undelivered: rows.recipients.length - deliveredRecipients,
     },
     integrations: {
       failures: rows.integrationRuns.filter((run) => ["partial", "failed", "blocked_external"].includes(run.status)).reduce((sum, run) => sum + Math.max(1, run.failedItems), 0),
