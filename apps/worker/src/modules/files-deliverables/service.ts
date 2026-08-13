@@ -47,6 +47,7 @@ export class FilesDeliverablesError extends Error {
 export interface DeliverableRow {
   id: string;
   eventId: string;
+  eventTimezone: string;
   taskAssignmentId: string | null;
   eventSpeakerId: string;
   personId: string;
@@ -658,6 +659,7 @@ async function loadDeliverables(database: Database, eventId: string, speakerPers
   const rows = await database.select({
     id: deliverables.id,
     eventId: deliverables.eventId,
+    eventTimezone: events.timezone,
     taskAssignmentId: deliverables.taskAssignmentId,
     eventSpeakerId: eventSpeakers.id,
     personId: eventSpeakers.personId,
@@ -671,6 +673,7 @@ async function loadDeliverables(database: Database, eventId: string, speakerPers
     latestVersion: deliverables.latestVersion,
     configuration: speakerTasks.configuration,
   }).from(deliverables)
+    .innerJoin(events, eq(events.id, deliverables.eventId))
     .leftJoin(speakerTaskAssignments, eq(speakerTaskAssignments.id, deliverables.taskAssignmentId))
     .leftJoin(speakerTasks, eq(speakerTasks.id, speakerTaskAssignments.taskId))
     .innerJoin(eventSpeakers, eq(eventSpeakers.id, deliverables.eventSpeakerId))

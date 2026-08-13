@@ -13,6 +13,10 @@ export function formatEventDateTime(
   return new Intl.DateTimeFormat(undefined, options).format(asDate(value));
 }
 
+export function formatEventDueDate(value: string | Date | null, timeZone: string): string {
+  return value ? formatEventDateTime(value, timeZone) : "No due date";
+}
+
 export function formatEventTimeRange(
   startsAt: string,
   endsAt: string,

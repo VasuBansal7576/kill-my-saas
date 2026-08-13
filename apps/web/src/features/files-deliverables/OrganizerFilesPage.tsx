@@ -1,5 +1,7 @@
+import type { EventConfiguration } from "@programflow/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { eventLocalDateTimeToIso, formatEventDueDate } from "../../app/event-time";
 import { jsonRequest, requestJson, sha256 } from "./api";
 import styles from "./files-deliverables.module.css";
 import type {
@@ -15,6 +17,7 @@ export function OrganizerFilesPage() {
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [speakers, setSpeakers] = useState<SpeakerChoice[]>([]);
   const [exports, setExports] = useState<FileExport[]>([]);
+  const [timezone, setTimezone] = useState("UTC");
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState<string | null>(null);
   const [checked, setChecked] = useState<string[]>([]);
@@ -28,7 +31,7 @@ export function OrganizerFilesPage() {
   const idempotencyKey = useRef(crypto.randomUUID());
 
   const load = useCallback(async () => {
-    const [files, roster, exportRows] = await Promise.all([
+    const [files, roster, exportRows, event] = await Promise.all([
       requestJson<Deliverable[]>(`/api/v1/organizer/events/${eventSlug}/files`),
       requestJson<SpeakerChoice[]>(
         `/api/v1/organizer/events/${eventSlug}/speakers?taskStatus=all&search=`,
@@ -36,10 +39,14 @@ export function OrganizerFilesPage() {
       requestJson<FileExport[]>(
         `/api/v1/organizer/events/${eventSlug}/file-exports`,
       ),
+      requestJson<EventConfiguration>(
+        `/api/v1/organizer/events/${eventSlug}/configuration`,
+      ),
     ]);
     setDeliverables(files);
     setSpeakers(roster);
     setExports(exportRows);
+    setTimezone(event.timezone);
   }, [eventSlug]);
   useEffect(() => {
     Promise.all([
@@ -50,11 +57,15 @@ export function OrganizerFilesPage() {
       requestJson<FileExport[]>(
         `/api/v1/organizer/events/${eventSlug}/file-exports`,
       ),
+      requestJson<EventConfiguration>(
+        `/api/v1/organizer/events/${eventSlug}/configuration`,
+      ),
     ])
-      .then(([files, roster, exportRows]) => {
+      .then(([files, roster, exportRows, event]) => {
         setDeliverables(files);
         setSpeakers(roster);
         setExports(exportRows);
+        setTimezone(event.timezone);
       })
       .catch(showError(setMessage));
   }, [eventSlug]);
@@ -93,9 +104,7 @@ export function OrganizerFilesPage() {
         jsonRequest("POST", {
           title: form.get("title"),
           instructions: form.get("instructions"),
-          dueAt: form.get("dueAt")
-            ? new Date(String(form.get("dueAt"))).toISOString()
-            : null,
+          dueAt: eventLocalDateTimeToIso(String(form.get("dueAt") ?? ""), timezone),
           eventSpeakerIds: form.getAll("speakers").map(String),
           acceptedMediaTypes: form.getAll("mediaTypes").map(String),
           maxByteSize: Number(form.get("maxMegabytes")) * 1024 * 1024,
@@ -391,7 +400,7 @@ export function OrganizerFilesPage() {
                       {row.taskTitle} · {row.sessionTitle ?? "Speaker profile"}
                     </small>
                   </span>
-                  <span>{formatDate(row.dueAt)}</span>
+                  <span>{formatEventDueDate(row.dueAt, timezone)}</span>
                   <Status value={row.status} />
                   <span>
                     {row.latestVersion ? `v${row.latestVersion}` : "—"}
@@ -592,7 +601,7 @@ export function OrganizerFilesPage() {
                 />
               </label>
               <label>
-                Due date
+                Due date <small>{timezone}</small>
                 <input required type="datetime-local" name="dueAt" />
               </label>
               <label>

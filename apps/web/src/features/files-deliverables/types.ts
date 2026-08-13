@@ -3,6 +3,7 @@ export interface FileVersion { id: string; version: number; originalName: string
 export interface Deliverable {
   id: string;
   eventId: string;
+  eventTimezone: string;
   taskAssignmentId: string | null;
   eventSpeakerId: string;
   personId: string;
