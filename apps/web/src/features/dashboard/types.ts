@@ -9,7 +9,7 @@ export interface DashboardSnapshot {
     submittedTrend: Array<{ day: string; count: number }>;
   };
   reviews: { assigned: number; completed: number; recused: number; outstanding: number; percentComplete: number; activeConflicts: number };
-  decisions: { undecided: number; accepted: number; rejected: number; notified: number };
+  decisions: { undecided: number; accepted: number; rejected: number; notified: number; notificationPending: number };
   speakers: {
     accepted: number;
     ready: number;
@@ -17,8 +17,9 @@ export interface DashboardSnapshot {
     tasks: { total: number; completed: number; overdue: number };
     attention: Array<{ eventSpeakerId: string; displayName: string; completed: number; total: number; overdue: number }>;
   };
-  deliverables: { total: number; approved: number; outstanding: number; overdue: number; awaitingReview: number; changesRequested: number };
-  communications: { recipients: number; successful: number; inFlight: number; failed: number; deliveryRate: number };
+  deliverables: { total: number; approved: number; outstanding: number; overdue: number; awaitingReview: number; changesRequested: number; missing: number };
+  communications: { recipients: number; successful: number; inFlight: number; failed: number; deliveryRate: number; undelivered: number };
+  integrations: { failures: number; providers: Array<{ provider: "airtable" | "accelevents"; status: string; failedItems: number }> };
   agenda: {
     revisionId: string | null;
     revisionVersion: number | null;

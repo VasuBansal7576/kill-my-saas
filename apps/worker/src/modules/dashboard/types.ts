@@ -28,6 +28,7 @@ export interface DashboardSnapshot {
     accepted: number;
     rejected: number;
     notified: number;
+    notificationPending: number;
   };
   speakers: {
     accepted: number;
@@ -49,6 +50,7 @@ export interface DashboardSnapshot {
     overdue: number;
     awaitingReview: number;
     changesRequested: number;
+    missing: number;
   };
   communications: {
     recipients: number;
@@ -56,6 +58,11 @@ export interface DashboardSnapshot {
     inFlight: number;
     failed: number;
     deliveryRate: number;
+    undelivered: number;
+  };
+  integrations: {
+    failures: number;
+    providers: Array<{ provider: "airtable" | "accelevents"; status: string; failedItems: number }>;
   };
   agenda: {
     revisionId: string | null;
@@ -116,4 +123,5 @@ export interface DashboardRows {
   rooms: Array<{ id: string; name: string }>;
   sessionSpeakers: Array<{ sessionId: string; personId: string; displayName: string }>;
   publication: { state: "draft" | "live" | "paused"; publicRevision: number; liveAt: Date | null; updatedAt: Date } | null;
+  integrationRuns: Array<{ provider: "airtable" | "accelevents"; status: string; failedItems: number }>;
 }

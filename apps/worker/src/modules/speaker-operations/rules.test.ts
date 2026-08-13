@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSpeakerCsv } from "./csv";
+import { parseSpeakerCsv, previewSpeakerCsv } from "./csv";
 import { sanitizeSpeakerResourceHtml } from "./resource-sanitizer";
 
 describe("speaker CSV import", () => {
@@ -11,6 +11,14 @@ describe("speaker CSV import", () => {
 
   it("rejects incomplete import shapes before persistence", () => {
     expect(() => parseSpeakerCsv("name,email\nPriya Raman,priya@example.com")).toThrow("required title column");
+  });
+
+  it("returns every row for partial correction and flags duplicate identities before commit", () => {
+    const rows = previewSpeakerCsv("name,email,title,company,bio\nPriya Raman,priya@example.com,Engineer,Northstar,Valid\nBroken,not-an-email,Engineer,Northstar,Fix me\nPriya Again,PRIYA@example.com,Lead,Other,Duplicate");
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toMatchObject({ issues: [], duplicateOfRow: null, normalizedEmail: "priya@example.com" });
+    expect(rows[1]?.issues).toEqual(expect.arrayContaining([expect.objectContaining({ field: "email" })]));
+    expect(rows[2]).toMatchObject({ duplicateOfRow: 2, normalizedEmail: "priya@example.com" });
   });
 });
 

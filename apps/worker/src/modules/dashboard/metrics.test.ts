@@ -49,6 +49,10 @@ describe("organizer dashboard metric definitions", () => {
       { id: "mail-3", status: "bounced", updatedAt: now, lastOutcomeAt: now },
       { id: "mail-4", status: "queued", updatedAt: now, lastOutcomeAt: null },
     );
+    rows.integrationRuns.push(
+      { provider: "airtable", status: "partial", failedItems: 3 },
+      { provider: "accelevents", status: "succeeded", failedItems: 0 },
+    );
 
     const dashboard = deriveDashboardSnapshot(event, rows, now);
 
@@ -61,8 +65,9 @@ describe("organizer dashboard metric definitions", () => {
     expect(dashboard.decisions).toMatchObject({ undecided: 2, accepted: 1, rejected: 0, notified: 0 });
     expect(dashboard.speakers).toMatchObject({ accepted: 2, ready: 1, needingAttention: 2, tasks: { total: 3, completed: 1, overdue: 1 } });
     expect(dashboard.speakers.attention[0]).toMatchObject({ displayName: "Priya Raman", completed: 1, total: 2, overdue: 1 });
-    expect(dashboard.deliverables).toMatchObject({ total: 2, approved: 1, outstanding: 1, overdue: 1, awaitingReview: 1 });
-    expect(dashboard.communications).toEqual({ recipients: 4, successful: 2, inFlight: 1, failed: 1, deliveryRate: 50 });
+    expect(dashboard.deliverables).toMatchObject({ total: 2, approved: 1, outstanding: 1, overdue: 1, awaitingReview: 1, missing: 0 });
+    expect(dashboard.communications).toEqual({ recipients: 4, successful: 2, inFlight: 1, failed: 1, deliveryRate: 50, undelivered: 2 });
+    expect(dashboard.integrations).toEqual({ failures: 3, providers: [{ provider: "airtable", status: "partial", failedItems: 3 }] });
   });
 
   it("counts room and shared-speaker overlaps while treating back-to-back placements as conflict-free", () => {
@@ -112,5 +117,6 @@ function emptyRows(): DashboardRows {
     rooms: [],
     sessionSpeakers: [],
     publication: null,
+    integrationRuns: [],
   };
 }

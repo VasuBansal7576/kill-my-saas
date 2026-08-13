@@ -23,7 +23,7 @@ import type {
   SpeakerStatus,
   UpdateSpeakerInput,
 } from "./contracts";
-import { parseSpeakerCsv } from "./csv";
+import { parseSpeakerCsv, previewSpeakerCsv } from "./csv";
 import { sanitizeSpeakerResourceHtml } from "./resource-sanitizer";
 
 type SpeakerOperationsErrorCode =
@@ -210,7 +210,66 @@ export async function importSpeakers(
   const parsed = parseSpeakerCsv(csv);
   const results: Array<{ row: number; eventSpeakerId: string; created: boolean }> = [];
   for (const row of parsed) {
-    const persisted = await persistExplicitSpeaker(database, event.id, row.input);
+    const persisted = await persistExplicitSpeaker(database, event.id, row.input, { updateExistingProfile: false });
+    results.push({ row: row.row, ...persisted });
+  }
+  return {
+    imported: results.filter((result) => result.created).length,
+    reused: results.filter((result) => !result.created).length,
+    rows: results.map(({ row, eventSpeakerId }) => ({ row, eventSpeakerId })),
+  };
+}
+
+export async function previewSpeakerImport(database: Database, actor: Actor, eventSlug: string, csv: string) {
+  const event = await requireEvent(database, actor, eventSlug, "organizer");
+  const preview = previewSpeakerCsv(csv);
+  const emails = [...new Set(preview.map((row) => row.normalizedEmail).filter(Boolean))];
+  const aliasRows = emails.length === 0 ? [] : await database.select({
+    normalizedEmail: personEmailAliases.normalizedEmail,
+    personId: personEmailAliases.personId,
+  }).from(personEmailAliases).where(inArray(personEmailAliases.normalizedEmail, emails));
+  const canonicalRows = emails.length === 0 ? [] : await database.select({
+    personId: people.id,
+    canonicalEmail: people.canonicalEmail,
+  }).from(people).where(inArray(sql<string>`lower(${people.canonicalEmail})`, emails));
+  const personByEmail = new Map(aliasRows.map((row) => [row.normalizedEmail, row.personId]));
+  for (const row of canonicalRows) if (row.canonicalEmail) personByEmail.set(row.canonicalEmail.toLowerCase(), row.personId);
+  const personIds = [...new Set(personByEmail.values())];
+  const eventRows = personIds.length === 0 ? [] : await database.select({ personId: eventSpeakers.personId })
+    .from(eventSpeakers).where(and(eq(eventSpeakers.eventId, event.id), inArray(eventSpeakers.personId, personIds)));
+  const eventPeople = new Set(eventRows.map((row) => row.personId));
+  return {
+    rows: preview.map((row) => {
+      const personId = personByEmail.get(row.normalizedEmail) ?? null;
+      return {
+        ...row,
+        identity: row.duplicateOfRow
+          ? "duplicate_in_file" as const
+          : personId && eventPeople.has(personId)
+            ? "existing_event_speaker" as const
+            : personId
+              ? "existing_person" as const
+              : "new_person" as const,
+        personId,
+      };
+    }),
+  };
+}
+
+export async function commitSpeakerImport(
+  database: Database,
+  actor: Actor,
+  eventSlug: string,
+  rows: Array<{ row: number; input: AddSpeakerInput }>,
+) {
+  const event = await requireEvent(database, actor, eventSlug, "organizer");
+  const seen = new Set<string>();
+  const results: Array<{ row: number; eventSpeakerId: string; created: boolean }> = [];
+  for (const row of rows) {
+    const normalizedEmail = row.input.email.trim().toLowerCase();
+    if (seen.has(normalizedEmail)) throw new SpeakerOperationsError("conflict", `Import row ${row.row} repeats an email already selected in this commit.`);
+    seen.add(normalizedEmail);
+    const persisted = await persistExplicitSpeaker(database, event.id, row.input, { updateExistingProfile: false });
     results.push({ row: row.row, ...persisted });
   }
   return {
@@ -441,7 +500,12 @@ export async function saveSpeakerResource(
   return created;
 }
 
-async function persistExplicitSpeaker(database: Database, eventId: string, input: AddSpeakerInput): Promise<{ eventSpeakerId: string; created: boolean }> {
+async function persistExplicitSpeaker(
+  database: Database,
+  eventId: string,
+  input: AddSpeakerInput,
+  options: { updateExistingProfile: boolean } = { updateExistingProfile: true },
+): Promise<{ eventSpeakerId: string; created: boolean }> {
   const normalizedEmail = input.email.trim().toLowerCase();
   return database.transaction(async (transaction) => {
     const [alias] = await transaction.select({ personId: personEmailAliases.personId }).from(personEmailAliases)
@@ -457,7 +521,7 @@ async function persistExplicitSpeaker(database: Database, eventId: string, input
       }).returning({ id: people.id });
       if (!created) throw new SpeakerOperationsError("conflict", "The speaker person could not be created.");
       personId = created.id;
-    } else {
+    } else if (options.updateExistingProfile) {
       await transaction.update(people).set({ displayName: input.displayName, updatedAt: new Date() }).where(eq(people.id, personId));
     }
     await transaction.insert(personEmailAliases).values({
@@ -466,22 +530,27 @@ async function persistExplicitSpeaker(database: Database, eventId: string, input
       normalizedEmail,
       isCanonical: true,
     }).onConflictDoNothing();
-    await transaction.insert(speakerProfiles).values({
+    const profileInsert = transaction.insert(speakerProfiles).values({
       personId,
       biography: input.biography,
       company: input.company,
       jobTitle: input.jobTitle,
       socialLinks: input.socialLinks,
-    }).onConflictDoUpdate({
-      target: speakerProfiles.personId,
-      set: {
-        biography: input.biography,
-        company: input.company,
-        jobTitle: input.jobTitle,
-        socialLinks: input.socialLinks,
-        updatedAt: new Date(),
-      },
     });
+    if (options.updateExistingProfile) {
+      await profileInsert.onConflictDoUpdate({
+        target: speakerProfiles.personId,
+        set: {
+          biography: input.biography,
+          company: input.company,
+          jobTitle: input.jobTitle,
+          socialLinks: input.socialLinks,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      await profileInsert.onConflictDoNothing();
+    }
     await transaction.insert(eventMemberships).values({ eventId, personId, role: "speaker" }).onConflictDoNothing();
     const [before] = await transaction.select({ id: eventSpeakers.id }).from(eventSpeakers)
       .where(and(eq(eventSpeakers.eventId, eventId), eq(eventSpeakers.personId, personId))).limit(1);

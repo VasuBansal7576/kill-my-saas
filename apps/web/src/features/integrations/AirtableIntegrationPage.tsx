@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getAirtableWorkspace, runAirtableSync, saveAirtableConfiguration } from "./api";
+import { flattenAirtableReceipts, groupAirtableFailures, searchAirtableReceipts } from "./evidence";
 import styles from "./integrations.module.css";
+import evidenceStyles from "./integration-evidence.module.css";
 import type { AirtableFieldMapping, AirtableSyncRun, AirtableWorkspace } from "./types";
 
 export function AirtableIntegrationPage() {
@@ -11,6 +13,7 @@ export function AirtableIntegrationPage() {
   const [busy, setBusy] = useState<"save" | "export" | "import" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [receiptSearch, setReceiptSearch] = useState("");
 
   async function load() {
     const next = await getAirtableWorkspace(eventSlug);
@@ -28,10 +31,9 @@ export function AirtableIntegrationPage() {
     return () => { active = false; };
   }, [eventSlug]);
 
-  const failures = useMemo(() => workspace?.recentRuns.flatMap((run) =>
-    run.items.filter((item) => item.status === "failed" || item.status === "conflict" || item.status === "blocked_external")
-      .map((item) => ({ run, item })),
-  ).slice(0, 30) ?? [], [workspace]);
+  const receipts = useMemo(() => flattenAirtableReceipts(workspace?.recentRuns ?? []), [workspace]);
+  const failureGroups = useMemo(() => groupAirtableFailures(receipts), [receipts]);
+  const visibleReceipts = useMemo(() => searchAirtableReceipts(receipts, receiptSearch).slice(0, 100), [receiptSearch, receipts]);
 
   async function save() {
     if (!form) return;
@@ -126,13 +128,30 @@ export function AirtableIntegrationPage() {
       </div>)}
     </section>
 
+    <section className={evidenceStyles.ownershipPanel}>
+      <div className={styles.sectionHead}><div><span>Authority boundary</span><h2>Two-way augmentation ownership</h2></div><em>PostgreSQL canonical by default</em></div>
+      <div className={evidenceStyles.ownershipGrid}>
+        <article><strong>ProgramFlow-owned → Airtable</strong><p>Identity, profile, session, decision, schedule, and publication fields remain canonical here. Export updates Airtable using stable <code>_programflow_id</code> links.</p></article>
+        <article><strong>Airtable-owned → namespaced attributes</strong><p>Only mappings explicitly owned by Airtable can import. Values land in external attributes and never overwrite identity or workflow authority.</p></article>
+      </div>
+    </section>
+
     <section className={styles.failurePanel}>
-      <div className={styles.sectionHead}><div><span>Inspectable evidence</span><h2>Row receipts and failures</h2></div><em>{failures.length} recent issues</em></div>
-      {failures.length ? failures.map(({ run, item }) => <article className={styles.failure} key={item.id}>
-        <Status value={item.status} good={false} />
-        <div><strong>{item.entityType ?? "configuration"} · {item.canonicalId ?? item.airtableRecordId ?? "run"}</strong><p>{item.errorMessage ?? "Synchronization item needs attention."}</p><small>{item.errorCode ?? "unknown_error"} · {run.direction} · {formatDate(item.createdAt)}</small></div>
-        <span>{item.airtableRecordId ?? "No Airtable record ID"}<small>{item.providerResponded ? "Provider responded" : "No provider response"}</small></span>
-      </article>) : <p className={styles.empty}>No row-level failures have been recorded.</p>}
+      <div className={styles.sectionHead}><div><span>Failure diagnosis</span><h2>Repeated causes</h2></div><em>{failureGroups.reduce((sum, group) => sum + group.affected, 0)} affected receipts</em></div>
+      {failureGroups.length ? <div className={evidenceStyles.failureGroups}>{failureGroups.map((group) => <article className={evidenceStyles.failureGroup} key={group.key}>
+        <div><Status value={group.errorCode} good={false} /><strong>{group.affected} affected</strong></div>
+        <p>{group.message}</p><small>{group.remediation}</small>
+        <code>{group.examples.map((item) => item.canonicalId ?? item.airtableRecordId ?? item.id).join(" · ")}</code>
+      </article>)}</div> : <p className={styles.empty}>No repeated row-level failures have been recorded.</p>}
+    </section>
+
+    <section className={styles.failurePanel}>
+      <div className={styles.sectionHead}><div><span>Inspectable evidence</span><h2>Searchable raw receipts</h2></div><em>{visibleReceipts.length} of {receipts.length}</em></div>
+      <label className={evidenceStyles.receiptSearch}>Search ID, status, cause, or metadata<input type="search" value={receiptSearch} onChange={(event) => setReceiptSearch(event.target.value)} placeholder="canonical ID, Airtable record, request ID…" /></label>
+      {visibleReceipts.length ? visibleReceipts.map((item) => <details className={evidenceStyles.receipt} key={item.id}>
+        <summary><Status value={item.status} good={item.status === "synced" || item.status === "skipped"} /><strong>{item.entityType ?? "configuration"} · {item.canonicalId ?? item.airtableRecordId ?? "run"}</strong><small>{item.direction} · {formatDate(item.createdAt)}</small></summary>
+        <div><p>{item.errorMessage ?? "No error recorded."}</p><code>{JSON.stringify({ runId: item.runId, airtableRecordId: item.airtableRecordId, operation: item.operation, attemptCount: item.attemptCount, providerResponded: item.providerResponded, errorCode: item.errorCode, requestMetadata: item.requestMetadata, responseMetadata: item.responseMetadata }, null, 2)}</code></div>
+      </details>) : <p className={styles.empty}>No receipts match this search.</p>}
     </section>
   </div>;
 }

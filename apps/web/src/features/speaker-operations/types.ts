@@ -68,3 +68,15 @@ export interface SpeakerPortal {
 }
 
 export interface ApiErrorBody { error?: { message?: string } }
+
+export interface SpeakerImportPreviewRow {
+  row: number;
+  input: { displayName: string; email: string; jobTitle: string; company: string; biography: string };
+  normalizedEmail: string;
+  issues: Array<{ field: string; message: string }>;
+  duplicateOfRow: number | null;
+  identity: "new_person" | "existing_person" | "existing_event_speaker" | "duplicate_in_file";
+  personId: string | null;
+  selected: boolean;
+  dirty?: boolean;
+}

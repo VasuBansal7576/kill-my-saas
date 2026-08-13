@@ -1,0 +1,19 @@
+.ownershipPanel { margin-top: 12px; padding: 18px; border: 1px solid #292927; border-radius: 9px; background: #111110; }
+.ownershipGrid, .failureGroups { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin-top: 12px; }
+.ownershipGrid article, .failureGroup { padding: 13px; border: 1px solid #2f2928; border-radius: 7px; background: #171514; }
+.ownershipGrid strong, .failureGroup strong { font-size: 10px; }
+.ownershipGrid p, .failureGroup p { color: #a09590; font-size: 10px; line-height: 1.55; }
+.failureGroup > div { display: flex; justify-content: space-between; gap: 8px; }
+.failureGroup small { display: block; color: #92928c; font-size: 9px; line-height: 1.5; }
+.failureGroup > code { display: block; margin-top: 9px; color: #777772; font-size: 8px; overflow-wrap: anywhere; }
+.receiptSearch { display: grid; gap: 6px; margin: 12px 0; color: #8b8b85; font-size: 9px; }
+.receiptSearch input { padding: 9px 10px; border: 1px solid #31312e; border-radius: 6px; background: #181817; color: #e1e1dd; }
+.receipt { border-top: 1px solid #282826; }
+.receipt summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 12px 2px; cursor: pointer; }
+.receipt summary strong { font-size: 10px; }
+.receipt summary small { color: #74746f; font-size: 8px; }
+.receipt > div { padding: 0 4px 13px; }
+.receipt p { color: #a2a29c; font-size: 9px; }
+.receipt > div > code { display: block; max-height: 220px; overflow: auto; padding: 10px; border: 1px solid #292927; border-radius: 6px; background: #0d0d0c; color: #8f8f89; font-size: 8px; white-space: pre-wrap; }
+
+@media (max-width: 700px) { .receipt summary { grid-template-columns: 1fr; } }

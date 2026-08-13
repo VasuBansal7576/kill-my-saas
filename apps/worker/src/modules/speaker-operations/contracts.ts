@@ -63,6 +63,9 @@ export const SaveSpeakerResourceInputSchema = z.object({
 });
 
 export const ImportSpeakersInputSchema = z.object({ csv: z.string().min(1).max(2_000_000) });
+export const CommitSpeakerImportInputSchema = z.object({
+  rows: z.array(z.object({ row: z.number().int().min(2), input: AddSpeakerInputSchema })).min(1).max(2_000),
+});
 
 export type AddSpeakerInput = z.infer<typeof AddSpeakerInputSchema>;
 export type UpdateSpeakerInput = z.infer<typeof UpdateSpeakerInputSchema>;

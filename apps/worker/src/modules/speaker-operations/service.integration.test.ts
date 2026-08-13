@@ -21,6 +21,7 @@ import {
   SpeakerOperationsError,
   addSpeaker,
   completeOwnSpeakerTask,
+  commitSpeakerImport,
   createSpeakerTask,
   getSpeakerDetail,
   getSpeakerPortal,
@@ -145,5 +146,13 @@ integration("speaker operations persisted role round trip", () => {
       await tooling.database.delete(personEmailAliases).where(eq(personEmailAliases.personId, otherSpeaker.personId));
       await tooling.database.delete(people).where(eq(people.id, otherSpeaker.personId));
     }
+  });
+
+  it("reuses canonical identity during import without overwriting an existing profile", async () => {
+    const email = `identity-safe-${ids.event}@example.com`;
+    const existing = await addSpeaker(database, organizer, slug, { displayName: "Canonical Name", email, jobTitle: "Principal", company: "Canonical Co", biography: "Keep this biography", socialLinks: {}, logistics: {} });
+    const result = await commitSpeakerImport(database, organizer, slug, [{ row: 2, input: { displayName: "CSV Name", email: email.toUpperCase(), jobTitle: "CSV title", company: "CSV Co", biography: "CSV biography", socialLinks: {}, logistics: {} } }]);
+    expect(result).toMatchObject({ imported: 0, reused: 1 });
+    expect(await getSpeakerDetail(database, organizer, slug, existing.eventSpeakerId)).toMatchObject({ displayName: "Canonical Name", jobTitle: "Principal", company: "Canonical Co", biography: "Keep this biography" });
   });
 });

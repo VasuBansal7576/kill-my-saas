@@ -1,4 +1,6 @@
 import {
+  acceleventsSyncRuns,
+  airtableSyncRuns,
   cfpForms,
   communicationRecipients,
   communications,
@@ -65,6 +67,8 @@ export async function getOrganizerDashboard(
     sessionRows,
     revisionRows,
     publicationRows,
+    airtableRunRows,
+    acceleventsRunRows,
   ] = await Promise.all([
     database.select({ status: cfpForms.status, opensAt: cfpForms.opensAt, closesAt: cfpForms.closesAt })
       .from(cfpForms).where(eq(cfpForms.eventId, event.id)),
@@ -109,6 +113,10 @@ export async function getOrganizerDashboard(
       .from(scheduleRevisions).where(eq(scheduleRevisions.eventId, event.id)).orderBy(desc(scheduleRevisions.version)).limit(1),
     database.select({ state: publications.state, publicRevision: publications.publicRevision, liveAt: publications.liveAt, updatedAt: publications.updatedAt })
       .from(publications).where(eq(publications.eventId, event.id)).limit(1),
+    database.select({ status: airtableSyncRuns.status, failedItems: airtableSyncRuns.failedCount })
+      .from(airtableSyncRuns).where(eq(airtableSyncRuns.eventId, event.id)).orderBy(desc(airtableSyncRuns.createdAt)).limit(1),
+    database.select({ status: acceleventsSyncRuns.status, failedItems: acceleventsSyncRuns.failedCount })
+      .from(acceleventsSyncRuns).where(eq(acceleventsSyncRuns.eventId, event.id)).orderBy(desc(acceleventsSyncRuns.createdAt)).limit(1),
   ]);
 
   const latestRevision = revisionRows[0] ?? null;
@@ -153,6 +161,10 @@ export async function getOrganizerDashboard(
     rooms: roomRows,
     sessionSpeakers: sessionSpeakerRows,
     publication: publicationRows[0] ?? null,
+    integrationRuns: [
+      ...(airtableRunRows[0] ? [{ provider: "airtable" as const, ...airtableRunRows[0] }] : []),
+      ...(acceleventsRunRows[0] ? [{ provider: "accelevents" as const, ...acceleventsRunRows[0] }] : []),
+    ],
   }, now);
 }
 
@@ -238,6 +250,7 @@ export function deriveDashboardSnapshot(
       accepted: rows.decisions.filter((decision) => decision.outcome === "accepted").length,
       rejected: rows.decisions.filter((decision) => decision.outcome === "rejected").length,
       notified: rows.decisions.filter((decision) => decision.notifiedAt !== null).length,
+      notificationPending: rows.decisions.filter((decision) => decision.notifiedAt === null).length,
     },
     speakers: {
       accepted: acceptedSpeakers.length,
@@ -257,6 +270,7 @@ export function deriveDashboardSnapshot(
       overdue: rows.deliverables.filter((deliverable) => overdue(deliverable.dueAt, deliverable.status === "approved")).length,
       awaitingReview: rows.deliverables.filter((deliverable) => deliverable.status === "submitted").length,
       changesRequested: rows.deliverables.filter((deliverable) => deliverable.status === "changes_requested").length,
+      missing: rows.deliverables.filter((deliverable) => deliverable.status === "pending").length,
     },
     communications: {
       recipients: rows.recipients.length,
@@ -264,6 +278,11 @@ export function deriveDashboardSnapshot(
       inFlight: inFlightRecipients,
       failed: failedRecipients,
       deliveryRate: rows.recipients.length === 0 ? 0 : Math.round((successfulRecipients / rows.recipients.length) * 100),
+      undelivered: rows.recipients.length - successfulRecipients,
+    },
+    integrations: {
+      failures: rows.integrationRuns.filter((run) => ["partial", "failed", "blocked_external"].includes(run.status)).reduce((sum, run) => sum + Math.max(1, run.failedItems), 0),
+      providers: rows.integrationRuns.filter((run) => ["partial", "failed", "blocked_external"].includes(run.status)),
     },
     agenda: {
       revisionId: rows.latestRevision?.id ?? null,

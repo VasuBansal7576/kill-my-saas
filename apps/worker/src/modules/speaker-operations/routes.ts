@@ -4,6 +4,7 @@ import type { Env } from "../../env";
 import type { ActorContext } from "../identity-access/actor";
 import {
   AddSpeakerInputSchema,
+  CommitSpeakerImportInputSchema,
   CompleteSpeakerTaskInputSchema,
   CreateSpeakerTaskInputSchema,
   ImportSpeakersInputSchema,
@@ -17,6 +18,7 @@ import {
   SpeakerOperationsError,
   addSpeaker,
   completeOwnSpeakerTask,
+  commitSpeakerImport,
   createSpeakerTask,
   getSpeakerDetail,
   getSpeakerPortal,
@@ -24,6 +26,7 @@ import {
   importSpeakers,
   listSpeakerResources,
   listSpeakerRoster,
+  previewSpeakerImport,
   saveSpeakerResource,
   updateAssignmentDueDate,
   updateOwnSpeakerProfile,
@@ -71,6 +74,30 @@ speakerOperationsOrganizerRoutes.post("/events/:eventSlug/speakers/import", asyn
   if (!input.success) return invalid(context, "invalid_speaker_import", input.error.flatten().fieldErrors);
   try {
     return context.json(await importSpeakers(database, context.get("actor"), context.req.param("eventSlug"), input.data.csv));
+  } catch (error) {
+    return speakerError(context, error);
+  }
+});
+
+speakerOperationsOrganizerRoutes.post("/events/:eventSlug/speakers/import/preview", async (context) => {
+  const database = configuredDatabase(context);
+  if (database instanceof Response) return database;
+  const input = ImportSpeakersInputSchema.safeParse(await context.req.json().catch(() => null));
+  if (!input.success) return invalid(context, "invalid_speaker_import", input.error.flatten().fieldErrors);
+  try {
+    return context.json(await previewSpeakerImport(database, context.get("actor"), context.req.param("eventSlug"), input.data.csv));
+  } catch (error) {
+    return speakerError(context, error);
+  }
+});
+
+speakerOperationsOrganizerRoutes.post("/events/:eventSlug/speakers/import/commit", async (context) => {
+  const database = configuredDatabase(context);
+  if (database instanceof Response) return database;
+  const input = CommitSpeakerImportInputSchema.safeParse(await context.req.json().catch(() => null));
+  if (!input.success) return invalid(context, "invalid_speaker_import", input.error.flatten().fieldErrors);
+  try {
+    return context.json(await commitSpeakerImport(database, context.get("actor"), context.req.param("eventSlug"), input.data.rows));
   } catch (error) {
     return speakerError(context, error);
   }
