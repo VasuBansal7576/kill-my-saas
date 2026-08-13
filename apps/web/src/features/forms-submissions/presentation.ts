@@ -10,6 +10,29 @@ export function decisionLabel(submission: Pick<SubmissionRecord, "decision" | "s
   return submission.state === "draft" ? "Draft" : "Submitted";
 }
 
+export function speakerSubmissionWorkspace(pathname: string) {
+  const decisions = pathname.endsWith("/decisions");
+  return decisions
+    ? {
+        decisions,
+        title: "Your decisions",
+        description: "Review decisions that organizers have released for your submitted proposals.",
+        emptyTitle: "No decisions released yet.",
+        emptyDescription: "Submitted proposals remain in review until organizers release a decision.",
+      }
+    : {
+        decisions,
+        title: "Your proposals",
+        description: "Resume drafts and manage proposals you have authored for this event.",
+        emptyTitle: "No proposals yet.",
+        emptyDescription: "Start from the public call for speakers form.",
+      };
+}
+
+export function submissionsForWorkspace(submissions: SubmissionRecord[], decisions: boolean) {
+  return decisions ? submissions.filter((submission) => submission.decision !== null) : submissions;
+}
+
 export function ensurePrimaryParticipant(participants: ParticipantInput[]): ParticipantInput[] {
   if (participants.length === 0) return [{ ...emptyPrimaryParticipant }];
   const primaryIndex = participants.findIndex((participant) => participant.role === "author");

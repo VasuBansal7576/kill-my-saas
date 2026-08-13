@@ -2,9 +2,22 @@
 .portal { max-width: 1120px; margin: 0 auto; padding: 44px 28px; }
 .pageHead { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding-bottom: 24px; border-bottom: 1px solid #272727; }
 .pageHead h1 { margin: 0; color: #ededed; font-size: clamp(28px,4vw,42px); font-weight: 660; letter-spacing: -.035em; }
+.pageHead h1:focus { outline: 0; }
 .pageHead p:not(.eyebrow) { margin: 10px 0 0; color: #858585; font-size: 12px; }
 .eyebrow { margin: 0 0 9px; color: #d6a24c; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; }
 .notice { margin-top: 16px; padding: 10px 12px; border: 1px solid rgba(75,185,130,.32); border-radius: 7px; background: rgba(75,185,130,.08); color: #89d2ad; font-size: 10px; }
+.projectionWarning, .handoffState, .emptyState, .errorState { margin-top: 18px; padding: 20px; border: 1px solid #303030; border-radius: 8px; background: #151515; }
+.projectionWarning { border-color: rgba(214,162,76,.36); background: rgba(214,162,76,.07); }
+.projectionWarning strong { color: #deb56d; }
+.handoffState { border-color: rgba(227,97,108,.32); background: rgba(227,97,108,.06); }
+.projectionWarning strong, .handoffState strong, .emptyState strong, .errorState strong { font-size: 12px; }
+.projectionWarning p, .handoffState p, .emptyState p, .errorState p { max-width: 720px; margin: 8px 0 14px; color: #8f8f8f; font-size: 11px; line-height: 1.65; }
+.handoffState > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.emptyState .secondary { margin-top: 2px; }
+.errorState { border-color: rgba(227,97,108,.35); background: rgba(227,97,108,.06); }
+.loadingList { display: grid; gap: 14px; margin-top: 18px; }
+.loadingList span { min-height: 170px; border: 1px solid #292929; border-radius: 8px; background: linear-gradient(100deg,#151515 20%,#1d1d1d 45%,#151515 70%); background-size: 220% 100%; animation: files-loading 1.5s ease-in-out infinite; }
+@keyframes files-loading { to { background-position: -220% 0; } }
 .metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 20px 0; }
 .metric { display: grid; gap: 7px; min-height: 90px; align-content: center; padding: 15px; border: 1px solid #292929; border-radius: 8px; background: #151515; }
 .metric small { color: #747474; font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
@@ -74,4 +87,9 @@
   .portal { padding: 28px 16px; }
   .version, .uploadBox { grid-template-columns: 1fr; }
   .uploadBox label { grid-column: auto; grid-row: auto; }
+  .commentForm { grid-template-columns: 1fr; }
+  .commentForm .secondary { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loadingList span { animation: none; }
 }

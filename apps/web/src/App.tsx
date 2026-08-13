@@ -815,7 +815,11 @@ export function NotFoundPage({ dashboardPath }: { dashboardPath?: string }) {
 
 function SpeakerPortalNavigation() {
   const location = useLocation();
+  const menuRef = useRef<HTMLDetailsElement>(null);
   const eventSlug = /^\/speaker\/events\/([^/]+)/.exec(location.pathname)?.[1];
+  useEffect(() => {
+    if (menuRef.current) menuRef.current.open = false;
+  }, [location.pathname]);
   if (!eventSlug) return null;
   const base = `/speaker/events/${eventSlug}`;
   const links = [
@@ -828,7 +832,12 @@ function SpeakerPortalNavigation() {
     ["Profile", `${base}/profile`],
     ["Resources", `${base}/resources`],
   ] as const;
-  return <nav className="speaker-portal-nav" aria-label="Speaker portal">
-    {links.map(([label, to]) => <NavLink key={to} end={to === base} to={to}>{label}</NavLink>)}
-  </nav>;
+  const navigationLinks = links.map(([label, to]) => <NavLink key={to} end={to === base} to={to}>{label}</NavLink>);
+  return <div className="speaker-portal-navigation">
+    <nav className="speaker-portal-nav" aria-label="Speaker portal">{navigationLinks}</nav>
+    <details ref={menuRef} className="speaker-portal-menu">
+      <summary>Speaker sections <span aria-hidden="true">⌄</span></summary>
+      <nav aria-label="Speaker portal sections menu">{navigationLinks}</nav>
+    </details>
+  </div>;
 }

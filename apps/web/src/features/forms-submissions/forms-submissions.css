@@ -900,6 +900,13 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 13px;
 }
+.speaker-submissions h1:focus { outline: 0; }
+.speaker-proposal-loading { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 13px; }
+.speaker-proposal-loading span { min-height: 190px; border: 1px solid #2b302d; border-radius: 9px; background: linear-gradient(100deg,#151816 20%,#1d211e 45%,#151816 70%); background-size: 220% 100%; animation: speaker-proposal-loading 1.5s ease-in-out infinite; }
+.cfp-load-error { max-width: 620px; }
+.cfp-load-error p { color: #a2aaa5; font-size: 11px; line-height: 1.6; }
+.cfp-load-error .primary-action { margin-top: 8px; }
+@keyframes speaker-proposal-loading { to { background-position: -220% 0; } }
 
 .speaker-proposal-grid h2 {
   margin: 18px 0 8px;
@@ -944,6 +951,7 @@
   .speaker-proposal-grid {
     grid-template-columns: 1fr 1fr;
   }
+  .speaker-proposal-loading { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 640px) {
@@ -974,6 +982,7 @@
   .speaker-proposal-grid {
     grid-template-columns: 1fr;
   }
+  .speaker-proposal-loading { grid-template-columns: 1fr; }
 
   .cfp-builder-field {
     grid-template-columns: 52px minmax(0, 1fr);
@@ -994,4 +1003,8 @@
   .cfp-submit-actions { grid-template-columns: 1fr; }
   .cfp-submit-actions button { width: 100%; }
   .cfp-submit-feedback { order: 3; text-align: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .speaker-proposal-loading span { animation: none; }
 }
