@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { hiddenSessionFileCount, speakerPortalHeading, speakerPortalSection } from "./presentation";
+import { speakerPortalHeading, speakerPortalSection } from "./presentation";
 import { speakerFileWorkspaceState } from "../files-deliverables/presentation";
 import { speakerSubmissionWorkspace, submissionsForWorkspace } from "../forms-submissions/presentation";
 import type { SubmissionRecord } from "../forms-submissions/model";
@@ -17,11 +17,6 @@ describe("speaker portal route presentation", () => {
     expect(speakerPortalHeading(section, "Priya").title).toBe(title);
   });
 
-  it("flags files tied to a session missing from the released speaker projection", () => {
-    expect(hiddenSessionFileCount([], [{ sessionId: "session-1" }, { sessionId: "session-1" }, { sessionId: null }])).toBe(1);
-    expect(hiddenSessionFileCount([{ id: "session-1" }], [{ sessionId: "session-1" }])).toBe(0);
-  });
-
   it("distinguishes an incomplete file handoff from a legitimate empty workspace", () => {
     expect(speakerFileWorkspaceState(0, 2)).toBe("handoff_pending");
     expect(speakerFileWorkspaceState(0, 0)).toBe("empty");
@@ -33,8 +28,9 @@ describe("speaker portal route presentation", () => {
     const filesPage = readFileSync(new URL("../files-deliverables/SpeakerFilesPage.tsx", import.meta.url), "utf8");
     expect(portalPage).not.toContain("Promise.allSettled");
     expect(filesPage).not.toContain("Promise.allSettled");
-    expect(portalPage).toContain("void filesRequest.then");
     expect(filesPage).toContain("void portalRequest.then");
+    expect(portalPage).not.toContain("Program handoff pending");
+    expect(filesPage).not.toContain("Program handoff pending");
   });
 });
 

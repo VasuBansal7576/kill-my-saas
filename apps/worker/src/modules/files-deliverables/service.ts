@@ -1,5 +1,6 @@
 import { RequestUploadCommandSchema } from "@programflow/contracts";
 import {
+  decisions,
   deliverables,
   deliverableTransitions,
   deliverableVersions,
@@ -27,6 +28,7 @@ import { canAccessPrivateSpeakerFile } from "./authorization";
 import type { PrivateFileStore } from "./storage";
 import { StorageUnavailableError, StorageValidationError } from "./storage";
 import { createZip, safePath } from "./zip";
+import { releasedSpeakerDeliverable } from "../session-release-visibility";
 
 type FileErrorCode =
   | "conflict"
@@ -179,7 +181,10 @@ export async function requestUpload(database: Database, actor: Actor, commandVal
     .innerJoin(eventSpeakers, eq(eventSpeakers.id, speakerTaskAssignments.eventSpeakerId))
     .where(and(eq(speakerTaskAssignments.id, command.taskAssignmentId), eq(speakerTasks.eventId, command.eventId))).limit(1);
   if (!assignment) throw new FilesDeliverablesError("task_not_found", "The file request assignment was not found.");
-  if (!isOrganizer && assignment.personId !== actor.personId) throw new FilesDeliverablesError("forbidden", "This file request belongs to another speaker.");
+  if (!isOrganizer) {
+    if (assignment.personId !== actor.personId) throw new FilesDeliverablesError("file_not_found", "The file request assignment was not found.");
+    await requireSpeakerVisibleDeliverable(database, command.eventId, assignment.deliverableId, actor.personId);
+  }
   const policy = filePolicy(assignment.configuration);
   if (!policy.acceptedMediaTypes.includes(command.mediaType) || command.byteSize > policy.maxByteSize) {
     throw new FilesDeliverablesError("invalid_file", `Accepted types: ${policy.acceptedMediaTypes.join(", ")}; maximum ${formatBytes(policy.maxByteSize)}.`);
@@ -351,7 +356,8 @@ export async function uploadQuarantineObject(database: Database, actor: Actor, a
 
 export async function finalizeUpload(database: Database, actor: Actor, authorizationId: string, storage: PrivateFileStore) {
   const authorization = await requireUploadAuthorization(database, actor, authorizationId);
-  if (authorization.status === "finalized") return loadDeliverable(database, authorization.eventId, authorization.deliverableId, actor.personId);
+  const speakerPersonId = actorCanAccessEvent(actor, authorization.eventId, "organizer") ? undefined : actor.personId;
+  if (authorization.status === "finalized") return loadDeliverable(database, authorization.eventId, authorization.deliverableId, speakerPersonId);
   if (authorization.status !== "uploaded") throw new FilesDeliverablesError("invalid_transition", "The quarantine upload must finish before finalization.");
   let stored;
   try { stored = await storage.inspect(authorization.storageKey); }
@@ -417,14 +423,14 @@ export async function finalizeUpload(database: Database, actor: Actor, authoriza
     await transaction.update(fileUploadAuthorizations).set({ status: "finalized", finalizedAt: new Date(), failureCode: null })
       .where(eq(fileUploadAuthorizations.id, authorization.id));
   });
-  return loadDeliverable(database, authorization.eventId, authorization.deliverableId, actor.personId);
+  return loadDeliverable(database, authorization.eventId, authorization.deliverableId, speakerPersonId);
 }
 
 export async function addFileComment(database: Database, actor: Actor, eventSlug: string, versionId: string, body: string) {
   const event = await requireEventAnyRole(database, actor, eventSlug);
   const version = await requireVersionAccess(database, actor, event.id, versionId);
   await database.insert(fileComments).values({ deliverableVersionId: version.id, authorPersonId: actor.personId, body });
-  return loadDeliverable(database, event.id, version.deliverableId, actorCanAccessEvent(actor, event.id, "speaker") ? actor.personId : undefined);
+  return loadDeliverable(database, event.id, version.deliverableId, actorCanAccessEvent(actor, event.id, "organizer") ? undefined : actor.personId);
 }
 
 export async function reviewDeliverable(database: Database, actor: Actor, eventSlug: string, deliverableId: string, status: "changes_requested" | "approved", reason: string | null) {
@@ -644,7 +650,10 @@ async function loadDeliverable(database: Database, eventId: string, deliverableI
 
 async function loadDeliverables(database: Database, eventId: string, speakerPersonId?: string, ids?: string[]): Promise<DeliverableRow[]> {
   const conditions = [eq(deliverables.eventId, eventId)];
-  if (speakerPersonId) conditions.push(eq(eventSpeakers.personId, speakerPersonId));
+  if (speakerPersonId) {
+    conditions.push(eq(eventSpeakers.personId, speakerPersonId));
+    conditions.push(releasedSpeakerDeliverable()!);
+  }
   if (ids?.length) conditions.push(inArray(deliverables.id, ids));
   const rows = await database.select({
     id: deliverables.id,
@@ -667,6 +676,7 @@ async function loadDeliverables(database: Database, eventId: string, speakerPers
     .innerJoin(eventSpeakers, eq(eventSpeakers.id, deliverables.eventSpeakerId))
     .innerJoin(people, eq(people.id, eventSpeakers.personId))
     .leftJoin(sessions, eq(sessions.id, deliverables.sessionId))
+    .leftJoin(decisions, eq(decisions.submissionId, sessions.sourceSubmissionId))
     .where(and(...conditions)).orderBy(asc(deliverables.dueAt), asc(people.displayName), asc(speakerTasks.title));
   const deliverableIds = rows.map((row) => row.id);
   const versionRows = deliverableIds.length ? await database.select({
@@ -741,11 +751,22 @@ async function requireUploadAuthorization(database: Database, actor: Actor, id: 
   if (!row) throw new FilesDeliverablesError("file_not_found", "Upload authorization not found.");
   const organizer = actorCanAccessEvent(actor, row.eventId, "organizer");
   const ownSpeaker = actorCanAccessEvent(actor, row.eventId, "speaker") && row.ownerPersonId === actor.personId;
-  if (!organizer && !ownSpeaker) throw new FilesDeliverablesError("forbidden", "This upload authorization belongs to another speaker.");
+  if (!organizer && !ownSpeaker) throw new FilesDeliverablesError("file_not_found", "Upload authorization not found.");
+  if (!organizer) await requireSpeakerVisibleDeliverable(database, row.eventId, row.deliverableId, actor.personId);
   return { ...row, handoff: row.taskAssignmentId === null ? "speaker_headshot" as const : filePolicy(row.handoffConfiguration).handoff };
 }
 
 async function requireVersionAccess(database: Database, actor: Actor, eventId: string, versionId: string) {
+  const organizer = actorCanAccessEvent(actor, eventId, "organizer");
+  const conditions = [
+    eq(deliverableVersions.id, versionId),
+    eq(deliverables.eventId, eventId),
+    eq(fileObjects.verificationStatus, "verified"),
+  ];
+  if (!organizer) {
+    conditions.push(eq(eventSpeakers.personId, actor.personId));
+    conditions.push(releasedSpeakerDeliverable()!);
+  }
   const [row] = await database.select({
     id: deliverableVersions.id,
     deliverableId: deliverableVersions.deliverableId,
@@ -758,12 +779,32 @@ async function requireVersionAccess(database: Database, actor: Actor, eventId: s
     .innerJoin(deliverables, eq(deliverables.id, deliverableVersions.deliverableId))
     .innerJoin(eventSpeakers, eq(eventSpeakers.id, deliverables.eventSpeakerId))
     .innerJoin(fileObjects, eq(fileObjects.id, deliverableVersions.fileObjectId))
-    .where(and(eq(deliverableVersions.id, versionId), eq(deliverables.eventId, eventId), eq(fileObjects.verificationStatus, "verified"))).limit(1);
+    .leftJoin(speakerTaskAssignments, eq(speakerTaskAssignments.id, deliverables.taskAssignmentId))
+    .leftJoin(speakerTasks, eq(speakerTasks.id, speakerTaskAssignments.taskId))
+    .leftJoin(sessions, eq(sessions.id, deliverables.sessionId))
+    .leftJoin(decisions, eq(decisions.submissionId, sessions.sourceSubmissionId))
+    .where(and(...conditions)).limit(1);
   if (!row) throw new FilesDeliverablesError("file_not_found", "File version not found.");
   if (!canAccessPrivateSpeakerFile(actor, eventId, row.ownerPersonId)) {
     throw new FilesDeliverablesError("forbidden", "This private file belongs to another speaker.");
   }
   return row;
+}
+
+async function requireSpeakerVisibleDeliverable(database: Database, eventId: string, deliverableId: string, personId: string) {
+  const [row] = await database.select({ id: deliverables.id }).from(deliverables)
+    .innerJoin(eventSpeakers, eq(eventSpeakers.id, deliverables.eventSpeakerId))
+    .leftJoin(speakerTaskAssignments, eq(speakerTaskAssignments.id, deliverables.taskAssignmentId))
+    .leftJoin(speakerTasks, eq(speakerTasks.id, speakerTaskAssignments.taskId))
+    .leftJoin(sessions, eq(sessions.id, deliverables.sessionId))
+    .leftJoin(decisions, eq(decisions.submissionId, sessions.sourceSubmissionId))
+    .where(and(
+      eq(deliverables.id, deliverableId),
+      eq(deliverables.eventId, eventId),
+      eq(eventSpeakers.personId, personId),
+      releasedSpeakerDeliverable(),
+    )).limit(1);
+  if (!row) throw new FilesDeliverablesError("file_not_found", "Deliverable not found.");
 }
 
 async function loadSessionContent(database: Database, eventId: string, sessionId: string) {

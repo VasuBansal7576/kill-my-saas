@@ -19,11 +19,3 @@ export function speakerPortalHeading(section: SpeakerPortalSection, firstName: s
     default: return { title: `Welcome, ${firstName}`, description: "See what needs attention, then move into a focused speaker workspace." };
   }
 }
-
-export function hiddenSessionFileCount(
-  assignedSessions: Array<{ id: string }>,
-  deliverables: Array<{ sessionId: string | null }>,
-) {
-  const visibleSessionIds = new Set(assignedSessions.map((session) => session.id));
-  return new Set(deliverables.flatMap((deliverable) => deliverable.sessionId && !visibleSessionIds.has(deliverable.sessionId) ? [deliverable.sessionId] : [])).size;
-}

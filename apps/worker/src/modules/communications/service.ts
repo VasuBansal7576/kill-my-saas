@@ -7,6 +7,7 @@ import {
   communicationTemplates,
   decisionNotifications,
   decisions,
+  deliverables,
   deliveryAttempts,
   deliveryProviderEvents,
   eventRooms,
@@ -28,6 +29,7 @@ import { and, asc, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import type { Actor } from "../identity-access/actor";
 import { actorCanAccessEvent } from "../identity-access/actor";
 import type { ReviewReminderPort } from "../reviews-decisions";
+import { releasedSpeakerDeliverable } from "../session-release-visibility";
 import type { CreatePlacementCalendar, QueueOrganizerCommunication } from "./contracts";
 import { BrevoProviderError, type EmailProviderPort, type ProviderOutcome } from "./brevo-adapter";
 import { buildSpeakerCalendar } from "./icalendar";
@@ -711,10 +713,14 @@ export async function queueDueTaskReminders(database: Database, input: {
   }).from(speakerTaskAssignments)
     .innerJoin(speakerTasks, eq(speakerTasks.id, speakerTaskAssignments.taskId))
     .innerJoin(eventSpeakers, eq(eventSpeakers.id, speakerTaskAssignments.eventSpeakerId))
+    .leftJoin(deliverables, eq(deliverables.taskAssignmentId, speakerTaskAssignments.id))
+    .leftJoin(sessions, eq(sessions.id, deliverables.sessionId))
+    .leftJoin(decisions, eq(decisions.submissionId, sessions.sourceSubmissionId))
     .where(and(
       eq(speakerTasks.eventId, input.eventId),
       eq(speakerTaskAssignments.status, "pending"),
       lt(sql`coalesce(${speakerTaskAssignments.dueAtOverride}, ${speakerTasks.dueAt})`, input.dueBefore),
+      releasedSpeakerDeliverable(),
     ));
   const grouped = new Map<string, typeof rows>();
   for (const row of rows) grouped.set(row.personId, [...(grouped.get(row.personId) ?? []), row]);

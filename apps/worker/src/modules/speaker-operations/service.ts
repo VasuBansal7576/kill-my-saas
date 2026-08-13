@@ -1,5 +1,6 @@
 import {
   decisions,
+  deliverables,
   eventMemberships,
   eventSpeakers,
   events,
@@ -13,7 +14,7 @@ import {
   speakerTasks,
   type Database,
 } from "@programflow/database";
-import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import type { Actor } from "../identity-access/actor";
 import { actorCanAccessEvent } from "../identity-access/actor";
 import type {
@@ -26,6 +27,7 @@ import type {
 } from "./contracts";
 import { parseSpeakerCsv, previewSpeakerCsv } from "./csv";
 import { sanitizeSpeakerResourceHtml } from "./resource-sanitizer";
+import { releasedSpeakerDeliverable, releasedSpeakerSession } from "../session-release-visibility";
 
 type SpeakerOperationsErrorCode =
   | "conflict"
@@ -631,7 +633,14 @@ async function loadSpeakerDetail(database: Database, event: EventRecord, eventSp
       .innerJoin(speakerTasks, eq(speakerTasks.id, speakerTaskAssignments.taskId))
       .innerJoin(eventSpeakers, eq(eventSpeakers.id, speakerTaskAssignments.eventSpeakerId))
       .innerJoin(people, eq(people.id, eventSpeakers.personId))
-      .where(and(eq(speakerTaskAssignments.eventSpeakerId, eventSpeakerId), eq(speakerTasks.eventId, event.id)))
+      .leftJoin(deliverables, eq(deliverables.taskAssignmentId, speakerTaskAssignments.id))
+      .leftJoin(sessions, eq(sessions.id, deliverables.sessionId))
+      .leftJoin(decisions, eq(decisions.submissionId, sessions.sourceSubmissionId))
+      .where(and(
+        eq(speakerTaskAssignments.eventSpeakerId, eventSpeakerId),
+        eq(speakerTasks.eventId, event.id),
+        includePrivateSessions ? sql`true` : releasedSpeakerDeliverable(),
+      ))
       .orderBy(asc(speakerTasks.dueAt), asc(speakerTasks.title)),
     database.select({
       id: sessions.id,
@@ -645,7 +654,7 @@ async function loadSpeakerDetail(database: Database, event: EventRecord, eventSp
       .where(and(
         eq(sessionSpeakers.eventSpeakerId, eventSpeakerId),
         eq(sessions.eventId, event.id),
-        includePrivateSessions ? sql`true` : or(isNull(sessions.sourceSubmissionId), isNotNull(decisions.releasedAt)),
+        includePrivateSessions ? sql`true` : releasedSpeakerSession(),
       ))
       .orderBy(asc(sessions.title)),
   ]);

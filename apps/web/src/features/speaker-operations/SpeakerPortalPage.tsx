@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { jsonRequest, requestJson } from "./api";
-import { fileRequestActionLabel, hiddenSessionFileCount, speakerPortalHeading, speakerPortalSection } from "./presentation";
+import { fileRequestActionLabel, speakerPortalHeading, speakerPortalSection } from "./presentation";
 import styles from "./speaker-operations.module.css";
 import type { SpeakerPortal, SpeakerResource } from "./types";
 
 type LoadState = "loading" | "ready" | "error";
 type Feedback = { text: string; tone: "success" | "error" } | null;
-type DeliverableProjection = { sessionId: string | null };
 
 export function SpeakerPortalPage() {
   const { eventSlug = "" } = useParams();
@@ -15,7 +14,6 @@ export function SpeakerPortalPage() {
   const section = speakerPortalSection(location.pathname);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [portal, setPortal] = useState<SpeakerPortal | null>(null);
-  const [deliverables, setDeliverables] = useState<DeliverableProjection[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -27,8 +25,6 @@ export function SpeakerPortalPage() {
   const [uploadingHeadshot, setUploadingHeadshot] = useState(false);
 
   const loadPortal = useCallback(async () => {
-    const filesRequest = requestJson<DeliverableProjection[]>(`/api/v1/speaker/events/${eventSlug}/files`);
-    void filesRequest.then(setDeliverables).catch(() => setDeliverables([]));
     try {
       const nextPortal = await requestJson<SpeakerPortal>(`/api/v1/speaker/events/${eventSlug}`);
       setPortal(nextPortal);
@@ -117,7 +113,6 @@ export function SpeakerPortalPage() {
   const { speaker } = portal;
   const heading = speakerPortalHeading(section, speaker.displayName.split(" ")[0] ?? speaker.displayName);
   const selectedResource = portal.resources.find((resource) => resource.id === activeResource);
-  const projectionGap = hiddenSessionFileCount(speaker.assignedSessions, deliverables);
   const tasksPanel = <TasksPanel eventSlug={eventSlug} tasks={speaker.tasks} responses={responses} busyTask={busyTask} onResponse={(assignmentId, key, value) => setResponses((current) => ({ ...current, [assignmentId]: { ...(current[assignmentId] ?? {}), [key]: value } }))} onComplete={completeTask} />;
   const sessionsPanel = <SessionsPanel sessions={speaker.assignedSessions} />;
   const profilePanel = <ProfilePanel eventSlug={eventSlug} speaker={speaker} editing={editing} saving={savingProfile} uploadingHeadshot={uploadingHeadshot} onToggleEditing={() => setEditing((value) => !value)} onSave={saveProfile} onUploadHeadshot={uploadHeadshot} />;
@@ -129,7 +124,6 @@ export function SpeakerPortalPage() {
       <span className={`${styles.status} ${styles[speaker.status]}`}>{speaker.status}</span>
     </header>
     {feedback ? <div className={feedback.tone === "error" ? styles.errorNotice : styles.notice} role={feedback.tone === "error" ? "alert" : "status"}>{feedback.text}</div> : null}
-    {projectionGap > 0 ? <div className={styles.projectionWarning} role="status"><strong>Program handoff pending</strong><p>{projectionGap === 1 ? "A file request references a session" : `${projectionGap} file requests reference sessions`} that {projectionGap === 1 ? "is" : "are"} not available in your Sessions workspace yet. The released session count remains authoritative; ask the organizer to complete the session-to-file handoff.</p></div> : null}
     {section === "overview" ? <>
       <section className={styles.portalMetrics} aria-label="Speaker workspace summary"><Metric label="Tasks complete" value={`${speaker.taskProgress.complete}/${speaker.taskProgress.total}`} /><Metric label="Released sessions" value={String(speaker.sessionCount)} /><Metric label="Resources" value={String(portal.resources.length)} /></section>
       <div className={styles.overviewGrid}>

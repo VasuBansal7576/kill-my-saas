@@ -6,12 +6,10 @@
 .pageHead p:not(.eyebrow) { margin: 10px 0 0; color: #858585; font-size: 12px; }
 .eyebrow { margin: 0 0 9px; color: #d6a24c; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; }
 .notice { margin-top: 16px; padding: 10px 12px; border: 1px solid rgba(75,185,130,.32); border-radius: 7px; background: rgba(75,185,130,.08); color: #89d2ad; font-size: 10px; }
-.projectionWarning, .handoffState, .emptyState, .errorState { margin-top: 18px; padding: 20px; border: 1px solid #303030; border-radius: 8px; background: #151515; }
-.projectionWarning { border-color: rgba(214,162,76,.36); background: rgba(214,162,76,.07); }
-.projectionWarning strong { color: #deb56d; }
+.handoffState, .emptyState, .errorState { margin-top: 18px; padding: 20px; border: 1px solid #303030; border-radius: 8px; background: #151515; }
 .handoffState { border-color: rgba(227,97,108,.32); background: rgba(227,97,108,.06); }
-.projectionWarning strong, .handoffState strong, .emptyState strong, .errorState strong { font-size: 12px; }
-.projectionWarning p, .handoffState p, .emptyState p, .errorState p { max-width: 720px; margin: 8px 0 14px; color: #8f8f8f; font-size: 11px; line-height: 1.65; }
+.handoffState strong, .emptyState strong, .errorState strong { font-size: 12px; }
+.handoffState p, .emptyState p, .errorState p { max-width: 720px; margin: 8px 0 14px; color: #8f8f8f; font-size: 11px; line-height: 1.65; }
 .handoffState > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .emptyState .secondary { margin-top: 2px; }
 .errorState { border-color: rgba(227,97,108,.35); background: rgba(227,97,108,.06); }
