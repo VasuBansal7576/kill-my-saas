@@ -1,11 +1,15 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  answersWithCanonicalTitle,
+  canonicalTitleField,
+  cfpAvailabilityLabel,
   ensurePrimaryParticipant,
   participantLimitGuidance,
   participantValidationMessage,
   removeAdditionalParticipant,
 } from "./presentation";
+import type { FormField } from "./model";
 
 describe("public CFP participant experience", () => {
   it("always creates and preserves the primary participant", () => {
@@ -41,5 +45,23 @@ describe("public CFP participant experience", () => {
     expect(page).toContain('aria-describedby={`participant-guidance${fieldErrors.participants ? " participant-error" : ""}`}');
     expect(page).toContain('aria-busy={state === "saving"}');
     expect(page).toContain("Submitting proposal…");
+  });
+
+  it("uses a configured session title as the one visible canonical title", () => {
+    const fields = [
+      { key: "session_title", label: "Session title", type: "short_text", required: true, sortOrder: 0, settings: {}, condition: null },
+      { key: "abstract", label: "Abstract", type: "long_text", required: true, sortOrder: 1, settings: {}, condition: null },
+    ] satisfies FormField[];
+    const titleField = canonicalTitleField(fields);
+    expect(titleField?.key).toBe("session_title");
+    expect(answersWithCanonicalTitle({ abstract: "Details" }, titleField, "Canonical talk")).toEqual({
+      abstract: "Details",
+      session_title: "Canonical talk",
+    });
+  });
+
+  it("states when an open CFP has no deadline", () => {
+    expect(cfpAvailabilityLabel("open", null, null, "America/Los_Angeles", () => "unused")).toBe("Open-ended / no deadline set");
+    expect(cfpAvailabilityLabel("open", null, "2027-01-30T20:00:00Z", "America/Los_Angeles", () => "Jan 30, noon PST")).toBe("Open until Jan 30, noon PST");
   });
 });

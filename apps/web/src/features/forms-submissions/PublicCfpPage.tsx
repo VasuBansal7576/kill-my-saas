@@ -4,6 +4,9 @@ import { formatEventDateRange, formatEventDateTime } from "../../app/event-time"
 import "./forms-submissions.css";
 import { ApiError, fieldIsVisible, readApi, type FormField, type ParticipantRole, type PublicForm, type SubmissionRecord } from "./model";
 import {
+  answersWithCanonicalTitle,
+  canonicalTitleField,
+  cfpAvailabilityLabel,
   ensurePrimaryParticipant,
   participantLimitGuidance,
   participantValidationMessage,
@@ -85,7 +88,8 @@ export function PublicCfpPage() {
 
   const selected = submissions.find((candidate) => candidate.id === submissionId) ?? null;
   const definition = publicForm?.form.definition;
-  const visibleFields = useMemo(() => definition?.fields.filter((field) => fieldIsVisible(field, answers)) ?? [], [answers, definition]);
+  const titleField = useMemo(() => canonicalTitleField(definition?.fields ?? []), [definition]);
+  const visibleFields = useMemo(() => definition?.fields.filter((field) => field.key !== titleField?.key && fieldIsVisible(field, answers)) ?? [], [answers, definition, titleField]);
 
   const save = async (saveAsDraft: boolean) => {
     if (!publicForm) return;
@@ -114,7 +118,7 @@ export function PublicCfpPage() {
       const saved = await readApi<SubmissionRecord>(await fetch(path, {
         method: selected ? "PUT" : "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title, answers, participants: compactParticipants(participants), saveAsDraft }),
+        body: JSON.stringify({ title, answers: answersWithCanonicalTitle(answers, titleField, title), participants: compactParticipants(participants), saveAsDraft }),
       }));
       setSubmissions((current) => [saved, ...current.filter((submission) => submission.id !== saved.id)]);
       clearLocalProposal(eventSlug);
@@ -148,7 +152,7 @@ export function PublicCfpPage() {
           <h1>{form.name}</h1>
           <p>{form.definition.welcomeCopy}</p>
           <div className={`cfp-availability ${form.availability}`}>
-            {form.availability === "open" ? `Open${form.definition.closesAt ? ` until ${formatEventDateTime(form.definition.closesAt, event.timezone)}` : ""}` : form.availability === "upcoming" ? `Opens ${form.definition.opensAt ? formatEventDateTime(form.definition.opensAt, event.timezone) : "later"}` : "Submissions are closed"}
+            {cfpAvailabilityLabel(form.availability, form.definition.opensAt, form.definition.closesAt, event.timezone, formatEventDateTime)}
           </div>
           <div className="cfp-catalog-summary"><strong>Tracks</strong><p>{event.tracks.join(" · ")}</p><strong>Formats</strong><p>{event.formats.join(" · ")}</p></div>
           {submissions.length > 0 ? (
@@ -186,7 +190,7 @@ export function PublicCfpPage() {
               <fieldset className="cfp-form-section">
                 <legend>Proposal details</legend>
                 <p className="cfp-section-help">Tell the program team what you want to present. You can save a draft before every required answer is complete.</p>
-                <label className="cfp-control" htmlFor="proposal-title">Proposal title <span aria-hidden="true">*</span><small id="proposal-title-help">This becomes the session title if accepted. If another question asks for a session title, use the same title.</small><input id="proposal-title" value={title} minLength={3} maxLength={180} required aria-invalid={Boolean(fieldErrors.title)} aria-describedby={`proposal-title-help${fieldErrors.title ? " proposal-title-error" : ""}`} onChange={(event_) => { setTitle(event_.target.value); clearFieldError(setFieldErrors, "title"); }} />{fieldErrors.title ? <small className="cfp-field-error" id="proposal-title-error">{fieldErrors.title}</small> : null}</label>
+                <label className="cfp-control" htmlFor="proposal-title">{titleField?.label ?? "Proposal title"} <span aria-hidden="true">*</span><small id="proposal-title-help">This is the canonical title used for review and for the accepted session.</small><input id="proposal-title" value={title} minLength={3} maxLength={180} required aria-invalid={Boolean(fieldErrors.title ?? (titleField ? fieldErrors[titleField.key] : null))} aria-describedby={`proposal-title-help${fieldErrors.title || (titleField && fieldErrors[titleField.key]) ? " proposal-title-error" : ""}`} onChange={(event_) => { setTitle(event_.target.value); clearFieldError(setFieldErrors, "title"); if (titleField) clearFieldError(setFieldErrors, titleField.key); }} />{fieldErrors.title || (titleField && fieldErrors[titleField.key]) ? <small className="cfp-field-error" id="proposal-title-error">{fieldErrors.title ?? fieldErrors[titleField!.key]}</small> : null}</label>
                 {visibleFields.map((field) => <PublicField key={field.key} field={field} value={answers[field.key]} event={event} error={fieldErrors[field.key] ?? fieldErrors.answers} onChange={(value) => { setAnswers((current) => ({ ...current, [field.key]: value })); clearFieldError(setFieldErrors, field.key); clearFieldError(setFieldErrors, "answers"); }} />)}
               </fieldset>
               <fieldset className="cfp-participants cfp-form-section" tabIndex={-1} aria-invalid={Boolean(fieldErrors.participants)} aria-describedby={`participant-guidance${fieldErrors.participants ? " participant-error" : ""}`}>

@@ -1,4 +1,4 @@
-import type { ParticipantRole, SubmissionRecord } from "./model";
+import type { FormField, ParticipantRole, SubmissionRecord } from "./model";
 
 export type ParticipantInput = { name: string; email: string; role: ParticipantRole };
 
@@ -74,4 +74,38 @@ export function participantValidationMessage(participants: ParticipantInput[], m
   const emails = completed.map((participant) => participant.email.trim().toLowerCase());
   if (new Set(emails).size !== emails.length) return "Use a different email address for each participant.";
   return null;
+}
+
+export function canonicalTitleField(fields: FormField[]): FormField | null {
+  return fields.find((field) => {
+    if (field.type !== "short_text") return false;
+    const label = field.label.trim().toLocaleLowerCase();
+    const key = field.key.trim().toLocaleLowerCase().replaceAll("-", "_");
+    return ["title", "proposal title", "session title"].includes(label)
+      || ["title", "proposal_title", "session_title"].includes(key);
+  }) ?? null;
+}
+
+export function answersWithCanonicalTitle(
+  answers: Record<string, unknown>,
+  field: FormField | null,
+  title: string,
+): Record<string, unknown> {
+  return field ? { ...answers, [field.key]: title } : answers;
+}
+
+export function cfpAvailabilityLabel(
+  availability: "open" | "upcoming" | "closed",
+  opensAt: string | null,
+  closesAt: string | null,
+  timezone: string,
+  format: (value: string, timezone: string) => string,
+): string {
+  if (availability === "open") {
+    return closesAt
+      ? `Open until ${format(closesAt, timezone)}`
+      : "Open-ended / no deadline set";
+  }
+  if (availability === "upcoming") return `Opens ${opensAt ? format(opensAt, timezone) : "later"}`;
+  return "Submissions are closed";
 }
