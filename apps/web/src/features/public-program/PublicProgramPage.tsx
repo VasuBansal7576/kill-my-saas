@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { AccessibleDialog } from "../../app/AccessibleDialog";
 import { formatEventDateRange, formatEventDateTime } from "../../app/event-time";
 import { publicProgramRequest } from "./api";
+import { clearPendingItineraryMutation, itineraryMutationMatchesSelection, persistItineraryMutation, readPendingItineraryMutation, type PendingItineraryMutation } from "./itinerary-persistence";
 import {
   filterSessions,
   filterSpeakers,
@@ -47,6 +48,7 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
   const [showPersonal, setShowPersonal] = useState(false);
   const [itineraryBusyId, setItineraryBusyId] = useState<string | null>(null);
   const [itineraryLoading, setItineraryLoading] = useState(surface === "itinerary");
+  const [itineraryRetry, setItineraryRetry] = useState<PendingItineraryMutation | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -72,7 +74,16 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
     ).then((result) => {
       if (!active) return;
       if (result.recoveryToken) window.localStorage.setItem(recoveryKey, result.recoveryToken);
-      setSelectedItineraryIds(new Set(result.selectedSessionIds));
+      const savedSelection = new Set(result.selectedSessionIds);
+      const pendingMutation = readPendingItineraryMutation(window.localStorage, program.event.id);
+      setSelectedItineraryIds(savedSelection);
+      if (pendingMutation && itineraryMutationMatchesSelection(pendingMutation, savedSelection)) {
+        clearPendingItineraryMutation(window.localStorage, program.event.id);
+        setItineraryRetry(null);
+      } else if (pendingMutation) {
+        setItineraryRetry(pendingMutation);
+        setError("Your last itinerary change was not saved. The saved selection is restored; retry the change when you’re ready.");
+      }
       setItineraryLoading(false);
     }).catch((caught: unknown) => { if (active) { setError(message(caught)); setItineraryLoading(false); } });
     return () => { active = false; };
@@ -82,20 +93,41 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
   const filteredSpeakers = useMemo(() => program ? filterSpeakers(program, filters.search) : [], [filters.search, program]);
 
   async function toggleItinerary(sessionId: string) {
-    const previous = selectedItineraryIds;
+    if (!program) return;
+    const previous = new Set(selectedItineraryIds);
     const optimistic = optimisticItinerarySelection(previous, sessionId);
+    const mutation: PendingItineraryMutation = { eventId: program.event.id, eventSlug, sessionId, method: optimistic.method, selected: optimistic.next.has(sessionId) };
     setSelectedItineraryIds(optimistic.next);
     setItineraryBusyId(sessionId);
+    setItineraryRetry(null);
     setError(null);
     try {
-      const response = await publicProgramRequest<{ selectedSessionIds: string[] }>(
-        `/api/v1/public/program/${encodeURIComponent(eventSlug)}/anonymous-itinerary/sessions/${sessionId}`,
-        { method: optimistic.method },
-      );
+      const response = await persistItineraryMutation(mutation, itineraryRecoveryToken(program.event.id));
       setSelectedItineraryIds(new Set(response.selectedSessionIds));
     } catch (caught) {
       setSelectedItineraryIds(previous);
-      setError(message(caught));
+      setItineraryRetry(mutation);
+      setError(`${message(caught)} The saved selection was restored.`);
+    } finally {
+      setItineraryBusyId(null);
+    }
+  }
+
+  async function retryItineraryMutation() {
+    if (!itineraryRetry) return;
+    const previous = new Set(selectedItineraryIds);
+    const optimistic = new Set(previous);
+    if (itineraryRetry.selected) optimistic.add(itineraryRetry.sessionId); else optimistic.delete(itineraryRetry.sessionId);
+    setSelectedItineraryIds(optimistic);
+    setItineraryBusyId(itineraryRetry.sessionId);
+    setError(null);
+    try {
+      const response = await persistItineraryMutation(itineraryRetry, itineraryRecoveryToken(itineraryRetry.eventId));
+      setSelectedItineraryIds(new Set(response.selectedSessionIds));
+      setItineraryRetry(null);
+    } catch (caught) {
+      setSelectedItineraryIds(previous);
+      setError(`${message(caught)} The saved selection was restored; you can retry again.`);
     } finally {
       setItineraryBusyId(null);
     }
@@ -143,7 +175,7 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
 
       {surface !== "agenda" ? <SearchAndFacets program={program} filters={filters} setFilters={setFilters} speakerOnly={surface === "speakers" || surface === "gallery"} resultCount={surface === "speakers" || surface === "gallery" ? filteredSpeakers.length : filteredSessions.length} /> : null}
 
-      {error ? <div className="public-error" role="alert">{error}</div> : null}
+      {error ? <div className="public-error" role="alert"><span>{error}</span>{itineraryRetry ? <button type="button" onClick={() => void retryItineraryMutation()} disabled={itineraryBusyId !== null}>{itineraryBusyId ? "Retrying…" : "Retry itinerary change"}</button> : null}</div> : null}
 
       {surface === "sessions" ? <SessionGrid sessions={filteredSessions} timezone={program.event.timezone} expanded={expanded} toggleExpanded={toggleExpanded} open={setSelectedSession} /> : null}
       {surface === "speakers" ? <SpeakerDirectory speakers={filteredSpeakers} open={setSelectedSpeaker} /> : null}
@@ -320,4 +352,8 @@ function dateSpan(program: PublishedProgram): string {
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : "The public program could not be loaded.";
+}
+
+function itineraryRecoveryToken(eventId: string) {
+  try { return window.localStorage.getItem(`programflow-itinerary-recovery:${eventId}`); } catch { return null; }
 }
