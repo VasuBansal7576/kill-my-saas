@@ -325,7 +325,7 @@ function SpeakerDetail({ speaker, timezone, close }: { speaker: PublicSpeaker; t
 
 function Modal({ children, close, label }: { children: ReactNode; close(): void; label: string }) {
   return <AccessibleDialog close={close} label={label} backdropClassName="public-modal-backdrop" dialogClassName="public-modal">
-    <button className="modal-close" data-dialog-initial-focus type="button" onClick={close} aria-label={`Close ${label}`}>×</button>{children}
+    <button className="modal-close" data-dialog-initial-focus type="button" onClick={close} aria-label={`Close ${label}`}><span aria-hidden="true">×</span><span className="visually-hidden">Close {label}</span></button>{children}
   </AccessibleDialog>;
 }
 

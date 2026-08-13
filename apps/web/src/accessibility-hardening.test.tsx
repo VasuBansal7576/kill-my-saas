@@ -24,6 +24,9 @@ describe("release accessibility hardening", () => {
     expect(markup).toContain("data-dialog-initial-focus");
     expect(markup).toContain('tabindex="-1"');
     expect(markup).toContain('class="accessible-dialog-backdrop backdrop"');
+    const dialogSource = readFileSync(new URL("./app/AccessibleDialog.tsx", import.meta.url), "utf8");
+    expect(dialogSource).toContain('document.addEventListener("keydown", closeOnEscape, true)');
+    expect(dialogSource).toContain("useLayoutEffect");
     expect(markup).toContain('class="accessible-dialog-surface dialog"');
   });
 

@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   type MouseEvent,
   type ReactNode,
@@ -36,8 +37,10 @@ export function AccessibleDialog({
   const generatedId = useId();
   const dialogRef = useRef<HTMLElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(close);
+  useEffect(() => { closeRef.current = close; }, [close]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     restoreFocusRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
@@ -53,8 +56,18 @@ export function AccessibleDialog({
     const dialog = dialogRef.current;
     const requested = dialog?.querySelector<HTMLElement>(initialFocus);
     const first = requested ?? dialog?.querySelector<HTMLElement>(focusable) ?? dialog;
-    requestAnimationFrame(() => first?.focus());
+    first?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const topDialog = [...document.querySelectorAll<HTMLElement>("[data-dialog-id]")].at(-1);
+      if (topDialog !== dialog) return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeRef.current();
+    };
+    document.addEventListener("keydown", closeOnEscape, true);
     return () => {
+      document.removeEventListener("keydown", closeOnEscape, true);
       document.body.style.overflow = previousOverflow;
       const anotherDialogIsOpen = [...document.querySelectorAll<HTMLElement>("[data-dialog-id]")]
         .some((candidate) => candidate !== dialog);
