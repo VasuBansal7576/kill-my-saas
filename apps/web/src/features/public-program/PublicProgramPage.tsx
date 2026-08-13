@@ -50,18 +50,23 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
   const [itineraryLoading, setItineraryLoading] = useState(surface === "itinerary");
   const [itineraryRetry, setItineraryRetry] = useState<PendingItineraryMutation | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [programLoading, setProgramLoading] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
-    void publicProgramRequest<PublishedProgram>(`/api/v1/public/program/${encodeURIComponent(eventSlug)}`)
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8_000);
+    void publicProgramRequest<PublishedProgram>(`/api/v1/public/program/${encodeURIComponent(eventSlug)}`, { signal: controller.signal })
       .then((result) => {
         if (!active) return;
         setProgram(result);
         setActiveDay(result.days[0] ?? "");
       })
-      .catch((caught: unknown) => { if (active) setError(message(caught)); });
-    return () => { active = false; };
-  }, [eventSlug]);
+      .catch((caught: unknown) => { if (active) setError(controller.signal.aborted ? "The live program took longer than 8 seconds to respond." : message(caught)); })
+      .finally(() => { window.clearTimeout(timeout); if (active) setProgramLoading(false); });
+    return () => { active = false; controller.abort(); window.clearTimeout(timeout); };
+  }, [eventSlug, loadAttempt]);
 
   useEffect(() => {
     if (surface !== "itinerary" || !program) return;
@@ -142,8 +147,9 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
     });
   }
 
-  if (!program) {
-    return <div className="public-program loading"><p>{error ?? "Loading the live program…"}</p></div>;
+  if (!program || program.event.slug !== eventSlug) {
+    const routeLoading = programLoading || program?.event.slug !== eventSlug;
+    return <main id="main-content" className="public-program public-recovery" aria-labelledby="public-recovery-title"><div className="public-recovery-brand"><span>PF</span><strong>ProgramFlow</strong></div><section><p className="eyebrow">Public event program</p><h1 id="public-recovery-title">{routeLoading ? "Loading the live program…" : "We couldn’t open this program."}</h1><p>{routeLoading ? "The page structure is ready while we look up this event." : error ?? "This event may not exist or its program may not be published yet."}</p>{routeLoading ? <div className="public-recovery-skeleton" aria-busy="true" aria-label="Loading public program"><i /><i /><i /></div> : <div className="public-recovery-actions"><button type="button" onClick={() => { setProgramLoading(true); setError(null); setLoadAttempt((attempt) => attempt + 1); }}>Retry program</button><Link to={`/cfp/${eventSlug}`}>Open this event’s CFP</Link><Link to="/help">Get help</Link><Link to="/">ProgramFlow home</Link></div>}</section></main>;
   }
 
   const visibleItinerary = showPersonal

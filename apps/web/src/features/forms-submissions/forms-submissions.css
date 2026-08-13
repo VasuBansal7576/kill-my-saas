@@ -601,6 +601,14 @@
   font-weight: 900;
 }
 
+.cfp-recovery { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #101210; }
+.cfp-recovery > .cfp-public-card { width: min(720px,100%); padding: 28px; }
+.cfp-recovery h1 { margin: 12px 0; color: #eff2ef; font-size: clamp(28px,6vw,44px); letter-spacing: -.04em; }
+.cfp-recovery > .cfp-public-card > p:not(.eyebrow) { color: #929a94; line-height: 1.65; }
+.cfp-recovery-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 22px; }
+.cfp-recovery-skeleton { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 22px; }
+.cfp-recovery-skeleton i { min-height: 86px; border: 1px solid #2d332f; border-radius: 7px; background: #191d1a; }
+
 .public-cfp-layout {
   display: grid;
   grid-template-columns: minmax(260px, .68fr) minmax(0, 1.32fr);

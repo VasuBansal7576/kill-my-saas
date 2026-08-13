@@ -142,7 +142,7 @@ export function App() {
         path="/login"
         element={
           <Suspense
-            fallback={<div className="login-page">Loading sign in…</div>}
+            fallback={<RouteLoading label="sign in" standalone />}
           >
             <LoginPage />
           </Suspense>
@@ -152,7 +152,7 @@ export function App() {
         path="/signup"
         element={
           <Suspense
-            fallback={<div className="login-page">Loading account setup…</div>}
+            fallback={<RouteLoading label="account setup" standalone />}
           >
             <LoginPage />
           </Suspense>
@@ -171,7 +171,7 @@ export function App() {
         element={
           <Suspense
             fallback={
-              <div className="login-page">Loading workspace setup…</div>
+              <RouteLoading label="workspace setup" standalone />
             }
           >
             <WorkspaceOnboardingPage />
@@ -334,7 +334,7 @@ export function App() {
 
 function StandalonePage({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<p className="muted">Loading ProgramFlow…</p>}>
+    <Suspense fallback={<RouteLoading label="ProgramFlow page" />}>
       {children}
     </Suspense>
   );
@@ -381,6 +381,8 @@ function ProductShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [session, setSession] = useState<SessionResponse | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [sessionAttempt, setSessionAttempt] = useState(0);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -423,8 +425,12 @@ function ProductShell() {
   }, [mobileNavigationOpen]);
 
   useEffect(() => {
-    void fetch("/api/v1/session")
+    let active = true;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8_000);
+    void fetch("/api/v1/session", { signal: controller.signal })
       .then(async (response) => {
+        if (!active) return;
         if (response.status === 401) {
           navigate(`/login?next=${encodeURIComponent(location.pathname)}`, {
             replace: true,
@@ -443,11 +449,16 @@ function ProductShell() {
         }
         setSession(current);
       })
-      .catch(() => navigate("/login", { replace: true }));
-  }, [location.pathname, navigate]);
+      .catch((caught: unknown) => {
+        if (!active) return;
+        setSessionError(controller.signal.aborted ? "Your workspace took longer than 8 seconds to respond." : caught instanceof Error ? caught.message : "Your workspace could not be loaded.");
+      })
+      .finally(() => window.clearTimeout(timeout));
+    return () => { active = false; controller.abort(); window.clearTimeout(timeout); };
+  }, [location.pathname, navigate, sessionAttempt]);
 
   if (!session)
-    return <div className="product-shell-loading">Loading your workspace…</div>;
+    return <ProductShellLoading error={sessionError} retry={() => { setSessionError(null); setSessionAttempt((attempt) => attempt + 1); }} />;
 
   const routeEventSlug = /^\/organizer\/events\/([^/]+)/.exec(
     location.pathname,
@@ -571,7 +582,7 @@ function ProductShell() {
             path="new-event"
             element={
               <Suspense
-                fallback={<p className="muted">Loading event setup…</p>}
+                fallback={<RouteLoading label="event setup" />}
               >
                 <WorkspaceOnboardingPage additionalEvent />
               </Suspense>
@@ -580,7 +591,7 @@ function ProductShell() {
           <Route
             path="events/:eventSlug/dashboard"
             element={
-              <Suspense fallback={<p className="muted">Loading dashboard…</p>}>
+              <Suspense fallback={<RouteLoading label="dashboard" />}>
                 <DashboardPage />
               </Suspense>
             }
@@ -589,7 +600,7 @@ function ProductShell() {
             path="events/:eventSlug/settings"
             element={
               <Suspense
-                fallback={<p className="muted">Loading event settings…</p>}
+                fallback={<RouteLoading label="event settings" />}
               >
                 <EventSettingsPage />
               </Suspense>
@@ -599,7 +610,7 @@ function ProductShell() {
             path="events/:eventSlug/cfp"
             element={
               <Suspense
-                fallback={<p className="muted">Loading CFP builder…</p>}
+                fallback={<RouteLoading label="CFP builder" />}
               >
                 <CfpBuilderPage />
               </Suspense>
@@ -609,7 +620,7 @@ function ProductShell() {
             path="events/:eventSlug/submissions"
             element={
               <Suspense
-                fallback={<p className="muted">Loading submissions…</p>}
+                fallback={<RouteLoading label="submissions" />}
               >
                 <SubmissionsPage />
               </Suspense>
@@ -619,7 +630,7 @@ function ProductShell() {
             path="events/:eventSlug/evaluations"
             element={
               <Suspense
-                fallback={<p className="muted">Loading evaluations…</p>}
+                fallback={<RouteLoading label="evaluations" />}
               >
                 <ReviewsDecisionsPage />
               </Suspense>
@@ -629,7 +640,7 @@ function ProductShell() {
             path="events/:eventSlug/speakers/:eventSpeakerId"
             element={
               <Suspense
-                fallback={<p className="muted">Loading speaker details…</p>}
+                fallback={<RouteLoading label="speaker details" />}
               >
                 <SpeakersPage />
               </Suspense>
@@ -638,7 +649,7 @@ function ProductShell() {
           <Route
             path="events/:eventSlug/speakers"
             element={
-              <Suspense fallback={<p className="muted">Loading speakers…</p>}>
+              <Suspense fallback={<RouteLoading label="speakers" />}>
                 <SpeakersPage />
               </Suspense>
             }
@@ -647,7 +658,7 @@ function ProductShell() {
             path="events/:eventSlug/tasks"
             element={
               <Suspense
-                fallback={<p className="muted">Loading speaker tasks…</p>}
+                fallback={<RouteLoading label="speaker tasks" />}
               >
                 <SpeakerTasksPage />
               </Suspense>
@@ -657,7 +668,7 @@ function ProductShell() {
             path="events/:eventSlug/resources"
             element={
               <Suspense
-                fallback={<p className="muted">Loading portal resources…</p>}
+                fallback={<RouteLoading label="portal resources" />}
               >
                 <SpeakerResourcesPage />
               </Suspense>
@@ -667,7 +678,7 @@ function ProductShell() {
             path="events/:eventSlug/speakers/tasks"
             element={
               <Suspense
-                fallback={<p className="muted">Loading speaker tasks…</p>}
+                fallback={<RouteLoading label="speaker tasks" />}
               >
                 <SpeakerTasksPage />
               </Suspense>
@@ -677,7 +688,7 @@ function ProductShell() {
             path="events/:eventSlug/speakers/resources"
             element={
               <Suspense
-                fallback={<p className="muted">Loading speaker resources…</p>}
+                fallback={<RouteLoading label="speaker resources" />}
               >
                 <SpeakerResourcesPage />
               </Suspense>
@@ -686,7 +697,7 @@ function ProductShell() {
           <Route
             path="events/:eventSlug/files"
             element={
-              <Suspense fallback={<p className="muted">Loading files…</p>}>
+              <Suspense fallback={<RouteLoading label="files" />}>
                 <OrganizerFilesPage />
               </Suspense>
             }
@@ -695,7 +706,7 @@ function ProductShell() {
             path="events/:eventSlug/communications"
             element={
               <Suspense
-                fallback={<p className="muted">Loading communications…</p>}
+                fallback={<RouteLoading label="communications" />}
               >
                 <CommunicationsPage />
               </Suspense>
@@ -704,7 +715,7 @@ function ProductShell() {
           <Route
             path="events/:eventSlug/agenda"
             element={
-              <Suspense fallback={<p className="muted">Loading agenda…</p>}>
+              <Suspense fallback={<RouteLoading label="agenda" />}>
                 <AgendaPage />
               </Suspense>
             }
@@ -712,7 +723,7 @@ function ProductShell() {
           <Route
             path="events/:eventSlug/publish"
             element={
-              <Suspense fallback={<p className="muted">Loading publishing…</p>}>
+              <Suspense fallback={<RouteLoading label="publishing" />}>
                 <PublishProgramPage />
               </Suspense>
             }
@@ -720,7 +731,7 @@ function ProductShell() {
           <Route
             path="events/:eventSlug/integrations/airtable"
             element={
-              <Suspense fallback={<p className="muted">Loading Airtable…</p>}>
+              <Suspense fallback={<RouteLoading label="Airtable integration" />}>
                 <AirtableIntegrationPage />
               </Suspense>
             }
@@ -729,7 +740,7 @@ function ProductShell() {
             path="events/:eventSlug/integrations/accelevents"
             element={
               <Suspense
-                fallback={<p className="muted">Loading Accelevents…</p>}
+                fallback={<RouteLoading label="Accelevents integration" />}
               >
                 <AcceleventsIntegrationPage />
               </Suspense>
@@ -739,7 +750,7 @@ function ProductShell() {
             path="events/:eventSlug/api"
             element={
               <Suspense
-                fallback={<p className="muted">Loading API documentation…</p>}
+                fallback={<RouteLoading label="API documentation" />}
               >
                 <DeveloperApiPage />
               </Suspense>
@@ -748,7 +759,7 @@ function ProductShell() {
           <Route
             path="events/:eventSlug/evaluation-evidence"
             element={
-              <Suspense fallback={<p className="muted">Loading evaluation evidence…</p>}>
+              <Suspense fallback={<RouteLoading label="evaluation evidence" />}>
                 <EvaluationEvidencePage />
               </Suspense>
             }
@@ -757,7 +768,7 @@ function ProductShell() {
             path="organizations/:organizationId/speaker-crm"
             element={
               <Suspense
-                fallback={<p className="muted">Loading speaker CRM…</p>}
+                fallback={<RouteLoading label="speaker CRM" />}
               >
                 <SpeakerCrmRoute />
               </Suspense>
@@ -779,6 +790,29 @@ function ProductShell() {
       </main>
     </div>
   );
+}
+
+function RouteLoading({ label, standalone = false }: { label: string; standalone?: boolean }) {
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setTimedOut(true), 8_000);
+    return () => window.clearTimeout(timeout);
+  }, []);
+  return <section id={standalone ? "main-content" : undefined} className={`route-loading${standalone ? " standalone" : ""}`} aria-labelledby="route-loading-title">
+    <p className="eyebrow">ProgramFlow</p>
+    <h1 id="route-loading-title">{timedOut ? `The ${label} is taking longer than expected.` : `Loading ${label}…`}</h1>
+    <p>{timedOut ? "Retry this route. Any completed server-side work remains persisted." : "The workspace structure will stay in place while this route loads."}</p>
+    <div className="route-loading-skeleton" aria-busy={!timedOut} aria-label={`Loading ${label}`}><i /><i /><i /></div>
+    {timedOut ? <div className="route-loading-actions"><button type="button" onClick={() => window.location.reload()}>Retry route</button><NavLink to="/help">Get help</NavLink></div> : null}
+  </section>;
+}
+
+function ProductShellLoading({ error, retry }: { error: string | null; retry(): void }) {
+  return <div className="product-shell product-shell-pending">
+    <aside className="sidebar" aria-hidden="true"><div className="brand"><span>PF</span>ProgramFlow</div><div className="shell-skeleton-block" /><div className="shell-skeleton-lines"><i /><i /><i /><i /><i /></div></aside>
+    <header className="topbar"><span>ProgramFlow</span></header>
+    <main id="main-content"><section className="route-loading" aria-labelledby="workspace-loading-title"><p className="eyebrow">Organizer workspace</p><h1 id="workspace-loading-title">{error ? "We couldn’t load your workspace." : "Loading your workspace…"}</h1><p>{error ?? "Checking your organizer membership and event access."}</p><div className="route-loading-skeleton" aria-busy={!error} aria-label="Loading organizer workspace"><i /><i /><i /></div>{error ? <div className="route-loading-actions"><button type="button" onClick={retry}>Retry workspace</button><NavLink to="/help">Get help</NavLink><NavLink to="/">ProgramFlow home</NavLink></div> : null}</section></main>
+  </div>;
 }
 
 function SignOutButton() {

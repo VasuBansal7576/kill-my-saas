@@ -31,15 +31,18 @@ export function PublicCfpPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [authenticated, setAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const submissionId = searchParams.get("submission");
 
   useEffect(() => {
     let active = true;
     const speakerRequest = new AbortController();
+    const publicRequest = new AbortController();
     let speakerTimeout: number | null = null;
+    const publicTimeout = window.setTimeout(() => publicRequest.abort(), 8_000);
     void (async () => {
       try {
-        const form = await readApi<PublicForm>(await fetch(`/api/v1/public/cfp/${eventSlug}`));
+        const form = await readApi<PublicForm>(await fetch(`/api/v1/public/cfp/${eventSlug}`, { signal: publicRequest.signal }));
         if (!active) return;
         setPublicForm(form);
         setState("idle");
@@ -69,16 +72,20 @@ export function PublicCfpPage() {
       } catch (error) {
         if (!active) return;
         setAuthChecked(true);
-        setMessage(error instanceof Error ? error.message : "The call for speakers could not be loaded.");
+        setMessage(publicRequest.signal.aborted ? "The call for speakers took longer than 8 seconds to respond." : error instanceof Error ? error.message : "The call for speakers could not be loaded.");
         setState("error");
+      } finally {
+        window.clearTimeout(publicTimeout);
       }
     })();
     return () => {
       active = false;
       speakerRequest.abort();
+      publicRequest.abort();
+      window.clearTimeout(publicTimeout);
       if (speakerTimeout !== null) window.clearTimeout(speakerTimeout);
     };
-  }, [eventSlug, submissionId]);
+  }, [eventSlug, loadAttempt, submissionId]);
 
   useEffect(() => {
     if (!authChecked || authenticated || submissionId) return;
@@ -135,8 +142,8 @@ export function PublicCfpPage() {
     }
   };
 
-  if (state === "loading") return <main id="main-content" className="public-cfp"><p>Loading call for speakers…</p></main>;
-  if (!publicForm) return <main id="main-content" className="public-cfp"><div className="cfp-public-card"><h1>Call unavailable</h1><p role="alert">{message}</p></div></main>;
+  if (state === "loading") return <main id="main-content" className="public-cfp cfp-recovery" aria-labelledby="cfp-recovery-title"><div className="cfp-public-card"><span className="cfp-public-mark">PF</span><p className="eyebrow">Call for speakers</p><h1 id="cfp-recovery-title">Loading this event’s CFP…</h1><p>The page structure is ready while we look up the submission form.</p><div className="cfp-recovery-skeleton" aria-busy="true" aria-label="Loading call for speakers"><i /><i /><i /></div></div></main>;
+  if (!publicForm) return <main id="main-content" className="public-cfp cfp-recovery" aria-labelledby="cfp-recovery-title"><div className="cfp-public-card"><span className="cfp-public-mark">PF</span><p className="eyebrow">Call for speakers</p><h1 id="cfp-recovery-title">We couldn’t open this CFP.</h1><p role="alert">{message ?? "This event may not exist or its call for speakers may not be available."}</p><div className="cfp-recovery-actions"><button type="button" className="primary-action" onClick={() => { setState("loading"); setLoadAttempt((attempt) => attempt + 1); }}>Retry CFP</button><Link className="secondary-action" to="/help">Get help</Link><Link className="secondary-action" to="/">ProgramFlow home</Link></div></div></main>;
 
   const { event, form } = publicForm;
   const isOpen = form.availability === "open";
