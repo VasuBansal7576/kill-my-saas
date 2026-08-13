@@ -22,7 +22,12 @@ export const CreateFileRequestSchema = z.object({
 export const CommentSchema = z.object({ body: z.string().trim().min(1).max(4_000) });
 export const ReviewDeliverableSchema = z.object({
   status: z.enum(["changes_requested", "approved"]),
-  reason: z.string().trim().max(2_000).nullable().default(null),
+  reason: z.string().trim().min(1).max(2_000).nullable().default(null),
+  requestWithoutNote: z.boolean().default(false),
+}).superRefine((value, context) => {
+  if (value.status === "changes_requested" && !value.reason && !value.requestWithoutNote) {
+    context.addIssue({ code: "custom", path: ["reason"], message: "Add actionable feedback or explicitly confirm a request without a note." });
+  }
 });
 export const UpdateSessionContentSchema = z.object({
   title: z.string().trim().min(1).max(300),

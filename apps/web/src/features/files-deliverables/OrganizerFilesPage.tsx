@@ -1,6 +1,7 @@
 import type { EventConfiguration } from "@programflow/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { AccessibleDialog } from "../../app/AccessibleDialog";
 import { eventLocalDateTimeToIso, formatEventDueDate } from "../../app/event-time";
 import { jsonRequest, requestJson, sha256 } from "./api";
 import styles from "./files-deliverables.module.css";
@@ -28,6 +29,9 @@ export function OrganizerFilesPage() {
     null,
   );
   const [message, setMessage] = useState<string | null>(null);
+  const [changeRequestOpen, setChangeRequestOpen] = useState(false);
+  const [changeRequestReason, setChangeRequestReason] = useState("");
+  const [confirmWithoutNote, setConfirmWithoutNote] = useState(false);
   const idempotencyKey = useRef(crypto.randomUUID());
 
   const load = useCallback(async () => {
@@ -139,18 +143,25 @@ export function OrganizerFilesPage() {
       showError(setMessage)(error);
     }
   }
-  async function review(status: "changes_requested" | "approved") {
+  async function review(status: "changes_requested" | "approved", reason: string | null = null) {
     if (!active) return;
     try {
       await requestJson(
         `/api/v1/organizer/events/${eventSlug}/deliverables/${active.id}/review`,
-        jsonRequest("POST", { status, reason: null }),
+        jsonRequest("POST", { status, reason, requestWithoutNote: status === "changes_requested" && reason === null }),
       );
       setMessage(
         status === "approved"
           ? "Latest immutable version approved."
-          : "Changes requested from the speaker.",
+          : reason
+            ? "Changes requested with speaker-visible feedback."
+            : "Changes requested without a note after explicit confirmation.",
       );
+      if (status === "changes_requested") {
+        setChangeRequestOpen(false);
+        setChangeRequestReason("");
+        setConfirmWithoutNote(false);
+      }
       await load();
     } catch (error) {
       showError(setMessage)(error);
@@ -375,17 +386,11 @@ export function OrganizerFilesPage() {
                 <span>Version</span>
               </div>
               {visible.map((row) => (
-                <button
-                  className={styles.tableRow}
-                  type="button"
-                  key={row.id}
-                  onClick={() => void openContent(row)}
-                >
+                <div className={styles.tableRow} key={row.id}>
                   <input
                     aria-label={`Select ${row.taskTitle} for ${row.speakerName}`}
                     type="checkbox"
                     checked={checked.includes(row.id)}
-                    onClick={(event) => event.stopPropagation()}
                     onChange={(event) =>
                       setChecked((current) =>
                         event.target.checked
@@ -394,30 +399,25 @@ export function OrganizerFilesPage() {
                       )
                     }
                   />
-                  <span>
-                    <strong>{row.speakerName}</strong>
-                    <small>
-                      {row.taskTitle} · {row.sessionTitle ?? "Speaker profile"}
-                    </small>
-                  </span>
-                  <span>{formatEventDueDate(row.dueAt, timezone)}</span>
-                  <Status value={row.status} />
-                  <span>
-                    {row.latestVersion ? `v${row.latestVersion}` : "—"}
-                  </span>
-                </button>
+                  <button className={styles.tableRowOpen} type="button" aria-label={`Open ${row.taskTitle} for ${row.speakerName}`} aria-current={row.id === selected ? "true" : undefined} aria-controls="deliverable-review-detail" onClick={() => void openContent(row)}>
+                    <span><strong>{row.speakerName}</strong><small>{row.taskTitle} · {row.sessionTitle ?? "Speaker profile"}</small></span>
+                    <span>{formatEventDueDate(row.dueAt, timezone)}</span>
+                    <Status value={row.status} />
+                    <span>{row.latestVersion ? `v${row.latestVersion}` : "—"}</span>
+                  </button>
+                </div>
               ))}
             </div>
           </section>
           {active ? (
-            <section className={styles.panel}>
+            <section className={styles.panel} id="deliverable-review-detail">
               <div className={styles.sectionHead}>
                 <h2>{active.taskTitle}</h2>
                 <div className={styles.actions}>
                   <button
                     className={styles.secondary}
                     disabled={!active.latestVersion}
-                    onClick={() => void review("changes_requested")}
+                    onClick={() => setChangeRequestOpen(true)}
                   >
                     Request changes
                   </button>
@@ -705,6 +705,15 @@ export function OrganizerFilesPage() {
           </section>
         </aside>
       </div>
+      {changeRequestOpen && active ? <AccessibleDialog close={() => setChangeRequestOpen(false)} titleId="request-changes-title" backdropClassName={styles.dialogBackdrop} dialogClassName={styles.reviewDialog} initialFocus="[data-change-feedback]">
+        <p className={styles.eyebrow}>Speaker-facing request</p>
+        <h2 id="request-changes-title">Request changes to {active.taskTitle}</h2>
+        <p>{active.speakerName} will keep access to every immutable version. The deliverable status changes to “changes requested” until a new version is uploaded.</p>
+        <label>Actionable feedback<textarea data-change-feedback rows={5} value={changeRequestReason} placeholder="Example: Replace the final slide with the approved disclosure and upload a new PDF." onChange={(event) => { setChangeRequestReason(event.target.value); if (event.target.value.trim()) setConfirmWithoutNote(false); }} /></label>
+        <div className={styles.speakerPreview}><strong>Speaker preview</strong><p><b>{active.taskTitle}</b> · Changes requested</p><p>{changeRequestReason.trim() || "No organizer note. Upload a new version after reviewing the request instructions."}</p></div>
+        {!changeRequestReason.trim() ? <label className={styles.noNoteConfirmation}><input type="checkbox" checked={confirmWithoutNote} onChange={(event) => setConfirmWithoutNote(event.target.checked)} /> Request a new version without adding actionable feedback</label> : null}
+        <div className={styles.dialogActions}><button type="button" className={styles.secondary} onClick={() => setChangeRequestOpen(false)}>Cancel</button><button type="button" className={styles.primary} disabled={!changeRequestReason.trim() && !confirmWithoutNote} onClick={() => void review("changes_requested", changeRequestReason.trim() || null)}>Send request to speaker</button></div>
+      </AccessibleDialog> : null}
     </div>
   );
 }

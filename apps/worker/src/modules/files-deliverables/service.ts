@@ -62,6 +62,7 @@ export interface DeliverableRow {
   acceptedMediaTypes: string[];
   maxByteSize: number;
   handoff: "session_file" | "speaker_headshot";
+  changeRequest: { reason: string | null; requestedByName: string; requestedAt: Date } | null;
   versions: Array<{
     id: string;
     version: number;
@@ -705,6 +706,15 @@ async function loadDeliverables(database: Database, eventId: string, speakerPers
     createdAt: fileComments.createdAt,
   }).from(fileComments).innerJoin(people, eq(people.id, fileComments.authorPersonId))
     .where(inArray(fileComments.deliverableVersionId, versionIds)).orderBy(asc(fileComments.createdAt)) : [];
+  const changeRequestRows = deliverableIds.length ? await database.select({
+    deliverableId: deliverableTransitions.deliverableId,
+    reason: deliverableTransitions.reason,
+    requestedByName: people.displayName,
+    requestedAt: deliverableTransitions.createdAt,
+  }).from(deliverableTransitions)
+    .innerJoin(people, eq(people.id, deliverableTransitions.actorPersonId))
+    .where(and(inArray(deliverableTransitions.deliverableId, deliverableIds), eq(deliverableTransitions.toStatus, "changes_requested")))
+    .orderBy(desc(deliverableTransitions.createdAt)) : [];
   return rows.map((row) => {
     const directProfileFile = row.taskAssignmentId === null;
     const policy = directProfileFile ? profileHeadshotPolicy() : filePolicy(row.configuration);
@@ -712,6 +722,7 @@ async function loadDeliverables(database: Database, eventId: string, speakerPers
       ...row,
       taskTitle: row.taskTitle ?? "Profile headshot",
       instructions: row.instructions ?? "Speaker-managed profile photo.",
+      changeRequest: changeRequestRows.find((request) => request.deliverableId === row.id) ?? null,
       ...policy,
       versions: versionRows.filter((version) => version.deliverableId === row.id).map((version) => ({
         ...version,

@@ -18,6 +18,7 @@ export interface Deliverable {
   acceptedMediaTypes: string[];
   maxByteSize: number;
   handoff: "session_file" | "speaker_headshot";
+  changeRequest: { reason: string | null; requestedByName: string; requestedAt: string } | null;
   versions: FileVersion[];
 }
 export interface SpeakerChoice { eventSpeakerId: string; displayName: string; assignedSessions?: Array<{ id: string; title: string }> }
