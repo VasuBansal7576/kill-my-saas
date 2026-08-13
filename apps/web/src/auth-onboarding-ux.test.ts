@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { authFailureMessage } from "./app/auth-messages";
-import { brandColorChoices, friendlyTimezoneLabel } from "./app/onboarding-options";
+import { brandColorChoices, canonicalTimezone, friendlyTimezoneLabel } from "./app/onboarding-options";
 
 describe("account access affordances", () => {
   it("turns provider failures into helpful messages without leaking provider detail", () => {
@@ -31,6 +31,7 @@ describe("event creation choices", () => {
     expect(source).toContain("Suggested brand colors");
     expect(brandColorChoices).toHaveLength(5);
     expect(friendlyTimezoneLabel("Asia/Kolkata")).toBe("Kolkata · Asia");
+    expect(canonicalTimezone("Asia/Calcutta")).toBe("Asia/Kolkata");
     expect(friendlyTimezoneLabel("UTC")).toContain("Coordinated Universal Time");
   });
 });

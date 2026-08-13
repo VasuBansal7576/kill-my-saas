@@ -12,3 +12,7 @@ export function friendlyTimezoneLabel(value: string): string {
   if (!placeParts.length) return value.replaceAll("_", " ");
   return `${placeParts.join(" / ").replaceAll("_", " ")} · ${region.replaceAll("_", " ")}`;
 }
+
+export function canonicalTimezone(value: string): string {
+  return value === "Asia/Calcutta" ? "Asia/Kolkata" : value;
+}

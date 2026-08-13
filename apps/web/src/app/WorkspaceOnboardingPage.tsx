@@ -1,7 +1,7 @@
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
-import { brandColorChoices, friendlyTimezoneLabel } from "./onboarding-options";
+import { brandColorChoices, canonicalTimezone, friendlyTimezoneLabel } from "./onboarding-options";
 
 type SessionResponse = {
   organizationMemberships: Array<{ id: string; name: string; slug: string; roles: string[] }>;
@@ -149,7 +149,7 @@ function defaultValues(): SetupFields {
     eventSlug: "",
     startsOn: starts.toISOString().slice(0, 10),
     endsOn: ends.toISOString().slice(0, 10),
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    timezone: canonicalTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"),
     location: "",
     primaryColor: "#7c5cff",
   };
@@ -166,7 +166,7 @@ function validationAttributes(invalid: boolean, id: string) {
 
 function timezoneChoices(selected: string): string[] {
   return Array.from(new Set([
-    selected,
+    canonicalTimezone(selected),
     "UTC",
     "America/Los_Angeles",
     "America/New_York",
