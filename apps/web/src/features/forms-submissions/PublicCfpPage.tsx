@@ -32,35 +32,49 @@ export function PublicCfpPage() {
 
   useEffect(() => {
     let active = true;
+    const speakerRequest = new AbortController();
+    let speakerTimeout: number | null = null;
     void (async () => {
       try {
         const form = await readApi<PublicForm>(await fetch(`/api/v1/public/cfp/${eventSlug}`));
         if (!active) return;
-      setPublicForm(form);
-      const speakerResponse = await fetch(`/api/v1/speaker/events/${eventSlug}/submissions`);
-        if (!active) return;
-      if (speakerResponse.ok) {
-        setAuthenticated(true);
-        const speakerData = await readApi<{ submissions: SubmissionRecord[] }>(speakerResponse);
+        setPublicForm(form);
+        setState("idle");
+
+        speakerTimeout = window.setTimeout(() => speakerRequest.abort(), 8_000);
+        try {
+          const speakerResponse = await fetch(`/api/v1/speaker/events/${eventSlug}/submissions`, { signal: speakerRequest.signal });
           if (!active) return;
-        setSubmissions(speakerData.submissions);
-          const submission = speakerData.submissions.find((candidate) => candidate.id === submissionId);
-          if (submission) {
-            setTitle(submission.title);
-            setAnswers(submission.answers);
-            setParticipants(ensurePrimaryParticipant(submission.participants.map(({ name, email, role }) => ({ name, email, role }))));
+          if (speakerResponse.ok) {
+            setAuthenticated(true);
+            const speakerData = await readApi<{ submissions: SubmissionRecord[] }>(speakerResponse);
+            if (!active) return;
+            setSubmissions(speakerData.submissions);
+            const submission = speakerData.submissions.find((candidate) => candidate.id === submissionId);
+            if (submission) {
+              setTitle(submission.title);
+              setAnswers(submission.answers);
+              setParticipants(ensurePrimaryParticipant(submission.participants.map(({ name, email, role }) => ({ name, email, role }))));
+            }
           }
-      }
-      setAuthChecked(true);
-      setState("idle");
+        } catch {
+          // Public CFP content is independent of optional speaker-session detection.
+        } finally {
+          if (speakerTimeout !== null) window.clearTimeout(speakerTimeout);
+          if (active) setAuthChecked(true);
+        }
       } catch (error) {
         if (!active) return;
-      setAuthChecked(true);
-      setMessage(error instanceof Error ? error.message : "The call for speakers could not be loaded.");
-      setState("error");
+        setAuthChecked(true);
+        setMessage(error instanceof Error ? error.message : "The call for speakers could not be loaded.");
+        setState("error");
       }
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      speakerRequest.abort();
+      if (speakerTimeout !== null) window.clearTimeout(speakerTimeout);
+    };
   }, [eventSlug, submissionId]);
 
   useEffect(() => {
