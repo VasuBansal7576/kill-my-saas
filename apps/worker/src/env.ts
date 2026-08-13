@@ -9,6 +9,9 @@ export interface Env {
   BREVO_SENDER_NAME?: string;
   BREVO_WEBHOOK_TOKEN?: string;
   DATABASE_URL?: string;
+  DEPLOYMENT_ID?: string;
+  EVALUATION_RESET_RUNBOOK_URL?: string;
+  EVALUATION_URL?: string;
   FILES_ACCESS_KEY_ID?: string;
   FILES_BUCKET?: string;
   FILES_ENDPOINT_URL?: string;
@@ -18,4 +21,6 @@ export interface Env {
   JOBS: Queue;
   NEON_AUTH_BASE_URL?: string;
   NEON_AUTH_COOKIE_SECRET?: string;
+  RELEASE_MIGRATION?: string;
+  SOURCE_URL?: string;
 }

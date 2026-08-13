@@ -17,5 +17,7 @@ export function organizerNavigation(eventSlug: string, organizationId: string) {
     ["Integrations", `${base}/integrations/airtable`],
     ["Accelevents", `${base}/integrations/accelevents`],
     ["API", `${base}/api`],
+    ["Evaluation evidence", `${base}/evaluation-evidence`],
+    ["Help", "/help"],
   ] as const;
 }

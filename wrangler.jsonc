@@ -6,7 +6,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "upload_source_maps": true,
   "observability": { "enabled": true },
-  "vars": { "APP_ENV": "local" },
+  "vars": {
+    "APP_ENV": "local",
+    "SOURCE_URL": "https://github.com/VasuBansal7576/kill-my-saas"
+  },
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",
@@ -27,6 +30,8 @@
       "name": "programflow-evaluation",
       "vars": {
         "APP_ENV": "evaluation",
+        "SOURCE_URL": "https://github.com/VasuBansal7576/kill-my-saas",
+        "EVALUATION_RESET_RUNBOOK_URL": "https://github.com/VasuBansal7576/kill-my-saas/blob/main/docs/runbooks/evaluation.md#controlled-evaluation-reset",
         "FILES_BUCKET": "programflow-files",
         "FILES_ENDPOINT_URL": "https://br-delicate-hall-aywwqjp5.storage.c-5.us-east-2.aws.neon.tech",
         "FILES_REGION": "us-east-2",
@@ -47,6 +52,7 @@
       "name": "programflow-production",
       "vars": {
         "APP_ENV": "production",
+        "SOURCE_URL": "https://github.com/VasuBansal7576/kill-my-saas",
         "FILES_BUCKET": "programflow-files",
         "FILES_ENDPOINT_URL": "https://br-damp-leaf-ay3y6zv0.storage.c-5.us-east-2.aws.neon.tech",
         "FILES_REGION": "us-east-2",

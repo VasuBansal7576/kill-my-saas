@@ -41,6 +41,7 @@ import { publishingOrganizerRoutes, publishingPublicRoutes } from "./modules/pub
 import { speakerCrmRoutes } from "./modules/speaker-crm";
 import { dashboardOrganizerRoutes } from "./modules/dashboard";
 import { publicApiRoutes } from "./modules/public-api";
+import { operationsEvidenceOrganizerRoutes, operationsEvidencePublicRoutes } from "./modules/operations-evidence";
 import { claimAndEnqueueOutbox } from "./outbox";
 
 type WorkerContext = { Bindings: Env } & ActorContext;
@@ -143,12 +144,14 @@ export function createApp() {
   app.route("/api/v1/organizer", publishingOrganizerRoutes);
   app.route("/api/v1/organizer", speakerCrmRoutes);
   app.route("/api/v1/organizer", dashboardOrganizerRoutes);
+  app.route("/api/v1/organizer", operationsEvidenceOrganizerRoutes);
   app.route("/api/v1/reviewer/events", createReviewerReviewsDecisionsRoutes());
   app.route("/api/v1/speaker", speakerFormsSubmissionsRoutes);
   app.route("/api/v1/speaker", speakerOperationsPortalRoutes);
   app.route("/api/v1/speaker", filesDeliverablesSpeakerRoutes);
   app.route("/api/v1/public/cfp", publicFormsSubmissionsRoutes);
   app.route("/api/v1/public/program", publishingPublicRoutes);
+  app.route("/api/v1", operationsEvidencePublicRoutes);
   app.route("/api/v1/providers/webhooks", communicationsProviderRoutes);
   app.route("/api/v1", publicApiRoutes);
 

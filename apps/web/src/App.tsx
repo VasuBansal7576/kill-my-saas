@@ -96,6 +96,15 @@ const WorkspaceOnboardingPage = lazy(async () => ({
   default: (await import("./app/WorkspaceOnboardingPage"))
     .WorkspaceOnboardingPage,
 }));
+const EvaluationEntryPage = lazy(async () => ({
+  default: (await import("./features/operations-evidence")).EvaluationEntryPage,
+}));
+const HelpPage = lazy(async () => ({
+  default: (await import("./features/operations-evidence")).HelpPage,
+}));
+const EvaluationEvidencePage = lazy(async () => ({
+  default: (await import("./features/operations-evidence")).EvaluationEvidencePage,
+}));
 
 type SessionResponse = {
   person: { id: string; displayName: string; email: string | null };
@@ -121,7 +130,8 @@ type SessionResponse = {
 export function App() {
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
+      <Route path="/" element={<StandalonePage><EvaluationEntryPage /></StandalonePage>} />
+      <Route path="/help" element={<StandalonePage><HelpPage /></StandalonePage>} />
       <Route
         path="/login"
         element={
@@ -280,33 +290,6 @@ export function App() {
   );
 }
 
-function HomePage() {
-  return (
-    <main className="home-page">
-      <section className="home-card">
-        <div className="brand">
-          <span>PF</span>ProgramFlow
-        </div>
-        <p className="eyebrow">Conference program operations</p>
-        <h1>Build the program. Share the experience.</h1>
-        <p>
-          Run submissions, reviews, speaker onboarding, content, scheduling, and
-          publication from one connected workspace.
-        </p>
-        <div className="home-actions">
-          <NavLink className="home-primary" to="/signup">
-            Create your workspace
-          </NavLink>
-          <NavLink to="/login">Sign in</NavLink>
-        </div>
-        <small className="home-proof">
-          Real accounts · saved event data · separate workspaces for every role
-        </small>
-      </section>
-    </main>
-  );
-}
-
 function StandalonePage({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={<p className="muted">Loading ProgramFlow…</p>}>
@@ -341,7 +324,7 @@ export function RolePage({
           {label}
           {personName ? ` · ${personName}` : ""}
         </strong>
-        <SignOutButton />
+        <div className="role-actions"><NavLink to="/help">Help</NavLink><SignOutButton /></div>
       </header>
       <main className="role-content">
         <StandalonePage>{children}</StandalonePage>
@@ -672,6 +655,14 @@ function ProductShell() {
                 fallback={<p className="muted">Loading API documentation…</p>}
               >
                 <DeveloperApiPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="events/:eventSlug/evaluation-evidence"
+            element={
+              <Suspense fallback={<p className="muted">Loading evaluation evidence…</p>}>
+                <EvaluationEvidencePage />
               </Suspense>
             }
           />

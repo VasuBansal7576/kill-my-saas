@@ -36,4 +36,23 @@ describe("health boundary", () => {
       expect(response.headers.get("content-security-policy")).toBeNull();
     }
   });
+
+  it("exposes only safe judge entry routes anonymously and protects organizer evidence", async () => {
+    const app = createApp();
+    const environment = { APP_ENV: "evaluation" } as Env;
+    const [entry, protectedEvidence] = await Promise.all([
+      app.request("/api/v1/evaluation/entry", {}, environment),
+      app.request("/api/v1/organizer/events/devflow-conf-2027/evaluation-evidence", {}, environment),
+    ]);
+    const text = await entry.text();
+
+    expect(entry.status).toBe(200);
+    expect(text).toContain("/cfp/devflow-conf-2027");
+    expect(text).toContain("/events/devflow-conf-2027/sessions");
+    expect(text).toContain("supplied privately");
+    expect(text.toLowerCase()).not.toContain("password\"");
+    expect(text.toLowerCase()).not.toContain("reset");
+    expect(text).not.toContain("EVALUATOR_PERSONA_PASSWORDS_JSON");
+    expect(protectedEvidence.status).toBe(503);
+  });
 });
