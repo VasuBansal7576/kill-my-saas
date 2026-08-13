@@ -1,10 +1,11 @@
 import type { Actor } from "../identity-access/actor";
 import { actorCanAccessEvent } from "../identity-access/actor";
-import { deriveScheduleConflicts, eventDays, planAutoPlacements } from "./rules";
+import { deriveScheduleConflicts, eventDays, planAutoPlacements, planConflictRepairSuggestions, planSessionPlacementSuggestions } from "./rules";
 import type {
   AgendaWorkspace,
   AutoPlaceResult,
   ConflictFreeRevisionHandoff,
+  PlacementSuggestionsResult,
   ScheduleReadiness,
   ScheduleSnapshot,
   SchedulingRepositoryPort,
@@ -82,6 +83,28 @@ export class SchedulingService {
     return { workspace, placedSessionIds: plan.placements.map((placement) => placement.sessionId), unplaced: plan.unplaced };
   }
 
+  async getPlacementSuggestions(
+    actor: Actor,
+    eventSlug: string,
+    revisionId: string,
+    sessionId: string,
+  ): Promise<PlacementSuggestionsResult> {
+    const event = await this.requireOrganizer(actor, eventSlug);
+    const snapshot = await this.repository.loadSnapshot(event, revisionId);
+    if (!snapshot.revision) throw new SchedulingError("revision_required", "Create a schedule revision before requesting placement suggestions.");
+    if (!snapshot.sessions.some((session) => session.id === sessionId)) {
+      throw new SchedulingError("invalid_event", "The session does not belong to this event.");
+    }
+    return {
+      revisionId: snapshot.revision.id,
+      suggestions: planSessionPlacementSuggestions({
+        ...snapshot,
+        revisionId: snapshot.revision.id,
+        sessionId,
+      }),
+    };
+  }
+
   async getConflictFreeRevision(
     actor: Actor,
     eventSlug: string,
@@ -136,6 +159,11 @@ export function toWorkspace(snapshot: ScheduleSnapshot): AgendaWorkspace {
     tracks: snapshot.tracks,
     sessions: snapshot.sessions.map((session) => ({ ...session, placement: placementsBySessionId.get(session.id) ?? null })),
     conflicts,
+    repairSuggestions: snapshot.revision && !snapshot.revision.inUse ? planConflictRepairSuggestions({
+      ...snapshot,
+      revisionId: snapshot.revision.id,
+      conflicts,
+    }) : [],
     readiness,
   };
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react
 import { Link, useParams } from "react-router-dom";
 import { jsonRequest, schedulingRequest } from "./api";
 import { formatDay, formatTime, groupsForView, localDate, sessionConflictIds, zonedDateTimeToIso } from "./model";
-import type { AgendaSession, AgendaView, AgendaWorkspace, AutoPlaceResult } from "./types";
+import type { AgendaRepairSuggestion, AgendaSession, AgendaView, AgendaWorkspace, AutoPlaceResult, PlacementSuggestionsResult } from "./types";
 import "./scheduling.css";
 
 const hours = Array.from({ length: 8 }, (_, index) => index + 9);
@@ -19,6 +19,7 @@ export function AgendaPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [blockedSuggestions, setBlockedSuggestions] = useState<AgendaRepairSuggestion[]>([]);
 
   const load = useCallback(async (revisionId?: string) => {
     setError(null);
@@ -30,9 +31,11 @@ export function AgendaPage() {
         jsonRequest("POST"),
       );
       setWorkspace(created);
+      setBlockedSuggestions([]);
       return;
     }
     setWorkspace(loaded);
+    setBlockedSuggestions([]);
   }, [eventSlug]);
 
   useEffect(() => {
@@ -48,6 +51,10 @@ export function AgendaPage() {
   }, [eventSlug]);
 
   const conflicts = useMemo(() => workspace ? sessionConflictIds(workspace) : new Set<string>(), [workspace]);
+  const repairSuggestions = useMemo(() => {
+    const combined = [...(workspace?.repairSuggestions ?? []), ...blockedSuggestions];
+    return [...new Map(combined.map((suggestion) => [suggestion.id, suggestion])).values()];
+  }, [blockedSuggestions, workspace]);
   const unscheduled = workspace?.sessions.filter((session) => !session.placement) ?? [];
   const selectedSession = workspace?.sessions.find((session) => session.id === selectedSessionId) ?? null;
   const activeDay = workspace && workspace.days.includes(day) ? day : workspace?.days[0] ?? "";
@@ -61,6 +68,7 @@ export function AgendaPage() {
         jsonRequest("POST"),
       );
       setWorkspace(created);
+      setBlockedSuggestions([]);
       setNotice("A new editable schedule version is ready.");
     });
   }
@@ -76,20 +84,39 @@ export function AgendaPage() {
     await mutate(async () => {
       const startsAt = zonedDateTimeToIso(targetDay, time, workspace.event.timezone);
       const endsAt = new Date(Date.parse(startsAt) + session.durationMinutes * 60_000).toISOString();
-      const next = await schedulingRequest<AgendaWorkspace>(
-        `/api/v1/organizer/events/${eventSlug}/agenda/placements/${sessionId}`,
-        jsonRequest("PUT", {
-          eventId: workspace.event.id,
-          revisionId: workspace.revision!.id,
-          sessionId,
-          roomId,
-          startsAt,
-          endsAt,
-        }),
-      );
+      let next: AgendaWorkspace;
+      try {
+        next = await moveSession(workspace, eventSlug, { sessionId, roomId, startsAt, endsAt });
+      } catch (caught) {
+        if (errorCode(caught) === "room_overlap") {
+          const alternatives = await schedulingRequest<PlacementSuggestionsResult>(
+            `/api/v1/organizer/events/${eventSlug}/agenda/placements/${sessionId}/suggestions?revisionId=${encodeURIComponent(workspace.revision!.id)}`,
+          ).catch(() => null);
+          setBlockedSuggestions(alternatives?.suggestions ?? []);
+        }
+        throw caught;
+      }
       setWorkspace(next);
+      setBlockedSuggestions([]);
       setSelectedSessionId(null);
       setNotice(`${session.title} was placed on the schedule.`);
+    });
+  }
+
+  async function moveToSuggestion(suggestion: AgendaRepairSuggestion) {
+    if (!workspace?.revision || suggestion.revisionId !== workspace.revision.id) {
+      setError("That suggestion belongs to another schedule version. Reload the current version and try again.");
+      return;
+    }
+    const session = workspace.sessions.find((candidate) => candidate.id === suggestion.sessionId);
+    const room = workspace.rooms.find((candidate) => candidate.id === suggestion.roomId);
+    if (!session || !room) return;
+    await mutate(async () => {
+      const next = await moveSession(workspace, eventSlug, suggestion);
+      setWorkspace(next);
+      setBlockedSuggestions([]);
+      setSelectedSessionId(null);
+      setNotice(`${session.title} moved to ${formatDay(localDate(suggestion.startsAt, workspace.event.timezone))} at ${formatTime(suggestion.startsAt, workspace.event.timezone)} in ${room.name}. Conflicts were recomputed.`);
     });
   }
 
@@ -101,6 +128,7 @@ export function AgendaPage() {
         { method: "DELETE" },
       );
       setWorkspace(next);
+      setBlockedSuggestions([]);
       setNotice(`${session.title} returned to the unscheduled queue.`);
     });
   }
@@ -113,6 +141,7 @@ export function AgendaPage() {
         jsonRequest("POST", { revisionId: workspace.revision!.id }),
       );
       setWorkspace(result.workspace);
+      setBlockedSuggestions([]);
       setNotice(`${result.placedSessionIds.length} session${result.placedSessionIds.length === 1 ? "" : "s"} auto-placed${result.unplaced.length ? `; ${result.unplaced.length} could not fit` : ""}.`);
     });
   }
@@ -181,11 +210,43 @@ export function AgendaPage() {
       </aside>
 
       <section className="agenda-canvas">
-        {workspace.conflicts.length > 0 ? <section className="agenda-conflicts" aria-live="polite"><header><strong>{workspace.conflicts.length} conflict{workspace.conflicts.length === 1 ? "" : "s"}</strong><span>Speaker double-bookings remain visible; room overlaps are blocked before persistence.</span></header>{workspace.conflicts.map((conflict) => <div key={conflict.id}><i />{conflict.message}<time>{formatTime(conflict.startsAt, workspace.event.timezone)}–{formatTime(conflict.endsAt, workspace.event.timezone)}</time></div>)}</section> : null}
+        {workspace.conflicts.length > 0 || blockedSuggestions.length > 0 ? <ConflictRepairPanel workspace={workspace} suggestions={repairSuggestions} busy={busy} move={moveToSuggestion} /> : null}
         {view === "day" ? <DayView workspace={workspace} day={activeDay} setDay={setDay} selectedSessionId={selectedSessionId} conflicts={conflicts} busy={busy} drop={drop} placeAt={placeAt} select={setSelectedSessionId} unplace={unplace} /> : <GroupedView workspace={workspace} view={view} conflicts={conflicts} select={setSelectedSessionId} unplace={unplace} />}
       </section>
     </div>
   </div>;
+}
+
+export function ConflictRepairPanel(props: {
+  workspace: AgendaWorkspace;
+  suggestions: AgendaRepairSuggestion[];
+  busy: boolean;
+  move(suggestion: AgendaRepairSuggestion): void;
+}) {
+  const { workspace } = props;
+  const hasConflicts = workspace.conflicts.length > 0;
+  return <section className="agenda-conflicts" aria-live="polite">
+    <header>
+      <div><strong>{hasConflicts ? `${workspace.conflicts.length} conflict${workspace.conflicts.length === 1 ? "" : "s"} to repair` : "That room is occupied"}</strong><span>{hasConflicts ? "These alternatives are conflict-free in the current schedule version." : "Choose another valid placement from the current schedule version."}</span></div>
+      {workspace.revision ? <small>Version {workspace.revision.version}</small> : null}
+    </header>
+    {workspace.conflicts.map((conflict) => <div className="agenda-conflict-row" key={conflict.id}><i /><span>{conflict.message}</span><time>{formatTime(conflict.startsAt, workspace.event.timezone)}–{formatTime(conflict.endsAt, workspace.event.timezone)}</time></div>)}
+    <div className="agenda-repair-list">
+      <div className="agenda-repair-head"><strong>Suggested moves</strong><span>Each option keeps the session duration and avoids room and speaker overlaps.</span></div>
+      {props.suggestions.length === 0 ? <p className="agenda-repair-empty">No valid 9:00–17:00 placement is available. Use the placement form to adjust the program.</p> : props.suggestions.map((suggestion) => {
+        const session = workspace.sessions.find((candidate) => candidate.id === suggestion.sessionId);
+        const room = workspace.rooms.find((candidate) => candidate.id === suggestion.roomId);
+        if (!session || !room) return null;
+        const day = formatDay(localDate(suggestion.startsAt, workspace.event.timezone));
+        const start = formatTime(suggestion.startsAt, workspace.event.timezone);
+        const end = formatTime(suggestion.endsAt, workspace.event.timezone);
+        return <article key={suggestion.id}>
+          <div><strong>Move {session.title}</strong><span>{day} · {start}–{end} · {room.name}</span></div>
+          <button type="button" disabled={props.busy || workspace.revision?.inUse} onClick={() => props.move(suggestion)} aria-label={`Move ${session.title} to ${day} at ${start} in ${room.name}`}>Move here</button>
+        </article>;
+      })}
+    </div>
+  </section>;
 }
 
 function DayView(props: {
@@ -247,4 +308,24 @@ function localHour(value: string, timezone: string): number {
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : "The scheduling operation could not be completed.";
+}
+
+function errorCode(error: unknown): string | undefined {
+  return error instanceof Error ? (error as Error & { code?: string }).code : undefined;
+}
+
+function moveSession(
+  workspace: AgendaWorkspace,
+  eventSlug: string,
+  placement: Pick<AgendaRepairSuggestion, "sessionId" | "roomId" | "startsAt" | "endsAt">,
+): Promise<AgendaWorkspace> {
+  if (!workspace.revision) throw new Error("Create a schedule version before placing sessions.");
+  return schedulingRequest<AgendaWorkspace>(
+    `/api/v1/organizer/events/${eventSlug}/agenda/placements/${placement.sessionId}`,
+    jsonRequest("PUT", {
+      eventId: workspace.event.id,
+      revisionId: workspace.revision.id,
+      ...placement,
+    }),
+  );
 }

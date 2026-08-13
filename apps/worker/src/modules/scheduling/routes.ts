@@ -52,6 +52,23 @@ schedulingOrganizerRoutes.delete("/events/:eventSlug/agenda/placements/:sessionI
   )));
 });
 
+schedulingOrganizerRoutes.get("/events/:eventSlug/agenda/placements/:sessionId/suggestions", async (context) => {
+  const parsed = z.object({
+    revisionId: z.uuid(),
+    sessionId: z.uuid(),
+  }).safeParse({
+    revisionId: context.req.query("revisionId"),
+    sessionId: context.req.param("sessionId"),
+  });
+  if (!parsed.success) return invalid(context, "invalid_suggestion_request", parsed.error.flatten().fieldErrors);
+  return run(context, async (service) => context.json(await service.getPlacementSuggestions(
+    context.get("actor"),
+    context.req.param("eventSlug"),
+    parsed.data.revisionId,
+    parsed.data.sessionId,
+  )));
+});
+
 schedulingOrganizerRoutes.post("/events/:eventSlug/agenda/auto-place", async (context) => {
   const parsed = z.object({ revisionId: z.uuid() }).safeParse(await context.req.json().catch(() => null));
   if (!parsed.success) return invalid(context, "invalid_auto_place", parsed.error.flatten().fieldErrors);

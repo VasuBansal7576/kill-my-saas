@@ -25,6 +25,7 @@ function fixture(): AgendaWorkspace {
     rooms: [{ id: "main", name: "Main", sortOrder: 0 }, { id: "lab", name: "Lab", sortOrder: 1 }],
     tracks: [{ id: "platform", name: "Platform", sortOrder: 0 }, { id: "ai", name: "AI", sortOrder: 1 }],
     conflicts: [],
+    repairSuggestions: [],
     readiness: { ready: true, revisionId: "revision", unscheduledCount: 0, conflictCount: 0, reasons: [] },
   };
   return {

@@ -50,8 +50,24 @@ describe("SchedulingService", () => {
     const resolved = { ...conflicted, placements: [conflicted.placements[0]!, { ...conflicted.placements[1]!, startsAt: "2027-05-12T17:00:00.000Z", endsAt: "2027-05-12T17:30:00.000Z" }] };
     const repository = repo({ loadSnapshot: vi.fn().mockResolvedValueOnce(conflicted).mockResolvedValue(resolved) });
     const service = new SchedulingService(repository);
-    expect((await service.getWorkspace(organizer, "devflow")).conflicts).toMatchObject([{ type: "speaker_double_booking" }]);
-    expect((await service.getWorkspace(organizer, "devflow")).conflicts).toEqual([]);
+    const repairable = await service.getWorkspace(organizer, "devflow");
+    expect(repairable.conflicts).toMatchObject([{ type: "speaker_double_booking" }]);
+    expect(repairable.repairSuggestions).toHaveLength(4);
+    const cleared = await service.getWorkspace(organizer, "devflow");
+    expect(cleared.conflicts).toEqual([]);
+    expect(cleared.repairSuggestions).toEqual([]);
+  });
+
+  it("offers current-revision alternatives after a blocked room choice", async () => {
+    const repository = repo({
+      loadSnapshot: vi.fn().mockResolvedValue(snapshot({
+        placements: [],
+      })),
+    });
+    const result = await new SchedulingService(repository).getPlacementSuggestions(organizer, "devflow", revisionId, sessionId);
+    expect(result.revisionId).toBe(revisionId);
+    expect(result.suggestions).toHaveLength(3);
+    expect(result.suggestions.every((suggestion) => suggestion.sessionId === sessionId && suggestion.revisionId === revisionId)).toBe(true);
   });
 
   it("denies non-organizers before any scheduling state is read", async () => {

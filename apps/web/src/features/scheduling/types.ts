@@ -38,7 +38,23 @@ export interface AgendaWorkspace {
     speaker?: { personId: string; displayName: string };
     message: string;
   }>;
+  repairSuggestions: AgendaRepairSuggestion[];
   readiness: { ready: boolean; revisionId: string | null; unscheduledCount: number; conflictCount: number; reasons: string[] };
+}
+
+export interface AgendaRepairSuggestion {
+  id: string;
+  revisionId: string;
+  sessionId: string;
+  roomId: string;
+  startsAt: string;
+  endsAt: string;
+  resolvesConflictIds: string[];
+}
+
+export interface PlacementSuggestionsResult {
+  revisionId: string;
+  suggestions: AgendaRepairSuggestion[];
 }
 
 export interface AutoPlaceResult {

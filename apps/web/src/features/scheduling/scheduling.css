@@ -89,10 +89,26 @@
 .agenda-canvas { min-width: 0; display: grid; gap: 12px; }
 .agenda-conflicts { border-color: rgba(227,97,108,.35) !important; background: rgba(227,97,108,.05) !important; padding: 12px; }
 .agenda-conflicts header { margin-bottom: 9px; }
-.agenda-conflicts header span { color: var(--agenda-muted); font-size: 10px; }
-.agenda-conflicts > div { display: grid; grid-template-columns: 8px 1fr auto; align-items: center; gap: 8px; border-top: 1px solid rgba(227,97,108,.17); padding: 8px 0; font-size: 11px; }
+.agenda-conflicts header > div { display: grid; gap: 3px; }
+.agenda-conflicts header > div > strong { font-size: 13px; }
+.agenda-conflicts header span,
+.agenda-conflicts header small { color: var(--agenda-muted); font-size: 12px; }
+.agenda-conflict-row { display: grid; grid-template-columns: 8px 1fr auto; align-items: center; gap: 8px; border-top: 1px solid rgba(227,97,108,.17); padding: 8px 0; font-size: 12px; }
 .agenda-conflicts i { width: 7px; height: 7px; border-radius: 50%; background: var(--agenda-red); }
 .agenda-conflicts time { color: #ef9aa1; }
+.agenda-repair-list { margin-top: 8px; border: 1px solid rgba(140,124,246,.25); border-radius: 7px; background: rgba(140,124,246,.06); overflow: hidden; }
+.agenda-repair-head { display: flex; justify-content: space-between; gap: 12px; padding: 9px 10px; border-bottom: 1px solid rgba(140,124,246,.18); }
+.agenda-repair-head strong { font-size: 13px; }
+.agenda-repair-head span { color: var(--agenda-muted); font-size: 12px; text-align: right; }
+.agenda-repair-list article { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border-top: 1px solid rgba(140,124,246,.14); }
+.agenda-repair-list article:first-of-type { border-top: 0; }
+.agenda-repair-list article > div { display: grid; gap: 3px; min-width: 0; }
+.agenda-repair-list article strong { font-size: 13px; }
+.agenda-repair-list article span { color: var(--agenda-muted); font-size: 12px; }
+.agenda-repair-list button { flex: none; min-height: 40px; border: 1px solid rgba(140,124,246,.45); border-radius: 6px; background: rgba(140,124,246,.16); color: #c8c0ff; padding: 7px 12px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.agenda-repair-list button:disabled { opacity: .42; cursor: not-allowed; }
+.agenda-repair-list button:focus-visible { outline: 3px solid #c8c0ff; outline-offset: 2px; }
+.agenda-repair-empty { margin: 0; padding: 10px; color: var(--agenda-muted); font-size: 12px; }
 
 .agenda-day-view { overflow: hidden; }
 .agenda-day-view > header,

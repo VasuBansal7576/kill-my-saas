@@ -127,8 +127,12 @@ integration("scheduling persisted placement and conflict round trip", () => {
 
     const conflicted = await place(ids.sessionTwo, ids.roomTwo, "2027-05-12T16:00:00.000Z", "2027-05-12T16:30:00.000Z");
     expect(conflicted.conflicts).toMatchObject([{ type: "speaker_double_booking", speaker: { displayName: "Priya Raman" } }]);
-    const resolved = await place(ids.sessionTwo, ids.roomTwo, "2027-05-12T17:00:00.000Z", "2027-05-12T17:30:00.000Z");
+    expect(conflicted.repairSuggestions.length).toBeGreaterThan(0);
+    expect(conflicted.repairSuggestions.length).toBeLessThanOrEqual(4);
+    const suggestion = conflicted.repairSuggestions.find((candidate) => candidate.sessionId === ids.sessionTwo)!;
+    const resolved = await place(suggestion.sessionId, suggestion.roomId, suggestion.startsAt, suggestion.endsAt);
     expect(resolved.conflicts).toEqual([]);
+    expect(resolved.repairSuggestions).toEqual([]);
 
     const autoPlaced = await service.autoPlace(organizer, slug, revisionId);
     expect(autoPlaced.placedSessionIds).toEqual([ids.sessionThree]);

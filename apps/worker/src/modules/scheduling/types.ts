@@ -77,6 +77,16 @@ export interface ScheduleReadiness {
   reasons: string[];
 }
 
+export interface ScheduleRepairSuggestion {
+  id: string;
+  revisionId: string;
+  sessionId: string;
+  roomId: string;
+  startsAt: string;
+  endsAt: string;
+  resolvesConflictIds: string[];
+}
+
 export interface AgendaWorkspace {
   event: ScheduleEvent;
   revision: null | {
@@ -100,7 +110,13 @@ export interface AgendaWorkspace {
   tracks: ScheduleTrack[];
   sessions: Array<ScheduleSession & { placement: SchedulePlacement | null }>;
   conflicts: ScheduleConflict[];
+  repairSuggestions: ScheduleRepairSuggestion[];
   readiness: ScheduleReadiness;
+}
+
+export interface PlacementSuggestionsResult {
+  revisionId: string;
+  suggestions: ScheduleRepairSuggestion[];
 }
 
 export interface AutoPlaceResult {

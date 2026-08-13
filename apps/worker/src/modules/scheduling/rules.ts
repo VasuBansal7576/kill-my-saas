@@ -2,6 +2,7 @@ import type {
   ScheduleConflict,
   ScheduleEvent,
   SchedulePlacement,
+  ScheduleRepairSuggestion,
   ScheduleRoom,
   ScheduleSession,
 } from "./types";
@@ -75,6 +76,133 @@ export interface PlannedPlacement {
   roomId: string;
   startsAt: string;
   endsAt: string;
+}
+
+const SUGGESTION_LIMIT = 4;
+
+export function planConflictRepairSuggestions(input: {
+  event: ScheduleEvent;
+  revisionId: string;
+  rooms: ReadonlyArray<ScheduleRoom>;
+  sessions: ReadonlyArray<ScheduleSession>;
+  placements: ReadonlyArray<SchedulePlacement>;
+  conflicts: ReadonlyArray<ScheduleConflict>;
+  limit?: number;
+}): ScheduleRepairSuggestion[] {
+  const conflictIdsBySession = new Map<string, string[]>();
+  for (const conflict of input.conflicts) {
+    for (const sessionId of conflict.sessionIds) {
+      const conflictIds = conflictIdsBySession.get(sessionId) ?? [];
+      conflictIds.push(conflict.id);
+      conflictIdsBySession.set(sessionId, conflictIds);
+    }
+  }
+  return planPlacementSuggestions({
+    ...input,
+    targetSessionIds: [...conflictIdsBySession.keys()],
+    conflictIdsBySession,
+    limit: input.limit ?? SUGGESTION_LIMIT,
+  });
+}
+
+export function planSessionPlacementSuggestions(input: {
+  event: ScheduleEvent;
+  revisionId: string;
+  sessionId: string;
+  rooms: ReadonlyArray<ScheduleRoom>;
+  sessions: ReadonlyArray<ScheduleSession>;
+  placements: ReadonlyArray<SchedulePlacement>;
+  limit?: number;
+}): ScheduleRepairSuggestion[] {
+  return planPlacementSuggestions({
+    ...input,
+    targetSessionIds: [input.sessionId],
+    conflictIdsBySession: new Map(),
+    limit: input.limit ?? 3,
+  });
+}
+
+function planPlacementSuggestions(input: {
+  event: ScheduleEvent;
+  revisionId: string;
+  rooms: ReadonlyArray<ScheduleRoom>;
+  sessions: ReadonlyArray<ScheduleSession>;
+  placements: ReadonlyArray<SchedulePlacement>;
+  targetSessionIds: ReadonlyArray<string>;
+  conflictIdsBySession: ReadonlyMap<string, string[]>;
+  limit: number;
+}): ScheduleRepairSuggestion[] {
+  if (input.limit <= 0 || input.rooms.length === 0) return [];
+  const rooms = [...input.rooms].sort((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id));
+  const sessionsById = new Map(input.sessions.map((session) => [session.id, session]));
+  const placementsBySessionId = new Map(input.placements.map((placement) => [placement.sessionId, placement]));
+  const targets = [...new Set(input.targetSessionIds)]
+    .filter((sessionId) => sessionsById.has(sessionId))
+    .sort((left, right) => {
+      const leftPlacement = placementsBySessionId.get(left);
+      const rightPlacement = placementsBySessionId.get(right);
+      return (leftPlacement?.startsAt ?? "").localeCompare(rightPlacement?.startsAt ?? "") || left.localeCompare(right);
+    });
+  const suggestionsBySession = new Map<string, ScheduleRepairSuggestion[]>();
+
+  for (const sessionId of targets) {
+    const session = sessionsById.get(sessionId)!;
+    const current = placementsBySessionId.get(sessionId);
+    const preferredStart = current?.startsAt ?? zonedDateTimeToIso(eventDays(input.event)[0]!, 9 * 60, input.event.timezone);
+    const otherPlacements = input.placements.filter((placement) => placement.sessionId !== sessionId);
+    const candidates: Array<{
+      suggestion: ScheduleRepairSuggestion;
+      distance: number;
+      sameRoom: boolean;
+      roomOrder: number;
+    }> = [];
+    for (const day of eventDays(input.event)) {
+      for (let minute = 9 * 60; minute + session.durationMinutes <= 17 * 60; minute += 15) {
+        const startsAt = zonedDateTimeToIso(day, minute, input.event.timezone);
+        const endsAt = new Date(Date.parse(startsAt) + session.durationMinutes * 60_000).toISOString();
+        for (const room of rooms) {
+          const candidate: PlannedPlacement = { sessionId, roomId: room.id, startsAt, endsAt };
+          if (current && room.id === current.roomId && startsAt === current.startsAt && endsAt === current.endsAt) continue;
+          if (hasRoomOverlap(candidate, otherPlacements)) continue;
+          if (hasSpeakerOverlap(candidate, session, otherPlacements, sessionsById)) continue;
+          candidates.push({
+            suggestion: {
+              id: `repair:${input.revisionId}:${sessionId}:${room.id}:${startsAt}`,
+              revisionId: input.revisionId,
+              sessionId,
+              roomId: room.id,
+              startsAt,
+              endsAt,
+              resolvesConflictIds: [...(input.conflictIdsBySession.get(sessionId) ?? [])].sort(),
+            },
+            distance: Math.abs(Date.parse(startsAt) - Date.parse(preferredStart)),
+            sameRoom: room.id === current?.roomId,
+            roomOrder: room.sortOrder,
+          });
+        }
+      }
+    }
+    candidates.sort((left, right) => left.distance - right.distance
+      || Number(right.sameRoom) - Number(left.sameRoom)
+      || left.suggestion.startsAt.localeCompare(right.suggestion.startsAt)
+      || left.roomOrder - right.roomOrder
+      || left.suggestion.roomId.localeCompare(right.suggestion.roomId));
+    suggestionsBySession.set(sessionId, candidates.slice(0, input.limit).map((candidate) => candidate.suggestion));
+  }
+
+  const suggestions: ScheduleRepairSuggestion[] = [];
+  for (let rank = 0; suggestions.length < input.limit; rank += 1) {
+    let added = false;
+    for (const sessionId of targets) {
+      const suggestion = suggestionsBySession.get(sessionId)?.[rank];
+      if (!suggestion) continue;
+      suggestions.push(suggestion);
+      added = true;
+      if (suggestions.length === input.limit) break;
+    }
+    if (!added) break;
+  }
+  return suggestions;
 }
 
 export function planAutoPlacements(input: {
