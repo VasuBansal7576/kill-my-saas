@@ -25,6 +25,8 @@ describe("bounded route recovery", () => {
     }
     expect(program).toContain("Retry program");
     expect(program).toContain("Open this event’s CFP");
+    expect(program).toContain("program !== null && program.event.slug !== eventSlug");
+    expect(program).toContain("setProgram(null)");
     expect(cfp).toContain("Retry CFP");
   });
 });

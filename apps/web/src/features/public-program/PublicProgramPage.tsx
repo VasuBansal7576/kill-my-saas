@@ -63,7 +63,7 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
         setProgram(result);
         setActiveDay(result.days[0] ?? "");
       })
-      .catch((caught: unknown) => { if (active) setError(controller.signal.aborted ? "The live program took longer than 8 seconds to respond." : message(caught)); })
+      .catch((caught: unknown) => { if (active) { setProgram(null); setError(controller.signal.aborted ? "The live program took longer than 8 seconds to respond." : message(caught)); } })
       .finally(() => { window.clearTimeout(timeout); if (active) setProgramLoading(false); });
     return () => { active = false; controller.abort(); window.clearTimeout(timeout); };
   }, [eventSlug, loadAttempt]);
@@ -148,7 +148,7 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
   }
 
   if (!program || program.event.slug !== eventSlug) {
-    const routeLoading = programLoading || program?.event.slug !== eventSlug;
+    const routeLoading = programLoading || (program !== null && program.event.slug !== eventSlug);
     return <main id="main-content" className="public-program public-recovery" aria-labelledby="public-recovery-title"><div className="public-recovery-brand"><span>PF</span><strong>ProgramFlow</strong></div><section><p className="eyebrow">Public event program</p><h1 id="public-recovery-title">{routeLoading ? "Loading the live program…" : "We couldn’t open this program."}</h1><p>{routeLoading ? "The page structure is ready while we look up this event." : error ?? "This event may not exist or its program may not be published yet."}</p>{routeLoading ? <div className="public-recovery-skeleton" aria-busy="true" aria-label="Loading public program"><i /><i /><i /></div> : <div className="public-recovery-actions"><button type="button" onClick={() => { setProgramLoading(true); setError(null); setLoadAttempt((attempt) => attempt + 1); }}>Retry program</button><Link to={`/cfp/${eventSlug}`}>Open this event’s CFP</Link><Link to="/help">Get help</Link><Link to="/">ProgramFlow home</Link></div>}</section></main>;
   }
 
