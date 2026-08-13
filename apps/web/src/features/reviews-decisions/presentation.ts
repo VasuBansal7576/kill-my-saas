@@ -1,4 +1,14 @@
-import type { ReviewCriterion } from "./types";
+import type { ReviewCriterion, ReviewerQueue } from "./types";
+
+export type ReviewerQueueFilter = "all" | "incomplete";
+
+export function reviewerAssignmentIsIncomplete(assignment: ReviewerQueue["assignments"][number]) {
+  return assignment.status === "assigned" || assignment.status === "in_progress";
+}
+
+export function reviewerAssignmentsForFilter(assignments: ReviewerQueue["assignments"], filter: ReviewerQueueFilter) {
+  return filter === "incomplete" ? assignments.filter(reviewerAssignmentIsIncomplete) : assignments;
+}
 
 export function reviewCriterionSummary(criterion: ReviewCriterion) {
   if (criterion.type === "numeric") return `Numeric rating · Weight ${criterion.weight} · Rating scale ${criterion.min} (minimum) to ${criterion.max} (maximum)`;

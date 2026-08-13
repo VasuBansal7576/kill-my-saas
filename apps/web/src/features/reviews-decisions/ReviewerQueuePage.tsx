@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { formatEventDateTime } from "../../app/event-time";
 import { jsonRequest, reviewsRequest } from "./api";
-import { reviewerCriterionHelp } from "./presentation";
+import { reviewerAssignmentsForFilter, reviewerCriterionHelp, type ReviewerQueueFilter } from "./presentation";
 import type { ReviewerQueue } from "./types";
 import "./reviews-decisions.css";
+import "./reviewer-queue.css";
 
 export function ReviewerQueuePage() {
   const { eventSlug = "" } = useParams();
@@ -16,21 +17,17 @@ export function ReviewerQueuePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recusalReason, setRecusalReason] = useState("");
+  const [queueFilter, setQueueFilter] = useState<ReviewerQueueFilter>("all");
 
   const reload = useCallback(async () => {
     try {
       const next = await reviewsRequest<ReviewerQueue>(
         `/api/v1/reviewer/events/${eventSlug}/reviews`,
       );
-      const nextSelectedId =
-        selectedId ??
-        next.assignments.find(
-          (assignment) =>
-            assignment.status !== "submitted" &&
-            assignment.status !== "recused",
-        )?.assignmentId ??
-        next.assignments[0]?.assignmentId ??
-        null;
+      const visibleAssignments = reviewerAssignmentsForFilter(next.assignments, queueFilter);
+      const nextSelectedId = visibleAssignments.some((assignment) => assignment.assignmentId === selectedId)
+        ? selectedId
+        : visibleAssignments.find((assignment) => assignment.status === "assigned" || assignment.status === "in_progress")?.assignmentId ?? visibleAssignments[0]?.assignmentId ?? null;
       const nextSelected = next.assignments.find(
         (assignment) => assignment.assignmentId === nextSelectedId,
       );
@@ -46,7 +43,7 @@ export function ReviewerQueuePage() {
           : "Reviewer queue could not be loaded.",
       );
     }
-  }, [eventSlug, selectedId]);
+  }, [eventSlug, queueFilter, selectedId]);
   useEffect(() => {
     let active = true;
     void reviewsRequest<ReviewerQueue>(
@@ -98,6 +95,17 @@ export function ReviewerQueuePage() {
     setSelectedId(assignmentId);
     setAnswers(assignment?.ownResponse?.answers ?? {});
     setNotes(assignment?.ownResponse?.notes ?? "");
+    setRecusalReason("");
+  }
+
+  function changeQueueFilter(filter: ReviewerQueueFilter) {
+    setQueueFilter(filter);
+    const visibleAssignments = reviewerAssignmentsForFilter(queue?.assignments ?? [], filter);
+    if (visibleAssignments.some((assignment) => assignment.assignmentId === selectedId)) return;
+    const nextAssignment = visibleAssignments[0];
+    setSelectedId(nextAssignment?.assignmentId ?? null);
+    setAnswers(nextAssignment?.ownResponse?.answers ?? {});
+    setNotes(nextAssignment?.ownResponse?.notes ?? "");
     setRecusalReason("");
   }
 
@@ -154,6 +162,8 @@ export function ReviewerQueuePage() {
   const complete = queue.assignments.filter(
     (assignment) => assignment.status === "submitted",
   ).length;
+  const incomplete = queue.assignments.filter((assignment) => assignment.status === "assigned" || assignment.status === "in_progress").length;
+  const visibleAssignments = reviewerAssignmentsForFilter(queue.assignments, queueFilter);
   return (
     <div className="rd-reviewer-shell">
       <header className="rd-reviewer-head">
@@ -190,10 +200,18 @@ export function ReviewerQueuePage() {
             <h2>Your queue</h2>
             <span className="rd-badge">Your assignments</span>
           </div>
-          {queue.assignments.map((assignment) => (
+          <div className="rd-queue-filters" role="group" aria-label="Filter review assignments">
+            <button className={queueFilter === "all" ? "active" : ""} type="button" aria-pressed={queueFilter === "all"} onClick={() => changeQueueFilter("all")}>All <span>{queue.assignments.length}</span></button>
+            <button className={queueFilter === "incomplete" ? "active" : ""} type="button" aria-pressed={queueFilter === "incomplete"} onClick={() => changeQueueFilter("incomplete")}>Incomplete <span>{incomplete}</span></button>
+          </div>
+          <div className="rd-queue-items">
+          {visibleAssignments.map((assignment) => (
             <button
               key={assignment.assignmentId}
               className={assignment.assignmentId === selectedId ? "active" : ""}
+              aria-current={assignment.assignmentId === selectedId ? "true" : undefined}
+              aria-controls="review-assignment-detail"
+              aria-label={`${assignment.title}, ${assignment.roundName}, ${assignment.status.replace("_", " ")}`}
               onClick={() => selectAssignment(assignment.assignmentId)}
             >
               <i className={assignment.status} />
@@ -209,9 +227,11 @@ export function ReviewerQueuePage() {
               ) : null}
             </button>
           ))}
+          {visibleAssignments.length === 0 ? <div className="rd-queue-empty"><strong>No incomplete reviews.</strong><span>Every active assignment has been finalized or recused.</span></div> : null}
+          </div>
         </aside>
         {selected ? (
-          <section className="rd-review-form">
+          <section id="review-assignment-detail" className="rd-review-form" aria-label={`Review ${selected.title}`}>
             <div className="rd-panel-head">
               <div>
                 <span className="rd-kicker">
