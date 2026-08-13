@@ -88,14 +88,15 @@ export function buildEvaluationRunIdentity(
   databaseScope: EvaluationDatabaseScope = "run_scoped",
 ): EvaluationEnvironmentConfig {
   const normalizedRunId = normalizeRunId(runId);
+  const isolatedDatabase = databaseScope === "disposable_neon_branch";
   return {
     appEnvironment,
     databaseScope,
     runId: normalizedRunId,
     organizationId: deterministicEvaluationUuid(`run:${normalizedRunId}:organization`),
-    organizationSlug: `programflow-eval-${normalizedRunId}`,
+    organizationSlug: isolatedDatabase ? "programflow-evaluation" : `programflow-eval-${normalizedRunId}`,
     eventId: deterministicEvaluationUuid(`run:${normalizedRunId}:event:devflow-conf-2027`),
-    eventSlug: `devflow-conf-2027-${normalizedRunId}`,
+    eventSlug: isolatedDatabase ? "devflow-conf-2027" : `devflow-conf-2027-${normalizedRunId}`,
   };
 }
 

@@ -58,6 +58,16 @@ describe("evaluation environment guard and run isolation", () => {
     expect(first.eventSlug).not.toBe(second.eventSlug);
   });
 
+  it("uses canonical judge-facing slugs only inside an isolated database", () => {
+    const isolated = buildEvaluationRunIdentity("judge-final", "evaluation", "disposable_neon_branch");
+    const shared = buildEvaluationRunIdentity("judge-final", "evaluation", "run_scoped");
+    expect(isolated).toMatchObject({
+      organizationSlug: "programflow-evaluation",
+      eventSlug: "devflow-conf-2027",
+    });
+    expect(shared.eventSlug).toBe("devflow-conf-2027-judge-final");
+  });
+
   it("accepts the minimum clean state needed for the serial golden path", () => {
     expect(() => assertGoldenPathSeedViability({
       eventCount: 1,

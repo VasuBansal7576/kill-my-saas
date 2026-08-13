@@ -31,6 +31,8 @@ This runbook creates a clean evaluator starting state without modifying the poll
 7. Run the ordered 20-scenario evaluation without a reset between areas.
 8. Retain evidence, then delete the disposable Neon branch using the approved Neon workflow. The application reset command is unnecessary when the branch itself is disposed.
 
+Because the whole database is isolated, this mode uses the canonical judge-facing organization slug `programflow-evaluation` and event slug `devflow-conf-2027`. Run-scoped suffixes are reserved for the shared-database fallback.
+
 ## Option B: run-scoped organization/event
 
 Use the same steps with `EVALUATION_DATABASE_SCOPE=run_scoped`. The seed creates deterministic identifiers derived from `EVALUATION_RUN_ID`:
