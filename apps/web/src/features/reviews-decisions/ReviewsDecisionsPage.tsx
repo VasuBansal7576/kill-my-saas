@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { AccessibleDialog } from "../../app/AccessibleDialog";
 import {
   eventDateTimeInputValue,
   eventLocalDateTimeToIso,
@@ -872,14 +873,20 @@ function PlanDialog(props: {
       scorecard: [...round.scorecard, criterionFor(type)],
     });
   }
+  function removeCriterion(roundIndex: number, criterionIndex: number) {
+    const round = props.rounds[roundIndex];
+    if (!round) return;
+    const remaining = round.scorecard.filter((_, index) => index !== criterionIndex);
+    updateRound(roundIndex, { scorecard: remaining });
+    requestAnimationFrame(() => {
+      const roundEditor = document.querySelector<HTMLElement>(`[data-scorecard-round="${roundIndex}"]`);
+      const nextRemoves = roundEditor?.querySelectorAll<HTMLElement>("[data-remove-criterion]") ?? [];
+      nextRemoves[Math.min(criterionIndex, nextRemoves.length - 1)]?.focus();
+      if (!nextRemoves.length) roundEditor?.querySelector<HTMLElement>("[data-add-criterion]")?.focus();
+    });
+  }
   return (
-    <div className="rd-modal-backdrop">
-      <section
-        className="rd-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="plan-title"
-      >
+    <AccessibleDialog close={props.close} titleId="plan-title" backdropClassName="rd-modal-backdrop" dialogClassName="rd-modal" initialFocus="#review-plan-name">
         <div className="rd-panel-head">
           <div>
             <span className="rd-kicker">Review setup</span>
@@ -897,6 +904,7 @@ function PlanDialog(props: {
         <label className="rd-field">
           Plan name
           <input
+            id="review-plan-name"
             value={props.planName}
             onChange={(event) => props.setPlanName(event.target.value)}
           />
@@ -1003,7 +1011,7 @@ function PlanDialog(props: {
                   </label>
                 ))}
               </div>
-              <div className="rd-scorecard-editor">
+              <div className="rd-scorecard-editor" data-scorecard-round={roundIndex}>
                 <strong>Scorecard</strong>
                 {round.scorecard.map((criterion, criterionIndex) => (
                   <div key={criterion.key}>
@@ -1061,14 +1069,11 @@ function PlanDialog(props: {
                       />
                     </label>
                     <button
+                      type="button"
                       className="rd-link danger"
-                      onClick={() =>
-                        updateRound(roundIndex, {
-                          scorecard: round.scorecard.filter(
-                            (_, index) => index !== criterionIndex,
-                          ),
-                        })
-                      }
+                      data-remove-criterion
+                      aria-label={`Remove ${criterion.label || `criterion ${criterionIndex + 1}`} from Round ${roundIndex + 1}`}
+                      onClick={() => removeCriterion(roundIndex, criterionIndex)}
                     >
                       Remove
                     </button>
@@ -1154,18 +1159,22 @@ function PlanDialog(props: {
                 ))}
                 <footer>
                   <button
+                    type="button"
                     className="rd-link"
+                    data-add-criterion
                     onClick={() => addCriterion(roundIndex, "numeric")}
                   >
                     + Numeric
                   </button>
                   <button
+                    type="button"
                     className="rd-link"
                     onClick={() => addCriterion(roundIndex, "dropdown")}
                   >
                     + Dropdown
                   </button>
                   <button
+                    type="button"
                     className="rd-link"
                     onClick={() => addCriterion(roundIndex, "free_text")}
                   >
@@ -1177,6 +1186,7 @@ function PlanDialog(props: {
           ))}
         </div>
         <button
+          type="button"
           className="rd-link"
           onClick={() =>
             props.setRounds([
@@ -1196,6 +1206,7 @@ function PlanDialog(props: {
             Cancel
           </button>
           <button
+            type="button"
             className="primary-action"
             disabled={
               props.busy ||
@@ -1210,8 +1221,7 @@ function PlanDialog(props: {
             {props.busy ? "Saving…" : "Save review plan"}
           </button>
         </footer>
-      </section>
-    </div>
+    </AccessibleDialog>
   );
 }
 
@@ -1228,14 +1238,13 @@ function DecisionDialog(props: {
   const changing = props.currentDecision !== null;
   const blockedAcceptedChange = props.currentDecision === "accepted";
   return (
-    <div className="rd-modal-backdrop">
-      <section className="rd-modal rd-decision" role="dialog" aria-modal="true">
+    <AccessibleDialog close={props.close} titleId="decision-dialog-title" backdropClassName="rd-modal-backdrop" dialogClassName="rd-modal rd-decision" initialFocus={blockedAcceptedChange ? "[data-dialog-initial-focus]" : "#decision-private-note"}>
         <div className="rd-panel-head">
           <div>
             <span className="rd-kicker">
               {changing ? "Change program decision" : "Final program decision"}
             </span>
-            <h2>{props.title}</h2>
+            <h2 id="decision-dialog-title">{props.title}</h2>
           </div>
           <button
             className="rd-close"
@@ -1270,6 +1279,7 @@ function DecisionDialog(props: {
             <label className="rd-field">
               Private decision note
               <textarea
+                id="decision-private-note"
                 rows={5}
                 value={props.reason}
                 onChange={(event) => props.setReason(event.target.value)}
@@ -1318,8 +1328,7 @@ function DecisionDialog(props: {
             </footer>
           </>
         )}
-      </section>
-    </div>
+    </AccessibleDialog>
   );
 }
 

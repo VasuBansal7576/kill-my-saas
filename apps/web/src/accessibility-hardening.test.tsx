@@ -77,4 +77,29 @@ describe("release accessibility hardening", () => {
     expect(speakerFiles).toContain("Upload a file for ${row.taskTitle}");
     expect(organizerFiles).toContain("Upload a replacement headshot for ${active.speakerName}");
   });
+
+  it("routes organizer workflow dialogs through the focus-safe shared primitive", () => {
+    const submissions = readFileSync(new URL("./features/forms-submissions/SubmissionsPage.tsx", import.meta.url), "utf8");
+    const reviews = readFileSync(new URL("./features/reviews-decisions/ReviewsDecisionsPage.tsx", import.meta.url), "utf8");
+    const crm = readFileSync(new URL("./features/speaker-crm/SpeakerCrmPage.tsx", import.meta.url), "utf8");
+    for (const source of [submissions, reviews, crm]) {
+      expect(source).toContain("AccessibleDialog");
+    }
+    expect(submissions.match(/<AccessibleDialog/g)).toHaveLength(3);
+    expect(reviews.match(/<AccessibleDialog/g)).toHaveLength(2);
+    expect(crm.match(/<AccessibleDialog/g)).toHaveLength(2);
+    expect(submissions).not.toContain('role="dialog"');
+  });
+
+  it("protects dirty organizer speaker edits and gives criterion removals context", () => {
+    const speakers = readFileSync(new URL("./features/speaker-operations/SpeakersPage.tsx", import.meta.url), "utf8");
+    const reviews = readFileSync(new URL("./features/reviews-decisions/ReviewsDecisionsPage.tsx", import.meta.url), "utf8");
+    expect(speakers).toContain("Discard unsaved profile edits?");
+    expect(speakers).toContain("Keep editing");
+    expect(speakers).toContain("Discard changes");
+    expect(speakers).toContain("setDirty(false)");
+    expect(reviews).toContain("Remove ${criterion.label");
+    expect(reviews).toContain("from Round ${roundIndex + 1}");
+    expect(reviews).toContain("nextRemoves[Math.min(criterionIndex");
+  });
 });

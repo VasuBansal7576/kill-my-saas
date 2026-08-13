@@ -42,19 +42,28 @@ export function AccessibleDialog({
       ? document.activeElement
       : null;
     const root = document.getElementById("root");
+    const previousDialog = [...document.querySelectorAll<HTMLElement>("[data-dialog-id]")].at(-1) ?? null;
     const previousOverflow = document.body.style.overflow;
     restoreFocusRef.current?.blur();
     document.body.style.overflow = "hidden";
     root?.setAttribute("inert", "");
     root?.setAttribute("aria-hidden", "true");
+    previousDialog?.setAttribute("inert", "");
+    previousDialog?.setAttribute("aria-hidden", "true");
     const dialog = dialogRef.current;
     const requested = dialog?.querySelector<HTMLElement>(initialFocus);
     const first = requested ?? dialog?.querySelector<HTMLElement>(focusable) ?? dialog;
     requestAnimationFrame(() => first?.focus());
     return () => {
       document.body.style.overflow = previousOverflow;
-      root?.removeAttribute("inert");
-      root?.removeAttribute("aria-hidden");
+      const anotherDialogIsOpen = [...document.querySelectorAll<HTMLElement>("[data-dialog-id]")]
+        .some((candidate) => candidate !== dialogRef.current);
+      if (!anotherDialogIsOpen) {
+        root?.removeAttribute("inert");
+        root?.removeAttribute("aria-hidden");
+      }
+      previousDialog?.removeAttribute("inert");
+      previousDialog?.removeAttribute("aria-hidden");
       if (restoreFocusRef.current?.isConnected) restoreFocusRef.current.focus();
     };
   }, [initialFocus]);
@@ -62,6 +71,7 @@ export function AccessibleDialog({
   function onKeyDown(event: React.KeyboardEvent<HTMLElement>) {
     if (event.key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
       close();
       return;
     }
