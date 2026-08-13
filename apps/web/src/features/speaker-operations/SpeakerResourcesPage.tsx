@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { AccessibleDialog } from "../../app/AccessibleDialog";
 import { jsonRequest, requestJson } from "./api";
 import { htmlToMarkdown, markdownToSafeHtml } from "./resource-markdown";
 import styles from "./speaker-operations.module.css";
@@ -19,6 +20,8 @@ export function SpeakerResourcesPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState<"draft" | "published" | null>(null);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [pendingEditorAction, setPendingEditorAction] = useState<{ kind: "new" } | { kind: "select"; resource: SpeakerResource } | null>(null);
 
   const choose = useCallback((resource: SpeakerResource) => {
     const advanced = /<iframe\b/i.test(resource.contentHtml);
@@ -63,6 +66,16 @@ export function SpeakerResourcesPage() {
     setMessage("Start with the title and guidance. You can save a private draft before publishing.");
   }
 
+  function discardAndContinue() {
+    if (pendingHref) {
+      window.location.assign(pendingHref);
+      return;
+    }
+    if (pendingEditorAction?.kind === "select") choose(pendingEditorAction.resource);
+    else if (pendingEditorAction?.kind === "new") startNewResource();
+    setPendingEditorAction(null);
+  }
+
   function update<Key extends keyof SpeakerResource>(key: Key, value: SpeakerResource[Key]) {
     setDraft((current) => ({ ...current, [key]: value }));
   }
@@ -96,14 +109,44 @@ export function SpeakerResourcesPage() {
   }
 
   const previewHtml = useMemo(() => mode === "markdown" ? markdownToSafeHtml(source) : source, [mode, source]);
+  const savedMode: AuthoringMode = /<iframe\b/i.test(selected.contentHtml) ? "advanced_html" : "markdown";
+  const savedSource = savedMode === "advanced_html" ? selected.contentHtml : htmlToMarkdown(selected.contentHtml) || starterMarkdown;
+  const dirty = draft.title !== selected.title
+    || draft.slug !== selected.slug
+    || draft.summary !== selected.summary
+    || JSON.stringify(draft.allowedEmbedOrigins ?? []) !== JSON.stringify(selected.allowedEmbedOrigins ?? [])
+    || mode !== savedMode
+    || source !== savedSource;
+
+  useEffect(() => {
+    if (!dirty) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = true;
+    };
+    const interceptNavigation = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+      if (!anchor || anchor.target || anchor.origin !== window.location.origin || anchor.pathname === window.location.pathname) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setPendingHref(`${anchor.pathname}${anchor.search}${anchor.hash}`);
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    document.addEventListener("click", interceptNavigation, true);
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnload);
+      document.removeEventListener("click", interceptNavigation, true);
+    };
+  }, [dirty]);
 
   return <div className={styles.workspace}>
-    <header className={styles.pageHead}><div><p className={styles.eyebrow}>Speaker portal</p><h1>Resources & wiki</h1><p>Write useful speaker guidance, preview it, then deliberately save or publish.</p></div><button className={styles.primaryButton} onClick={startNewResource} type="button">New page</button></header>
+    <header className={styles.pageHead}><div><p className={styles.eyebrow}>Speaker portal</p><h1>Resources & wiki</h1><p>Write useful speaker guidance, preview it, then deliberately save or publish.</p></div><button className={styles.primaryButton} onClick={() => dirty ? setPendingEditorAction({ kind: "new" }) : startNewResource()} type="button">New page</button></header>
     {message ? <div className={styles.notice} role="status" aria-live="polite">{message}</div> : null}
     {loadError ? <div className={styles.errorState} role="alert"><strong>Resources are unavailable.</strong><p>{loadError}</p><button className={styles.primaryButton} type="button" onClick={() => void load()}>Retry resources</button></div> : null}
-    {!loadError && resources.length === 0 && !draft.title ? <section className={styles.firstResource}><p className={styles.eyebrow}>Your first resource</p><h2>Give speakers one reliable place to start.</h2><p>Create a handbook, arrival guide, slide checklist, or another page that stays beside their tasks.</p><button className={styles.primaryButton} type="button" onClick={startNewResource}>Create first resource</button></section> : null}
+    {!loadError && resources.length === 0 && !draft.title ? <section className={styles.firstResource}><p className={styles.eyebrow}>Your first resource</p><h2>Give speakers one reliable place to start.</h2><p>Create a handbook, arrival guide, slide checklist, or another page that stays beside their tasks.</p><button className={styles.primaryButton} type="button" onClick={() => dirty ? setPendingEditorAction({ kind: "new" }) : startNewResource()}>Create first resource</button></section> : null}
     <div className={styles.resourceLayout}>
-      <aside className={styles.resourceList} aria-label="Portal resource pages">{resources.length ? resources.map((resource) => <button type="button" key={resource.id} className={resource.id === selected.id ? styles.selectedResource : ""} onClick={() => choose(resource)}><strong>{resource.title}</strong><small>{resource.status === "published" ? "Published to speakers" : "Private draft"}</small></button>) : <p className={styles.empty}>No saved pages yet.</p>}</aside>
+      <aside className={styles.resourceList} aria-label="Portal resource pages">{resources.length ? resources.map((resource) => <button type="button" key={resource.id} className={resource.id === selected.id ? styles.selectedResource : ""} onClick={() => dirty && resource.id !== selected.id ? setPendingEditorAction({ kind: "select", resource }) : choose(resource)}><strong>{resource.title}</strong><small>{resource.status === "published" ? "Published to speakers" : "Private draft"}</small></button>) : <p className={styles.empty}>No saved pages yet.</p>}</aside>
       <section className={styles.editor} aria-labelledby="resource-editor-title">
         <div className={styles.sectionHead}><div><h2 id="resource-editor-title">{selected.id ? "Edit resource" : "New resource"}</h2><p className={styles.help}>{draft.status === "published" ? "Currently published" : "Currently a private draft"}</p></div><span>Sanitized on save</span></div>
         <div className={styles.formGrid}><label>Title<input required value={draft.title} onChange={(event) => update("title", event.target.value)} /></label><label>Page URL<input required readOnly={Boolean(selected.id)} pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={draft.slug} placeholder="speaker-handbook" onChange={(event) => update("slug", slugify(event.target.value))} /></label><label className={styles.wide}>Summary<input value={draft.summary} onChange={(event) => update("summary", event.target.value)} /></label></div>
@@ -113,6 +156,7 @@ export function SpeakerResourcesPage() {
       </section>
       <section className={styles.resourcePreview}><div className={styles.sectionHead}><div><h2>Live authoring preview</h2><p className={styles.help}>{mode === "markdown" ? "Safe formatting preview" : "Sandboxed draft preview; saving still runs the server sanitizer"}</p></div><span>{draft.status === "published" ? "Published" : "Draft"}</span></div>{mode === "markdown" ? <div className={styles.renderedHtml} dangerouslySetInnerHTML={{ __html: previewHtml }} /> : <iframe className={styles.resourcePreviewFrame} title="Advanced HTML resource preview" sandbox="" srcDoc={previewHtml} />}</section>
     </div>
+    {pendingHref || pendingEditorAction ? <AccessibleDialog close={() => { setPendingHref(null); setPendingEditorAction(null); }} titleId="discard-resource-edits-title" backdropClassName={styles.backdrop} dialogClassName={styles.confirmDialog}><h2 id="discard-resource-edits-title">Discard unsaved resource edits?</h2><p>Your page content changed after the last save. Save it before leaving, or discard those changes.</p><div className={styles.actions}><button data-dialog-initial-focus className={styles.secondaryButton} type="button" onClick={() => { setPendingHref(null); setPendingEditorAction(null); }}>Keep editing</button><button className={styles.primaryButton} type="button" onClick={discardAndContinue}>Discard and continue</button></div></AccessibleDialog> : null}
   </div>;
 }
 

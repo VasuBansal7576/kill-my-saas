@@ -36,16 +36,21 @@ export function AccessibleDialog({
 }) {
   const generatedId = useId();
   const dialogRef = useRef<HTMLElement>(null);
-  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(
+    typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
+  );
   const closeRef = useRef(close);
   useEffect(() => { closeRef.current = close; }, [close]);
 
   useLayoutEffect(() => {
-    restoreFocusRef.current = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
     const root = document.getElementById("root");
-    const previousDialog = [...document.querySelectorAll<HTMLElement>("[data-dialog-id]")].at(-1) ?? null;
+    const dialog = dialogRef.current;
+    const restoreFocus = restoreFocusRef.current;
+    const previousDialog = [...document.querySelectorAll<HTMLElement>("[data-dialog-id]")]
+      .filter((candidate) => candidate !== dialog)
+      .at(-1) ?? null;
     const previousOverflow = document.body.style.overflow;
     restoreFocusRef.current?.blur();
     document.body.style.overflow = "hidden";
@@ -53,7 +58,6 @@ export function AccessibleDialog({
     root?.setAttribute("aria-hidden", "true");
     previousDialog?.setAttribute("inert", "");
     previousDialog?.setAttribute("aria-hidden", "true");
-    const dialog = dialogRef.current;
     const requested = dialog?.querySelector<HTMLElement>(initialFocus);
     const first = requested ?? dialog?.querySelector<HTMLElement>(focusable) ?? dialog;
     first?.focus();
@@ -77,7 +81,7 @@ export function AccessibleDialog({
       }
       previousDialog?.removeAttribute("inert");
       previousDialog?.removeAttribute("aria-hidden");
-      if (restoreFocusRef.current?.isConnected) restoreFocusRef.current.focus();
+      if (restoreFocus?.isConnected) restoreFocus.focus();
     };
   }, [initialFocus]);
 

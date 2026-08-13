@@ -25,4 +25,11 @@ describe("organizer files interaction semantics", () => {
     expect(speakerPage).toContain("row.changeRequest?.reason");
     expect(speakerPage).toContain("Organizer requested a new version");
   });
+
+  it("never presents zero metrics while the files workspace is unresolved", () => {
+    expect(page).toContain('aria-label="Loading deliverables"');
+    expect(page).toContain("Files could not be loaded.");
+    expect(page).toContain(">Retry</button>");
+    expect(page).toContain("!loading && !loadError ? <>");
+  });
 });

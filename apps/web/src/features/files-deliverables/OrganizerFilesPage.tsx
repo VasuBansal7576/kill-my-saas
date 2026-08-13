@@ -29,50 +29,43 @@ export function OrganizerFilesPage() {
     null,
   );
   const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [changeRequestOpen, setChangeRequestOpen] = useState(false);
   const [changeRequestReason, setChangeRequestReason] = useState("");
   const [confirmWithoutNote, setConfirmWithoutNote] = useState(false);
   const idempotencyKey = useRef(crypto.randomUUID());
 
   const load = useCallback(async () => {
-    const [files, roster, exportRows, event] = await Promise.all([
-      requestJson<Deliverable[]>(`/api/v1/organizer/events/${eventSlug}/files`),
-      requestJson<SpeakerChoice[]>(
-        `/api/v1/organizer/events/${eventSlug}/speakers?taskStatus=all&search=`,
-      ),
-      requestJson<FileExport[]>(
-        `/api/v1/organizer/events/${eventSlug}/file-exports`,
-      ),
-      requestJson<EventConfiguration>(
-        `/api/v1/organizer/events/${eventSlug}/configuration`,
-      ),
-    ]);
-    setDeliverables(files);
-    setSpeakers(roster);
-    setExports(exportRows);
-    setTimezone(event.timezone);
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [files, roster, exportRows, event] = await Promise.all([
+        requestJson<Deliverable[]>(`/api/v1/organizer/events/${eventSlug}/files`),
+        requestJson<SpeakerChoice[]>(
+          `/api/v1/organizer/events/${eventSlug}/speakers?taskStatus=all&search=`,
+        ),
+        requestJson<FileExport[]>(
+          `/api/v1/organizer/events/${eventSlug}/file-exports`,
+        ),
+        requestJson<EventConfiguration>(
+          `/api/v1/organizer/events/${eventSlug}/configuration`,
+        ),
+      ]);
+      setDeliverables(files);
+      setSpeakers(roster);
+      setExports(exportRows);
+      setTimezone(event.timezone);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "The files workspace could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
   }, [eventSlug]);
   useEffect(() => {
-    Promise.all([
-      requestJson<Deliverable[]>(`/api/v1/organizer/events/${eventSlug}/files`),
-      requestJson<SpeakerChoice[]>(
-        `/api/v1/organizer/events/${eventSlug}/speakers?taskStatus=all&search=`,
-      ),
-      requestJson<FileExport[]>(
-        `/api/v1/organizer/events/${eventSlug}/file-exports`,
-      ),
-      requestJson<EventConfiguration>(
-        `/api/v1/organizer/events/${eventSlug}/configuration`,
-      ),
-    ])
-      .then(([files, roster, exportRows, event]) => {
-        setDeliverables(files);
-        setSpeakers(roster);
-        setExports(exportRows);
-        setTimezone(event.timezone);
-      })
-      .catch(showError(setMessage));
-  }, [eventSlug]);
+    const pending = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(pending);
+  }, [load]);
 
   const visible = useMemo(
     () =>
@@ -353,6 +346,9 @@ export function OrganizerFilesPage() {
           {message}
         </div>
       ) : null}
+      {loading ? <div className={styles.loadingList} role="status" aria-label="Loading deliverables"><span /><span /></div> : null}
+      {loadError ? <div className={styles.errorState} role="alert"><strong>Files could not be loaded.</strong><p>{loadError}</p><button className={styles.secondary} type="button" onClick={() => void load()}>Retry</button></div> : null}
+      {!loading && !loadError ? <>
       <section className={styles.metrics}>
         <Metric label="Requested" value={counts.requested} />
         <Metric label="Submitted" value={counts.submitted} />
@@ -705,6 +701,7 @@ export function OrganizerFilesPage() {
           </section>
         </aside>
       </div>
+      </> : null}
       {changeRequestOpen && active ? <AccessibleDialog close={() => setChangeRequestOpen(false)} titleId="request-changes-title" backdropClassName={styles.dialogBackdrop} dialogClassName={styles.reviewDialog} initialFocus="[data-change-feedback]">
         <p className={styles.eyebrow}>Speaker-facing request</p>
         <h2 id="request-changes-title">Request changes to {active.taskTitle}</h2>

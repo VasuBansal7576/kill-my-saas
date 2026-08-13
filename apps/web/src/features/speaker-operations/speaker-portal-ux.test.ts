@@ -50,3 +50,14 @@ describe("speaker proposal and decision workspaces", () => {
     expect(submissionsForWorkspace([pending, accepted], workspace.decisions)).toEqual([pending, accepted]);
   });
 });
+
+describe("portal resource authoring", () => {
+  it("protects unsaved content from same-origin navigation and page unload", () => {
+    const page = readFileSync(new URL("./SpeakerResourcesPage.tsx", import.meta.url), "utf8");
+    expect(page).toContain('window.addEventListener("beforeunload"');
+    expect(page).toContain('document.addEventListener("click", interceptNavigation, true)');
+    expect(page).toContain("Discard unsaved resource edits?");
+    expect(page).toContain("Keep editing");
+    expect(page).toContain("Discard and continue");
+  });
+});

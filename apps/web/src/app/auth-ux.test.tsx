@@ -19,6 +19,8 @@ describe("authentication interaction affordances", () => {
     expect(login).toContain('to="/forgot-password"');
     expect(recovery).toContain("authClient.requestPasswordReset");
     expect(recovery).toContain("authClient.resetPassword");
+    expect(recovery).toContain("missingResetToken ?");
+    expect(recovery).toContain('to="/forgot-password">Request a new link');
     expect(app).toContain('path="/reset-password"');
   });
 });
