@@ -83,7 +83,7 @@ export function WorkspaceOnboardingPage({ additionalEvent = false }: { additiona
   const Landmark = additionalEvent ? "section" : "main";
 
   return (
-    <Landmark className="login-page onboarding-page">
+    <Landmark id={additionalEvent ? undefined : "main-content"} className="login-page onboarding-page">
       <section className="login-card onboarding-card">
         <div className="brand login-brand"><span>PF</span>ProgramFlow</div>
         <p className="eyebrow">{additionalEvent ? "New event" : "First-run setup"}</p>

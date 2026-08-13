@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterSessions, filterSpeakers, optimisticItinerarySelection, sessionsByStart } from "./model";
+import { biographyForDisplay, filterSessions, filterSpeakers, optimisticItinerarySelection, sessionsByStart } from "./model";
 import type { PublishedProgram } from "./types";
 
 describe("public program read models", () => {
@@ -22,6 +22,11 @@ describe("public program read models", () => {
     expect([...added.next]).toEqual(["session-1", "session-2"]);
     expect([...current]).toEqual(["session-1"]);
     expect(optimisticItinerarySelection(added.next, "session-1")).toMatchObject({ method: "DELETE" });
+  });
+
+  it("removes accidental repeated biography presentation without rewriting distinct paragraphs", () => {
+    expect(biographyForDisplay("Builds reliable systems.Builds reliable systems.")).toBe("Builds reliable systems.");
+    expect(biographyForDisplay("First paragraph.\n\nFirst paragraph.\n\nSecond paragraph.")).toBe("First paragraph.\n\nSecond paragraph.");
   });
 });
 

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   NavLink,
   Route,
@@ -8,6 +8,7 @@ import {
   useParams,
 } from "react-router-dom";
 import { organizerNavigation } from "./app/organizer-navigation";
+import { formatEventDateRange } from "./app/event-time";
 
 const LoginPage = lazy(async () => ({
   default: (await import("./app/LoginPage")).LoginPage,
@@ -129,7 +130,9 @@ type SessionResponse = {
 
 export function App() {
   return (
-    <Routes>
+    <>
+      <a className="skip-link" href="#main-content">Skip to main content</a>
+      <Routes>
       <Route path="/" element={<StandalonePage><EvaluationEntryPage /></StandalonePage>} />
       <Route path="/help" element={<StandalonePage><HelpPage /></StandalonePage>} />
       <Route
@@ -189,6 +192,22 @@ export function App() {
         }
       />
       <Route
+        path="/speaker/events/:eventSlug/proposals"
+        element={
+          <RolePage label="Speaker proposals">
+            <SpeakerSubmissionsPage />
+          </RolePage>
+        }
+      />
+      <Route
+        path="/speaker/events/:eventSlug/decisions"
+        element={
+          <RolePage label="Speaker decisions">
+            <SpeakerSubmissionsPage />
+          </RolePage>
+        }
+      />
+      <Route
         path="/speaker/events/:eventSlug/files"
         element={
           <RolePage label="Speaker files">
@@ -204,6 +223,17 @@ export function App() {
           </RolePage>
         }
       />
+      {(["sessions", "tasks", "profile", "resources"] as const).map((section) => (
+        <Route
+          key={section}
+          path={`/speaker/events/:eventSlug/${section}`}
+          element={
+            <RolePage label={`Speaker ${section}`}>
+              <SpeakerPortalPage />
+            </RolePage>
+          }
+        />
+      ))}
       <Route
         path="/program/:eventSlug/sessions"
         element={
@@ -286,7 +316,8 @@ export function App() {
       />
       <Route path="/organizer/*" element={<ProductShell />} />
       <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }
 
@@ -306,6 +337,7 @@ export function RolePage({
   label: string;
 }) {
   const [personName, setPersonName] = useState<string | null>(null);
+  const location = useLocation();
   useEffect(() => {
     void fetch("/api/v1/session")
       .then((response) =>
@@ -326,7 +358,8 @@ export function RolePage({
         </strong>
         <div className="role-actions"><NavLink to="/help">Help</NavLink><SignOutButton /></div>
       </header>
-      <main className="role-content">
+      {location.pathname.startsWith("/speaker/events/") ? <SpeakerPortalNavigation /> : null}
+      <main id="main-content" className="role-content">
         <StandalonePage>{children}</StandalonePage>
       </main>
     </div>
@@ -338,6 +371,45 @@ function ProductShell() {
   const location = useLocation();
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!mobileNavigationOpen) return;
+    const navigation = document.getElementById("organizer-navigation");
+    const main = document.querySelector<HTMLElement>(".product-shell > main");
+    const topbarItems = document.querySelectorAll<HTMLElement>(".topbar > :not(.mobile-nav-toggle)");
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    main?.setAttribute("inert", "");
+    main?.setAttribute("aria-hidden", "true");
+    topbarItems.forEach((item) => item.setAttribute("inert", ""));
+    requestAnimationFrame(() => navigation?.querySelector<HTMLElement>("a, select, button")?.focus());
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileNavigationOpen(false);
+        requestAnimationFrame(() => menuButtonRef.current?.focus());
+        return;
+      }
+      if (event.key !== "Tab" || !navigation) return;
+      const items = [...navigation.querySelectorAll<HTMLElement>("a, select, button")].filter((item) => !item.hasAttribute("disabled"));
+      const first = items[0];
+      const last = items.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      main?.removeAttribute("inert");
+      main?.removeAttribute("aria-hidden");
+      topbarItems.forEach((item) => item.removeAttribute("inert"));
+    };
+  }, [mobileNavigationOpen]);
 
   useEffect(() => {
     void fetch("/api/v1/session")
@@ -400,7 +472,7 @@ function ProductShell() {
           <div className="event-card">
             <strong>{activeEvent.name}</strong>
             <small>
-              {activeEvent.startsOn}–{activeEvent.endsOn} ·{" "}
+              {formatEventDateRange(activeEvent.startsOn, activeEvent.endsOn)} ·{" "}
               {activeEvent.location}
             </small>
             <i>
@@ -460,11 +532,15 @@ function ProductShell() {
           className="mobile-nav-backdrop"
           type="button"
           aria-label="Close organizer navigation"
-          onClick={() => setMobileNavigationOpen(false)}
+          onClick={() => {
+            setMobileNavigationOpen(false);
+            requestAnimationFrame(() => menuButtonRef.current?.focus());
+          }}
         />
       ) : null}
       <header className="topbar">
         <button
+          ref={menuButtonRef}
           className="mobile-nav-toggle"
           type="button"
           aria-controls="organizer-navigation"
@@ -478,7 +554,7 @@ function ProductShell() {
         </span>
         <SignOutButton />
       </header>
-      <main>
+      <main id="main-content">
         <Routes>
           <Route
             path="new-event"
@@ -721,7 +797,7 @@ function SpeakerCrmRoute() {
 export function NotFoundPage({ dashboardPath }: { dashboardPath?: string }) {
   const Landmark = dashboardPath ? "section" : "main";
   return (
-    <Landmark className="not-found" aria-labelledby="not-found-title">
+    <Landmark id="main-content" className="not-found" aria-labelledby="not-found-title">
       <p className="eyebrow">404 · Page not found</p>
       <h1 id="not-found-title">This page doesn’t exist.</h1>
       <p>The link may be out of date, or the page may have moved.</p>
@@ -735,4 +811,24 @@ export function NotFoundPage({ dashboardPath }: { dashboardPath?: string }) {
       </div>
     </Landmark>
   );
+}
+
+function SpeakerPortalNavigation() {
+  const location = useLocation();
+  const eventSlug = /^\/speaker\/events\/([^/]+)/.exec(location.pathname)?.[1];
+  if (!eventSlug) return null;
+  const base = `/speaker/events/${eventSlug}`;
+  const links = [
+    ["Overview", base],
+    ["Proposals", `${base}/proposals`],
+    ["Decisions", `${base}/decisions`],
+    ["Sessions", `${base}/sessions`],
+    ["Tasks", `${base}/tasks`],
+    ["Files", `${base}/files`],
+    ["Profile", `${base}/profile`],
+    ["Resources", `${base}/resources`],
+  ] as const;
+  return <nav className="speaker-portal-nav" aria-label="Speaker portal">
+    {links.map(([label, to]) => <NavLink key={to} end={to === base} to={to}>{label}</NavLink>)}
+  </nav>;
 }

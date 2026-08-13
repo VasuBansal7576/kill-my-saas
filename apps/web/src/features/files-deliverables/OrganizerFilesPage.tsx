@@ -433,6 +433,7 @@ export function OrganizerFilesPage() {
                   <label className={styles.primary}>
                     Choose headshot
                     <input
+                      aria-label={`Upload a replacement headshot for ${active.speakerName}`}
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
                       onChange={(event) => {

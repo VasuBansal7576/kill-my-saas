@@ -102,7 +102,7 @@ export function SubmissionsPage() {
         {!loading ? visibleSubmissions.map((submission) => (
           <article className="submission-row" key={submission.id}>
             <div>
-              <strong>{submission.title}</strong><small>Form v{submission.formVersion} · content v{submission.version}</small>
+              <strong>{submission.title}</strong>
               <details className="submission-detail">
                 <summary>View proposal answers</summary>
                 <dl>
@@ -122,9 +122,9 @@ export function SubmissionsPage() {
             </div>
           </article>
         )) : null}
-        {!loading && visibleSubmissions.length === 0 && !message ? <div className="cfp-empty"><strong>{submissions.length ? `No ${filter} proposals.` : "No proposals yet."}</strong><p>{submissions.length ? "Choose another decision queue to keep working." : "Published form submissions will appear here without re-entry."}</p></div> : null}
+        {!loading && visibleSubmissions.length === 0 && !message ? <div className="cfp-empty"><strong>{submissions.length ? `No ${filter} proposals.` : "No proposals yet."}</strong><p>{submissions.length ? "Choose another decision queue to keep working." : "New proposals will appear here automatically."}</p></div> : null}
       </section>
-      {decisionTarget ? <div className="submission-decision-backdrop"><section className="submission-decision-dialog" role="dialog" aria-modal="true" aria-labelledby="submission-decision-title"><p className="eyebrow">Final program decision</p><h2 id="submission-decision-title">{decisionTarget.title}</h2><p>Accept creates the linked session, speaker record, onboarding handoff, and notification job. Reject records the final outcome and queues its message.</p><label>Private decision note<textarea autoFocus rows={5} value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} placeholder="Why is this the right program decision?" /></label><footer><button type="button" className="secondary-action" onClick={() => { setDecisionTarget(null); setDecisionReason(""); }}>Cancel</button><button type="button" className="secondary-action danger" disabled={busyId === decisionTarget.id || decisionReason.trim().length < 3} onClick={() => void decide("rejected")}>Reject</button><button type="button" className="primary-action" disabled={busyId === decisionTarget.id || decisionReason.trim().length < 3} onClick={() => void decide("accepted")}>{busyId === decisionTarget.id ? "Recording…" : "Accept & create session"}</button></footer></section></div> : null}
+      {decisionTarget ? <div className="submission-decision-backdrop"><section className="submission-decision-dialog" role="dialog" aria-modal="true" aria-labelledby="submission-decision-title"><p className="eyebrow">Final program decision</p><h2 id="submission-decision-title">{decisionTarget.title}</h2><p>Accept adds this proposal to the program, creates the speaker’s onboarding work, and prepares their decision message. Reject records the outcome and prepares the rejection message.</p><label>Private decision note<textarea autoFocus rows={5} value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} placeholder="Why is this the right program decision?" /></label><footer><button type="button" className="secondary-action" onClick={() => { setDecisionTarget(null); setDecisionReason(""); }}>Cancel</button><button type="button" className="secondary-action danger" disabled={busyId === decisionTarget.id || decisionReason.trim().length < 3} onClick={() => void decide("rejected")}>Reject</button><button type="button" className="primary-action" disabled={busyId === decisionTarget.id || decisionReason.trim().length < 3} onClick={() => void decide("accepted")}>{busyId === decisionTarget.id ? "Recording…" : "Accept & create session"}</button></footer></section></div> : null}
     </div>
   );
 }

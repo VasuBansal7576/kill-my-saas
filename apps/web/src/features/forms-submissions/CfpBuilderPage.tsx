@@ -117,12 +117,12 @@ export function CfpBuilderPage() {
                     </div>
                     {(field.type === "select" || field.type === "multi_select") ? (
                       <label>Options <small>one per line, or choose an event catalog</small>
-                        <select value={typeof field.settings.catalog === "string" ? field.settings.catalog : "custom"} onChange={(event) => patchField(index, { settings: event.target.value === "custom" ? { ...field.settings, catalog: undefined } : { ...field.settings, catalog: event.target.value as "track" | "format" } })}>
+                        <select aria-label={`${field.label} option source`} value={typeof field.settings.catalog === "string" ? field.settings.catalog : "custom"} onChange={(event) => patchField(index, { settings: event.target.value === "custom" ? { ...field.settings, catalog: undefined } : { ...field.settings, catalog: event.target.value as "track" | "format" } })}>
                           <option value="custom">Custom options</option><option value="track">Event tracks</option><option value="format">Event formats</option>
                         </select>
-                        {!field.settings.catalog ? <textarea rows={3} value={(field.settings.options ?? []).join("\n")} onChange={(event) => patchField(index, { settings: { ...field.settings, options: lines(event.target.value) } })} /> : null}
+                        {!field.settings.catalog ? <textarea aria-label={`${field.label} options, one per line`} rows={3} value={(field.settings.options ?? []).join("\n")} onChange={(event) => patchField(index, { settings: { ...field.settings, options: lines(event.target.value) } })} /> : null}
                         <span>Routing rules <small>one per line: option = reviewer queue key</small></span>
-                        <textarea rows={2} value={formatRouting(field.settings.routeByValue)} onChange={(event) => patchField(index, { settings: { ...field.settings, routeByValue: parseRouting(event.target.value) } })} />
+                        <textarea aria-label={`${field.label} routing rules`} rows={2} value={formatRouting(field.settings.routeByValue)} onChange={(event) => patchField(index, { settings: { ...field.settings, routeByValue: parseRouting(event.target.value) } })} />
                       </label>
                     ) : null}
                     <div className="cfp-inline-grid">

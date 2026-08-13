@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
-import { formatEventDateTime } from "../../app/event-time";
+import { AccessibleDialog } from "../../app/AccessibleDialog";
+import { formatEventDateRange, formatEventDateTime } from "../../app/event-time";
 import { publicProgramRequest } from "./api";
 import {
   filterSessions,
   filterSpeakers,
+  biographyForDisplay,
   formatDay,
   formatRange,
   initials,
@@ -130,7 +132,7 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
       {surfaces.map((item) => <Link key={item.key} className={surface === item.key ? "active" : ""} aria-current={surface === item.key ? "page" : undefined} to={`/program/${eventSlug}/${item.key === "gallery" ? "speaker-gallery" : item.key}`}>{item.label}</Link>)}
     </nav>
 
-    <main className="public-program-main">
+    <main id="main-content" className="public-program-main">
       <div className="public-title-row">
         <div><p>{surfaceLabel(surface)}</p><h2>{surfaceTitle(surface)}</h2><small>{surfaceDescription(surface)}</small></div>
         {surface === "itinerary" ? <div className="itinerary-actions">
@@ -259,16 +261,19 @@ function SessionDetail({ session, timezone, close }: { session: PublicSession; t
 
 function SpeakerDetail({ speaker, timezone, close }: { speaker: PublicSpeaker; timezone: string; close(): void }) {
   const [expanded, setExpanded] = useState(false);
+  const biography = biographyForDisplay(speaker.biography);
   return <Modal close={close} label={`Speaker details: ${speaker.name}`}>
     <div className="speaker-detail-head"><Headshot speaker={speaker} large /><div><h2>{speaker.name}</h2><p>{[speaker.jobTitle || "Speaker", speaker.company].filter(Boolean).join(" · ")}</p></div></div>
-    <p className={expanded ? "" : "clamped bio"}>{speaker.biography || "Biography coming soon."}</p>
-    {speaker.biography.length > 180 ? <button className="show-more" type="button" onClick={() => setExpanded(!expanded)}>{expanded ? "Show less" : "Show more"}</button> : null}
+    <p className={expanded ? "" : "clamped bio"}>{biography || "Biography coming soon."}</p>
+    {biography.length > 180 ? <button className="show-more" type="button" onClick={() => setExpanded(!expanded)}>{expanded ? "Show less" : "Show more"}</button> : null}
     <h3>Sessions</h3><div className="speaker-session-list">{speaker.sessions.map((session) => <article key={session.id}><strong>{session.title}</strong><small>{formatEventDateTime(session.startsAt, timezone)} · {session.room}</small></article>)}</div>
   </Modal>;
 }
 
 function Modal({ children, close, label }: { children: ReactNode; close(): void; label: string }) {
-  return <div className="public-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) close(); }}><section className="public-modal" role="dialog" aria-modal="true" aria-label={label}><button className="modal-close" type="button" onClick={close} aria-label={`Close ${label}`}>×</button>{children}</section></div>;
+  return <AccessibleDialog close={close} label={label} backdropClassName="public-modal-backdrop" dialogClassName="public-modal">
+    <button className="modal-close" data-dialog-initial-focus type="button" onClick={close} aria-label={`Close ${label}`}>×</button>{children}
+  </AccessibleDialog>;
 }
 
 function Tags({ session }: { session: PublicSession }) {
@@ -310,8 +315,7 @@ function surfaceDescription(surface: PublicSurface): string {
 }
 
 function dateSpan(program: PublishedProgram): string {
-  const format = (value: string) => new Intl.DateTimeFormat(undefined, { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" }).format(new Date(`${value}T00:00:00Z`));
-  return `${format(program.event.startsOn)}–${format(program.event.endsOn)}`;
+  return formatEventDateRange(program.event.startsOn, program.event.endsOn);
 }
 
 function message(error: unknown): string {

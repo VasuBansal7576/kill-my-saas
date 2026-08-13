@@ -55,3 +55,16 @@ export function optimisticItinerarySelection(current: ReadonlySet<string>, sessi
 export function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase() ?? "").join("") || "?";
 }
+
+export function biographyForDisplay(value: string): string {
+  const biography = value.trim();
+  if (!biography) return "";
+  const midpoint = Math.floor(biography.length / 2);
+  if (biography.length % 2 === 0 && biography.slice(0, midpoint).trim() === biography.slice(midpoint).trim()) {
+    return biography.slice(0, midpoint).trim();
+  }
+  return biography
+    .split(/\n\s*\n/)
+    .filter((paragraph, index, paragraphs) => index === 0 || paragraph.trim() !== paragraphs[index - 1]?.trim())
+    .join("\n\n");
+}

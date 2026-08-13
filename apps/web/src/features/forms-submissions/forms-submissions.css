@@ -71,7 +71,7 @@
   border-radius: 7px;
   background: rgba(75,185,130,.08);
   color: #82c9a5;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 @media (max-width: 620px) {
@@ -96,7 +96,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 13px;
   border: 1px solid #303633;
   border-radius: 7px;
@@ -158,7 +158,7 @@
   display: grid;
   gap: 6px;
   color: #adb6b0;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
   letter-spacing: .055em;
   text-transform: uppercase;
@@ -167,8 +167,8 @@
 .cfp-panel label small,
 .cfp-proposal-form label small,
 .cfp-participants legend small {
-  color: #6f7a73;
-  font-size: 9px;
+  color: #98a29c;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
@@ -210,7 +210,7 @@
 
 .cfp-builder-field {
   display: grid;
-  grid-template-columns: 30px 1fr 28px;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
   gap: 12px;
   border: 1px solid #2b312d;
   border-radius: 7px;
@@ -223,13 +223,17 @@
   align-content: start;
   justify-items: center;
   gap: 2px;
-  color: #77827b;
-  font-size: 10px;
+  color: #a0aaa4;
+  font-size: 12px;
 }
 
 .cfp-field-order button,
 .cfp-remove,
 .cfp-participant-row > button {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-grid;
+  place-items: center;
   border: 0;
   background: transparent;
   color: #8c9690;
@@ -754,10 +758,10 @@
   }
 
   .cfp-builder-field {
-    grid-template-columns: 1fr 24px;
+    grid-template-columns: 52px minmax(0, 1fr);
   }
 
-  .cfp-field-order {
-    display: none;
-  }
+  .cfp-field-order { display: grid; grid-row: 1; }
+  .cfp-field-editor { grid-column: 2; }
+  .cfp-remove { grid-column: 1; grid-row: 2; }
 }

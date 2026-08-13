@@ -55,7 +55,7 @@ export function LoginPage() {
   }
 
   return (
-    <main className="login-page">
+    <main id="main-content" className="login-page">
       <div className="login-shell">
         <section className="login-story" aria-label="ProgramFlow product overview">
           <Link className="brand login-brand" to="/"><span>PF</span>ProgramFlow</Link>

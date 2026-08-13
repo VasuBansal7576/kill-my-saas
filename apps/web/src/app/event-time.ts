@@ -26,6 +26,19 @@ export function formatEventTimeRange(
   return `${new Intl.DateTimeFormat(undefined, startOptions).format(asDate(startsAt))}–${new Intl.DateTimeFormat(undefined, endOptions).format(asDate(endsAt))}`;
 }
 
+export function formatEventDateRange(startsOn: string, endsOn: string): string {
+  const start = asDate(`${startsOn}T00:00:00Z`);
+  const end = asDate(`${endsOn}T00:00:00Z`);
+  const monthDay = (date: Date) => new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" }).format(date);
+  const full = (date: Date) => new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" }).format(date);
+  if (startsOn === endsOn) return full(start);
+  const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+  const sameMonth = sameYear && start.getUTCMonth() === end.getUTCMonth();
+  if (sameMonth) return `${monthDay(start)}–${end.getUTCDate()}, ${end.getUTCFullYear()}`;
+  if (sameYear) return `${monthDay(start)}–${monthDay(end)}, ${end.getUTCFullYear()}`;
+  return `${full(start)}–${full(end)}`;
+}
+
 export function eventDateTimeInputValue(value: string | null, timeZone: string): string {
   if (!value) return "";
   const parts = new Intl.DateTimeFormat("en-CA", {

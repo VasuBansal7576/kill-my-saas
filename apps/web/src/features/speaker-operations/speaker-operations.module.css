@@ -8,7 +8,7 @@
 .pageHead p:not(.eyebrow), .portalHeader p:not(.eyebrow) { margin: 10px 0 0; color: #858585; font-size: 12px; }
 .eyebrow { margin: 0 0 9px; color: #8c7cf6; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; }
 .actions { display: flex; gap: 8px; }
-.primaryButton, .secondaryButton, .iconButton, .textButton { display: inline-flex; align-items: center; justify-content: center; min-height: 35px; padding: 0 13px; border-radius: 7px; font-size: 10px; font-weight: 750; cursor: pointer; }
+.primaryButton, .secondaryButton, .iconButton, .textButton { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 13px; border-radius: 7px; font-size: 12px; font-weight: 750; cursor: pointer; }
 .secondaryButton { text-decoration: none; }
 .primaryButton { border: 0; background: #e7e7e7; color: #111; }
 .secondaryButton { border: 1px solid #353535; background: #1a1a1a; color: #c4c4c4; }
@@ -53,7 +53,7 @@
 .backdrop { position: fixed; z-index: 10; inset: 0; display: flex; justify-content: flex-end; background: rgba(0,0,0,.62); }
 .drawer { width: min(560px,100%); height: 100%; overflow: auto; padding: 22px; border-left: 1px solid #303030; background: #141414; box-shadow: -24px 0 80px rgba(0,0,0,.4); }
 .detailLoading { margin: auto 24px auto auto; padding: 14px 18px; border: 1px solid #303030; border-radius: 8px; background: #141414; color: #cfcfcf; }
-.iconButton { width: 34px; padding: 0; border: 1px solid #333; background: #1b1b1b; color: #999; font-size: 18px; }
+.iconButton { width: 44px; padding: 0; border: 1px solid #333; background: #1b1b1b; color: #bbb; font-size: 20px; }
 .statusControl { margin: 12px 0 18px; }
 .detailSection { margin-top: 28px; }
 .detailSection h3 { margin: 0 0 10px; color: #bdbdbd; font-size: 10px; }
@@ -84,11 +84,12 @@
 .portalGrid { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(300px,.65fr); gap: 22px; }
 .portalTask { display: grid; grid-template-columns: 28px 1fr auto; gap: 11px; align-items: start; min-height: 72px; padding: 12px 0; border-top: 1px solid #292929; }
 .portalTask p, .sessionCard p, .profileSummary p { color: #898989; font-size: 10px; line-height: 1.6; }
-.textButton { min-height: auto; padding: 0; border: 0; background: transparent; color: #9d91ed; }
+.textButton { min-height: 44px; padding: 0 8px; border: 0; background: transparent; color: #b0a6f3; }
 .profileSummary strong, .profileSummary small { display: block; }
 .profileSummary small { margin-top: 5px; color: #777; font-size: 9px; }
 .resourceLink { border: 1px solid #292929; border-radius: 7px; margin-top: 8px; }
 .taskForm { display: grid; gap: 8px; margin-top: 10px; }
+[id^="portal-"] { scroll-margin-top: 120px; }
 
 @media (max-width: 1050px) {
   .resourceLayout { grid-template-columns: 210px 1fr; }

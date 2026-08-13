@@ -358,10 +358,25 @@ export function ReviewsDecisionsPage() {
           note="Current program outcomes"
         />
       </div>
-      <div className="rd-tabs" role="tablist">
+      <div className="rd-tabs" role="tablist" aria-label="Evaluation workspace" onKeyDown={(event) => {
+        if (!(["ArrowLeft", "ArrowRight", "Home", "End"] as string[]).includes(event.key)) return;
+        event.preventDefault();
+        const tabs: Tab[] = ["rounds", "assignments", "results", "ai"];
+        const current = tabs.indexOf(tab);
+        const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : event.key === "ArrowRight" ? (current + 1) % tabs.length : (current - 1 + tabs.length) % tabs.length;
+        const nextTab = tabs[next]!;
+        setTab(nextTab);
+        requestAnimationFrame(() => document.getElementById(`evaluation-tab-${nextTab}`)?.focus());
+      }}>
         {(["rounds", "assignments", "results", "ai"] as const).map((value) => (
           <button
             key={value}
+            id={`evaluation-tab-${value}`}
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            aria-controls={`evaluation-panel-${value}`}
+            tabIndex={tab === value ? 0 : -1}
             className={tab === value ? "active" : ""}
             onClick={() => setTab(value)}
           >
@@ -371,16 +386,18 @@ export function ReviewsDecisionsPage() {
       </div>
 
       {tab === "rounds" ? (
-        <RoundsPanel
-          eventSlug={eventSlug}
-          timezone={workspace.event.timezone}
-          plans={workspace.plans}
-          busy={busy}
-          remind={(roundId) => void remindOutstanding(roundId)}
-        />
+        <div id="evaluation-panel-rounds" role="tabpanel" aria-labelledby="evaluation-tab-rounds">
+          <RoundsPanel
+            eventSlug={eventSlug}
+            timezone={workspace.event.timezone}
+            plans={workspace.plans}
+            busy={busy}
+            remind={(roundId) => void remindOutstanding(roundId)}
+          />
+        </div>
       ) : null}
       {tab === "assignments" ? (
-        <section className="rd-panel">
+        <section id="evaluation-panel-assignments" role="tabpanel" aria-labelledby="evaluation-tab-assignments" className="rd-panel">
           <div className="rd-panel-head">
             <div>
               <h2>Conflict-aware distribution</h2>
@@ -493,7 +510,7 @@ export function ReviewsDecisionsPage() {
         </section>
       ) : null}
       {tab === "results" ? (
-        <section className="rd-panel">
+        <section id="evaluation-panel-results" role="tabpanel" aria-labelledby="evaluation-tab-results" className="rd-panel">
           <div className="rd-panel-head">
             <div>
               <h2>Aggregate results</h2>
@@ -579,14 +596,14 @@ export function ReviewsDecisionsPage() {
         </section>
       ) : null}
       {tab === "ai" ? (
-        <section className="rd-panel">
+        <section id="evaluation-panel-ai" role="tabpanel" aria-labelledby="evaluation-tab-ai" className="rd-panel">
           <div className="rd-panel-head">
             <div>
               <h2>First-pass AI advice</h2>
               <p>
-                Workers AI advice is separate from human reviews and decisions.
-                Provider failures are visible and never replaced with generated
-                demo data.
+                First-pass advice is separate from human reviews and decisions.
+                If the service is unavailable, the problem is shown here and
+                human review continues normally.
               </p>
             </div>
             <span className="rd-badge">Advisory only</span>
@@ -700,7 +717,7 @@ function AiAssessmentRow(props: {
             </div>
           </>
         ) : (
-          <small>No provider assessment has been run.</small>
+          <small>No AI advice has been requested yet.</small>
         )}
       </div>
       <button

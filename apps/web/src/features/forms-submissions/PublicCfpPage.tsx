@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { formatEventDateTime } from "../../app/event-time";
+import { formatEventDateRange, formatEventDateTime } from "../../app/event-time";
 import "./forms-submissions.css";
 import { fieldIsVisible, readApi, type FormField, type ParticipantRole, type PublicForm, type SubmissionRecord } from "./model";
 
@@ -89,16 +89,16 @@ export function PublicCfpPage() {
     }
   };
 
-  if (state === "loading") return <main className="public-cfp"><p>Loading call for speakers…</p></main>;
-  if (!publicForm) return <main className="public-cfp"><div className="cfp-public-card"><h1>Call unavailable</h1><p role="alert">{message}</p></div></main>;
+  if (state === "loading") return <main id="main-content" className="public-cfp"><p>Loading call for speakers…</p></main>;
+  if (!publicForm) return <main id="main-content" className="public-cfp"><div className="cfp-public-card"><h1>Call unavailable</h1><p role="alert">{message}</p></div></main>;
 
   const { event, form } = publicForm;
   const isOpen = form.availability === "open";
   return (
-    <main className="public-cfp" style={{ "--cfp-brand": event.primaryColor } as CSSProperties}>
+    <main id="main-content" className="public-cfp" style={{ "--cfp-brand": event.primaryColor } as CSSProperties}>
       <header className="public-cfp-header">
         <div><span className="cfp-public-mark">PF</span><strong>{event.name}</strong></div>
-        <span>{event.startsOn}–{event.endsOn} · {event.location}</span>
+        <span>{formatEventDateRange(event.startsOn, event.endsOn)} · {event.location}</span>
       </header>
       <div className="public-cfp-layout">
         <section className="cfp-public-card cfp-public-intro">

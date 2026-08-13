@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventDateTimeInputValue, eventLocalDateTimeToIso, formatEventDateTime, formatEventTimeRange } from "./event-time";
+import { eventDateTimeInputValue, eventLocalDateTimeToIso, formatEventDateRange, formatEventDateTime, formatEventTimeRange } from "./event-time";
 
 describe("event time formatting", () => {
   it("uses the event timezone and names it explicitly", () => {
@@ -14,6 +14,11 @@ describe("event time formatting", () => {
     expect(formatted).toContain("10:00");
     expect(formatted).toContain("10:30");
     expect(formatted).toMatch(/PDT|GMT-7/);
+  });
+
+  it("compacts public event date ranges without repeating month and year", () => {
+    expect(formatEventDateRange("2027-05-12", "2027-05-14")).toBe("May 12–14, 2027");
+    expect(formatEventDateRange("2027-05-12", "2027-05-12")).toBe("May 12, 2027");
   });
 
   it("round-trips event-local form values without using the browser timezone", () => {
