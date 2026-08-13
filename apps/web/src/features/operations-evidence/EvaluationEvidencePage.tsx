@@ -24,7 +24,7 @@ export function EvaluationEvidencePage() {
     </header>
 
     <section className={styles.evidenceMetrics} aria-label="Live rubric evidence totals">
-      <Metric label="Required rubric" value={`${center.readiness.requiredVerified}/${center.readiness.requiredTotal}`} detail="84 scored requirements" />
+      <Metric label="Required rubric" value={`${center.readiness.requiredVerified}/${center.readiness.requiredTotal}`} detail="183 weighted points" />
       <Metric label="CRM extra credit" value={`${center.readiness.extraCreditVerified}/${center.readiness.extraCreditTotal}`} detail="Project-required extra credit" />
       <Metric label="Scenarios verified" value={`${center.readiness.scenarioVerified}/${center.readiness.scenarioTotal}`} detail="18 required + 2 CRM" />
       <Metric label="Missing evidence" value={center.readiness.missing} detail={`${center.readiness.recorded} recorded but unverified`} />
@@ -41,7 +41,7 @@ export function EvaluationEvidencePage() {
     </section>
 
     <section className={styles.panel}>
-      <div className={styles.sectionHead}><div><p className={styles.eyebrow}>20 live scenarios · 96 V1 rubric items</p><h2>Scenario evidence map</h2><small>84 required scored items plus all 12 Speaker CRM extra-credit items.</small></div></div>
+      <div className={styles.sectionHead}><div><p className={styles.eyebrow}>20 live scenarios · 98 V1 rubric items</p><h2>Scenario evidence map</h2><small>86 required items / 183 weighted points plus 12 Speaker CRM extra-credit items / 19 points.</small></div></div>
       <div className={styles.scenarioList}>{center.scenarios.map((scenario) => <details key={scenario.id} className={styles.scenario}>
         <summary><span>{scenario.id}</span><div><strong>{scenario.title}</strong><small>{scenario.area} · {scenario.persona} · {scenario.requirementIds.length} item{scenario.requirementIds.length === 1 ? "" : "s"}</small></div><StateBadge state={scenario.state} /></summary>
         <div className={styles.scenarioBody}>

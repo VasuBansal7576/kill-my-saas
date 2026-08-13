@@ -149,7 +149,7 @@ export function buildEvaluationEvidenceCenter(input: {
     recorded: allStates.filter((state) => state === "recorded").length,
     missing: allStates.filter((state) => state === "missing").length,
     requiredVerified: requiredRubricIds.filter((id) => requirementStates.get(id) === "verified").length,
-    requiredTotal: 84 as const,
+    requiredTotal: 86 as const,
     extraCreditVerified: extraCreditRubricIds.filter((id) => requirementStates.get(id) === "verified").length,
     extraCreditTotal: 12 as const,
     scenarioVerified: scenarios.filter((scenario) => scenario.state === "verified").length,

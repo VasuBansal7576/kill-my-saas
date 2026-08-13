@@ -16,11 +16,11 @@ const runtime = {
 const emptyProviders = { email: [], files: [], ai: [], airtable: [], accelevents: [] };
 
 describe("evaluation evidence truthfulness", () => {
-  it("maps exactly 20 scenarios and all 96 unique V1 rubric items", () => {
+  it("maps exactly 20 scenarios and all 98 unique V1 rubric items", () => {
     const ids = evaluationScenarios.flatMap((scenario) => scenario.requirementIds);
     expect(evaluationScenarios).toHaveLength(20);
-    expect(new Set(ids).size).toBe(96);
-    expect(ids.filter((id) => !id.startsWith("CRM-"))).toHaveLength(84);
+    expect(new Set(ids).size).toBe(98);
+    expect(ids.filter((id) => !id.startsWith("CRM-"))).toHaveLength(86);
     expect(ids.filter((id) => id.startsWith("CRM-"))).toHaveLength(12);
   });
 
@@ -41,7 +41,7 @@ describe("evaluation evidence truthfulness", () => {
       }],
     });
 
-    expect(center.readiness).toMatchObject({ state: "missing", verified: 0, recorded: 1, missing: 95, requiredVerified: 0 });
+    expect(center.readiness).toMatchObject({ state: "missing", verified: 0, recorded: 1, missing: 97, requiredVerified: 0 });
     expect(center.scenarios.find((scenario) => scenario.id === "CFP-S1")?.requirements[0]?.state).toBe("recorded");
     expect(center.providers.find((provider) => provider.provider === "email")?.state).toBe("recorded");
   });
@@ -64,7 +64,7 @@ describe("evaluation evidence truthfulness", () => {
       })),
     });
 
-    expect(center.readiness).toMatchObject({ state: "verified", requiredVerified: 84, extraCreditVerified: 12, scenarioVerified: 20, missing: 0 });
+    expect(center.readiness).toMatchObject({ state: "verified", requiredVerified: 86, extraCreditVerified: 12, scenarioVerified: 20, missing: 0 });
     expect(center.goldenThread.every((step) => step.state === "verified")).toBe(true);
   });
 

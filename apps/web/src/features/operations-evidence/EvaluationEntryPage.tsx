@@ -4,7 +4,7 @@ import styles from "./operations-evidence.module.css";
 const eventSlug = "devflow-conf-2027";
 
 export function EvaluationEntryPage() {
-  return <main className={styles.entryPage}>
+  return <main id="main-content" className={styles.entryPage}>
     <section className={styles.entryHero}>
       <div className={styles.brand}><span>PF</span>ProgramFlow</div>
       <p className={styles.eyebrow}>DevFlow Conf 2027 · Judge entry</p>
@@ -42,7 +42,7 @@ export function EvaluationEntryPage() {
 }
 
 export function HelpPage() {
-  return <main className={styles.helpPage}>
+  return <main id="main-content" className={styles.helpPage}>
     <header className={styles.helpHero}>
       <Link className={styles.brand} to="/"><span>PF</span>ProgramFlow</Link>
       <p className={styles.eyebrow}>Evaluator help</p>

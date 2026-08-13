@@ -6,7 +6,7 @@ After organizer sign-in, open:
 
 `/organizer/events/devflow-conf-2027/evaluation-evidence`
 
-The Evaluation Evidence Center maps all 20 scenarios and 96 V1 rubric items (84 required scored items plus 12 project-required Speaker CRM extra-credit items) to routes, persisted transitions, downstream handoffs, event-scoped Evidence Records, and provider receipts. An item is `verified` only when a verified Evidence Record exists. An implementation-ledger status, route, or success message cannot create a passing state.
+The Evaluation Evidence Center maps all 20 scenarios and 98 V1 rubric items (86 required items / 183 weighted points plus 12 project-required Speaker CRM extra-credit items / 19 points) to routes, persisted transitions, downstream handoffs, event-scoped Evidence Records, and provider receipts. Public Widgets account for 35 weighted points. An item is `verified` only when a verified Evidence Record exists. An implementation-ledger status, route, or success message cannot create a passing state.
 
 The organizer-only release manifest is generated at:
 

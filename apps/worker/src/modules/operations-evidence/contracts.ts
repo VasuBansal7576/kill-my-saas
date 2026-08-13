@@ -46,7 +46,7 @@ export interface EvaluationEvidenceCenter {
     recorded: number;
     missing: number;
     requiredVerified: number;
-    requiredTotal: 84;
+    requiredTotal: 86;
     extraCreditVerified: number;
     extraCreditTotal: 12;
     scenarioVerified: number;
