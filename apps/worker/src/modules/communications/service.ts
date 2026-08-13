@@ -23,13 +23,14 @@ import {
   submissions,
   type Database,
 } from "@programflow/database";
-import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import type { Actor } from "../identity-access/actor";
 import { actorCanAccessEvent } from "../identity-access/actor";
 import type { ReviewReminderPort } from "../reviews-decisions";
 import type { CreatePlacementCalendar, QueueOrganizerCommunication } from "./contracts";
 import { BrevoProviderError, type EmailProviderPort, type ProviderOutcome } from "./brevo-adapter";
 import { buildSpeakerCalendar } from "./icalendar";
+import { assessDeliveryProof, assessDeliveryRetry, MAX_DELIVERY_ATTEMPTS } from "./delivery-policy";
 import { findMergeFields, MergeFieldError, renderMergeFields } from "./merge-fields";
 
 type QueueCommunicationCommand = z.infer<typeof QueueCommunicationCommandSchema>;
@@ -47,6 +48,7 @@ export class CommunicationsError extends Error {
       | "invalid_recipient"
       | "invalid_merge_data"
       | "idempotency_conflict"
+      | "invalid_cursor"
       | "invalid_delivery_state"
       | "unsupported_outbox_event",
     message: string,
@@ -336,13 +338,23 @@ export async function retryDelivery(database: Database, actor: Actor, eventSlug:
       attemptCount: communicationRecipients.attemptCount,
       eventId: communications.eventId,
       toEmail: communicationRecipients.toEmail,
+      lastErrorCode: communicationRecipients.lastErrorCode,
     }).from(communicationRecipients).innerJoin(communications, eq(communications.id, communicationRecipients.communicationId))
       .where(eq(communicationRecipients.id, recipientId)).limit(1);
     if (!recipient || recipient.eventId !== event.id) throw new CommunicationsError("delivery_not_found", "Communication delivery not found.");
-    if (!recipient.toEmail || !["failed", "bounced", "blocked_external"].includes(recipient.status)) {
-      throw new CommunicationsError("invalid_delivery_state", "Only failed, bounced, or externally blocked deliveries can be retried.");
+    const [lastAttempt] = await transaction.select({ responseMetadata: deliveryAttempts.responseMetadata }).from(deliveryAttempts)
+      .where(eq(deliveryAttempts.recipientId, recipient.id)).orderBy(desc(deliveryAttempts.attemptNumber)).limit(1);
+    const assessment = assessDeliveryRetry({
+      status: recipient.status,
+      attemptCount: recipient.attemptCount,
+      toEmail: recipient.toEmail,
+      lastErrorCode: recipient.lastErrorCode,
+      lastAttemptRetryable: typeof lastAttempt?.responseMetadata.retryable === "boolean" ? lastAttempt.responseMetadata.retryable : undefined,
+    });
+    if (!assessment.eligible || !assessment.nextAttempt) {
+      throw new CommunicationsError("invalid_delivery_state", assessment.remediation);
     }
-    const nextAttempt = recipient.attemptCount + 1;
+    const nextAttempt = assessment.nextAttempt;
     const [outbox] = await transaction.insert(outboxEvents).values({
       aggregateType: "communication_delivery",
       aggregateId: recipient.id,
@@ -353,7 +365,7 @@ export async function retryDelivery(database: Database, actor: Actor, eventSlug:
     await transaction.update(communicationRecipients).set({ status: "queued", updatedAt: new Date() })
       .where(eq(communicationRecipients.id, recipient.id));
     await recomputeCommunicationStatus(transaction, recipient.communicationId);
-    return { recipientId, outboxEventId: outbox?.id ?? null, attemptNumber: nextAttempt };
+    return { recipientId, outboxEventId: outbox?.id ?? null, attemptNumber: nextAttempt, remediation: assessment.remediation };
   });
 }
 
@@ -395,14 +407,165 @@ export async function applyProviderOutcome(database: Database, outcome: Provider
   });
 }
 
-export async function pollDeliveryOutcome(database: Database, recipientId: string, provider: EmailProviderPort) {
-  const [recipient] = await database.select().from(communicationRecipients).where(eq(communicationRecipients.id, recipientId)).limit(1);
+export async function pollDeliveryOutcome(database: Database, actor: Actor, eventSlug: string, recipientId: string, provider: EmailProviderPort) {
+  const event = await requireOrganizerEventBySlug(database, actor, eventSlug);
+  const [recipient] = await database.select({
+    id: communicationRecipients.id,
+    status: communicationRecipients.status,
+    providerMessageId: communicationRecipients.providerMessageId,
+    eventId: communications.eventId,
+  }).from(communicationRecipients).innerJoin(communications, eq(communications.id, communicationRecipients.communicationId))
+    .where(eq(communicationRecipients.id, recipientId)).limit(1);
   if (!recipient) throw new CommunicationsError("delivery_not_found", "Communication delivery not found.");
+  if (recipient.eventId !== event.id) throw new CommunicationsError("delivery_not_found", "Communication delivery not found.");
   if (!recipient.providerMessageId) throw new CommunicationsError("invalid_delivery_state", "The delivery has no provider message ID to poll.");
   const outcomes = await provider.poll(recipient.providerMessageId);
   const applied = [];
   for (const outcome of outcomes) applied.push(await applyProviderOutcome(database, outcome));
-  return applied;
+  const [current] = await database.select({ status: communicationRecipients.status, providerMessageId: communicationRecipients.providerMessageId })
+    .from(communicationRecipients).where(eq(communicationRecipients.id, recipientId)).limit(1);
+  if (!current) throw new CommunicationsError("delivery_not_found", "Communication delivery not found.");
+  const proof = assessDeliveryProof(current);
+  return {
+    recipientId,
+    status: current.status,
+    pending: ["accepted", "queued", "sending"].includes(current.status),
+    outcomesApplied: applied.length,
+    proof,
+  };
+}
+
+export async function listCommunicationsSummary(database: Database, actor: Actor, eventSlug: string) {
+  const event = await requireOrganizerEventBySlug(database, actor, eventSlug);
+  const [templates, artifacts, outboxRows] = await Promise.all([
+    database.select().from(communicationTemplates).where(eq(communicationTemplates.eventId, event.id)).orderBy(asc(communicationTemplates.name)),
+    database.select().from(calendarArtifacts).where(eq(calendarArtifacts.eventId, event.id)).orderBy(desc(calendarArtifacts.createdAt)).limit(20),
+    database.select({
+      status: outboxEvents.status,
+      count: sql<number>`count(*)`,
+      latestActivityAt: sql<Date | null>`max(${outboxEvents.updatedAt})`,
+    }).from(outboxEvents)
+      .innerJoin(communicationRecipients, eq(communicationRecipients.id, outboxEvents.aggregateId))
+      .innerJoin(communications, eq(communications.id, communicationRecipients.communicationId))
+      .where(and(eq(outboxEvents.aggregateType, "communication_delivery"), eq(communications.eventId, event.id)))
+      .groupBy(outboxEvents.status),
+  ]);
+  return {
+    event: { id: event.id, slug: event.slug, name: event.name },
+    templates,
+    calendarArtifacts: artifacts,
+    historyPageSize: 20,
+    maxDeliveryAttempts: MAX_DELIVERY_ATTEMPTS,
+    operations: {
+      outboxCounts: Object.fromEntries(outboxRows.map((row) => [row.status, Number(row.count)])),
+      latestActivityAt: outboxRows.reduce<Date | null>((latest, row) => {
+        if (!row.latestActivityAt) return latest;
+        return !latest || row.latestActivityAt > latest ? row.latestActivityAt : latest;
+      }, null),
+    },
+  };
+}
+
+type CommunicationRow = typeof communications.$inferSelect;
+type RecipientStatusCount = { communicationId: string; status: DeliveryState; count: number };
+
+export interface CommunicationHistoryQueries {
+  listCampaigns(limit: number, cursor?: { createdAt: Date; id: string }): Promise<CommunicationRow[]>;
+  countRecipientStatuses(communicationIds: string[]): Promise<RecipientStatusCount[]>;
+}
+
+export async function buildCommunicationHistoryPage(input: {
+  eventSlug: string;
+  limit: number;
+  cursor?: string;
+}, queries: CommunicationHistoryQueries) {
+  const cursor = input.cursor ? decodeHistoryCursor(input.cursor) : undefined;
+  const rows = await queries.listCampaigns(input.limit + 1, cursor);
+  const hasMore = rows.length > input.limit;
+  const campaigns = rows.slice(0, input.limit);
+  const counts = campaigns.length ? await queries.countRecipientStatuses(campaigns.map((campaign) => campaign.id)) : [];
+  return {
+    campaigns: campaigns.map((campaign) => ({
+      ...campaign,
+      source: communicationSource(campaign, input.eventSlug),
+      recipientCounts: Object.fromEntries(counts.filter((row) => row.communicationId === campaign.id).map((row) => [row.status, Number(row.count)])),
+    })),
+    pagination: {
+      limit: input.limit,
+      hasMore,
+      nextCursor: hasMore && campaigns.length ? encodeHistoryCursor(campaigns[campaigns.length - 1]!) : null,
+    },
+  };
+}
+
+export async function listCommunicationHistory(database: Database, actor: Actor, eventSlug: string, input: { limit: number; cursor?: string }) {
+  const event = await requireOrganizerEventBySlug(database, actor, eventSlug);
+  return buildCommunicationHistoryPage({ eventSlug, ...input }, {
+    listCampaigns: (limit, cursor) => database.select().from(communications).where(and(
+      eq(communications.eventId, event.id),
+      cursor ? or(
+        lt(communications.createdAt, cursor.createdAt),
+        and(eq(communications.createdAt, cursor.createdAt), lt(communications.id, cursor.id)),
+      ) : undefined,
+    )).orderBy(desc(communications.createdAt), desc(communications.id)).limit(limit),
+    countRecipientStatuses: async (communicationIds) => {
+      const rows = await database.select({
+        communicationId: communicationRecipients.communicationId,
+        status: communicationRecipients.status,
+        count: sql<number>`count(*)`,
+      }).from(communicationRecipients).where(inArray(communicationRecipients.communicationId, communicationIds))
+        .groupBy(communicationRecipients.communicationId, communicationRecipients.status);
+      return rows.map((row) => ({ ...row, count: Number(row.count) }));
+    },
+  });
+}
+
+export async function getCommunicationDetail(database: Database, actor: Actor, eventSlug: string, communicationId: string) {
+  const event = await requireOrganizerEventBySlug(database, actor, eventSlug);
+  const [campaign] = await database.select().from(communications).where(and(
+    eq(communications.id, communicationId),
+    eq(communications.eventId, event.id),
+  )).limit(1);
+  if (!campaign) throw new CommunicationsError("communication_not_found", "Communication not found.");
+  const recipients = await database.select().from(communicationRecipients)
+    .where(eq(communicationRecipients.communicationId, campaign.id)).orderBy(asc(communicationRecipients.createdAt));
+  const recipientIds = recipients.map((recipient) => recipient.id);
+  const [attempts, providerEvents, outbox] = recipientIds.length ? await Promise.all([
+    database.select().from(deliveryAttempts).where(inArray(deliveryAttempts.recipientId, recipientIds)).orderBy(asc(deliveryAttempts.attemptNumber)),
+    database.select().from(deliveryProviderEvents).where(inArray(deliveryProviderEvents.recipientId, recipientIds)).orderBy(asc(deliveryProviderEvents.occurredAt)),
+    database.select({
+      id: outboxEvents.id,
+      aggregateId: outboxEvents.aggregateId,
+      status: outboxEvents.status,
+      attempts: outboxEvents.attempts,
+      availableAt: outboxEvents.availableAt,
+      dispatchedAt: outboxEvents.dispatchedAt,
+      lastError: outboxEvents.lastError,
+      createdAt: outboxEvents.createdAt,
+    }).from(outboxEvents).where(and(
+      eq(outboxEvents.aggregateType, "communication_delivery"),
+      inArray(outboxEvents.aggregateId, recipientIds),
+    )).orderBy(asc(outboxEvents.createdAt)),
+  ]) : [[], [], []];
+  return {
+    ...campaign,
+    source: communicationSource(campaign, eventSlug),
+    recipients: recipients.map((recipient) => {
+      const recipientAttempts = attempts.filter((attempt) => attempt.recipientId === recipient.id);
+      const latestAttempt = recipientAttempts[recipientAttempts.length - 1];
+      return {
+        ...recipient,
+        proof: assessDeliveryProof(recipient),
+        retry: assessDeliveryRetry({
+          ...recipient,
+          lastAttemptRetryable: typeof latestAttempt?.responseMetadata.retryable === "boolean" ? latestAttempt.responseMetadata.retryable : undefined,
+        }),
+        attempts: recipientAttempts,
+        providerEvents: providerEvents.filter((providerEvent) => providerEvent.recipientId === recipient.id),
+        outbox: outbox.filter((outboxEvent) => outboxEvent.aggregateId === recipient.id),
+      };
+    }),
+  };
 }
 
 export async function listCommunicationsWorkspace(database: Database, actor: Actor, eventSlug: string) {
@@ -573,7 +736,7 @@ export async function queueDueTaskReminders(database: Database, input: {
       idempotencyKey: input.idempotencyKey,
     },
     name: "Outstanding speaker task reminder",
-    audienceSnapshot: { type: "outstanding_tasks", dueBefore: input.dueBefore.toISOString() },
+    audienceSnapshot: { type: "outstanding_tasks", dueBefore: input.dueBefore.toISOString(), recipientCount: recipientPersonIds.length },
   });
 }
 
@@ -627,7 +790,12 @@ export async function consumeCommunicationOutboxEvent(database: Database, outbox
         idempotencyKey: `source-outbox:${outbox.id}`,
       },
       name: draft ? "Draft submission reminder" : "Submission received",
-      audienceSnapshot: { sourceOutboxEventId: outbox.id, submissionId },
+      audienceSnapshot: {
+        type: draft ? "submission_draft_reminder" : "submission_confirmation",
+        sourceOutboxEventId: outbox.id,
+        submissionId,
+        submissionTitle: submission.title,
+      },
     });
   }
   if (["decision.notification.requested", "decision.rejected"].includes(outbox.eventType)) {
@@ -653,7 +821,13 @@ export async function consumeCommunicationOutboxEvent(database: Database, outbox
         idempotencyKey: `source-outbox:${outbox.id}`,
       },
       name: `Decision: ${decisionLabel}`,
-      audienceSnapshot: { sourceOutboxEventId: outbox.id, decisionId },
+      audienceSnapshot: {
+        type: "decision_notification",
+        sourceOutboxEventId: outbox.id,
+        decisionId,
+        submissionTitle: decision.title,
+        outcome: decision.outcome,
+      },
     });
   }
   if (outbox.eventType === "speaker.portal-invitation.requested") {
@@ -674,7 +848,7 @@ export async function consumeCommunicationOutboxEvent(database: Database, outbox
         idempotencyKey: `source-outbox:${outbox.id}`,
       },
       name: "Speaker portal invitation",
-      audienceSnapshot: { sourceOutboxEventId: outbox.id, eventSpeakerIds },
+      audienceSnapshot: { type: "portal_invitation", sourceOutboxEventId: outbox.id, eventSpeakerIds },
     });
   }
   throw new CommunicationsError("unsupported_outbox_event", `Outbox event ${outbox.eventType} is not a Communications input.`);
@@ -763,4 +937,42 @@ function arrayOfStrings(value: unknown): string[] {
     throw new CommunicationsError("unsupported_outbox_event", "Outbox payload is missing required identifiers.");
   }
   return value;
+}
+
+function encodeHistoryCursor(campaign: Pick<CommunicationRow, "createdAt" | "id">): string {
+  return `${campaign.createdAt.toISOString()},${campaign.id}`;
+}
+
+function decodeHistoryCursor(cursor: string): { createdAt: Date; id: string } {
+  const separator = cursor.lastIndexOf(",");
+  const createdAt = new Date(cursor.slice(0, separator));
+  const id = cursor.slice(separator + 1);
+  if (separator < 1 || Number.isNaN(createdAt.getTime()) || !/^[0-9a-f-]{36}$/i.test(id)) {
+    throw new CommunicationsError("invalid_cursor", "Communication history cursor is invalid.");
+  }
+  return { createdAt, id };
+}
+
+export function communicationSource(campaign: Pick<CommunicationRow, "name" | "kind" | "audienceSnapshot">, eventSlug: string) {
+  const snapshot = campaign.audienceSnapshot;
+  const type = typeof snapshot.type === "string" ? snapshot.type : typeof snapshot.source === "string" ? snapshot.source : "";
+  const base = `/organizer/events/${eventSlug}`;
+  if (type === "submission_confirmation") return source("cfp_confirmation", "CFP confirmation", `${base}/submissions`, snapshot);
+  if (type === "submission_draft_reminder") return source("cfp_draft_reminder", "CFP draft reminder", `${base}/submissions`, snapshot);
+  if (type === "decision_notification") return source("decision_notification", "Accept / reject decision", `${base}/submissions`, snapshot);
+  if (type === "outstanding_reviews") return source("reviewer_reminder", "Reviewer reminder", `${base}/evaluations`, snapshot);
+  if (type === "portal_invitation") return source("portal_invitation", "Portal invitation", `${base}/speakers`, snapshot);
+  if (type === "outstanding_tasks") return source("overdue_reminder", "Overdue task reminder", `${base}/tasks`, snapshot);
+  if (type === "speaker_crm") return source("crm_bulk", "CRM bulk outreach", "/organizer/speaker-crm", snapshot);
+  if (type === "speaker_bulk") return source("speaker_bulk", "Bulk speaker message", `${base}/speakers`, snapshot);
+  if (campaign.kind === "calendar") return source("calendar", "Speaker calendar", `${base}/agenda`, snapshot);
+  if (campaign.kind === "campaign") return source("speaker_bulk", "Bulk speaker message", `${base}/speakers`, snapshot);
+  if (campaign.name.toLocaleLowerCase().includes("decision")) return source("decision_notification", "Accept / reject decision", `${base}/submissions`, snapshot);
+  if (campaign.name.toLocaleLowerCase().includes("submission")) return source("cfp_confirmation", "CFP confirmation", `${base}/submissions`, snapshot);
+  if (campaign.name.toLocaleLowerCase().includes("portal")) return source("portal_invitation", "Portal invitation", `${base}/speakers`, snapshot);
+  return source("transactional", "Transactional message", base, snapshot);
+}
+
+function source(type: string, label: string, workflowHref: string, context: Record<string, unknown>) {
+  return { type, label, workflowHref, context };
 }

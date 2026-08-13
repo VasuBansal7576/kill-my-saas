@@ -19,6 +19,11 @@ export const RetryDeliverySchema = z.object({
   idempotencyKey: z.string().trim().min(12).max(200),
 });
 
+export const CommunicationHistoryQuerySchema = z.object({
+  limit: z.coerce.number().int().min(5).max(50).default(20),
+  cursor: z.string().trim().max(200).optional(),
+});
+
 export const CreatePlacementCalendarSchema = z.object({
   placementId: z.uuid(),
   revision: z.number().int().positive(),

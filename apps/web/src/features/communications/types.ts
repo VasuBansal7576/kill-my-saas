@@ -20,6 +20,7 @@ export interface DeliveryAttempt {
   failureMessage: string | null;
   startedAt: string;
   completedAt: string | null;
+  responseMetadata?: Record<string, unknown>;
 }
 
 export interface CommunicationRecipient {
@@ -45,7 +46,41 @@ export interface CommunicationRecipient {
     providerEventId: string;
     eventType: string;
     occurredAt: string;
+    metadata?: Record<string, unknown>;
   }>;
+  proof?: DeliveryProof;
+  retry?: DeliveryRetry;
+  outbox?: OutboxEvidence[];
+}
+
+export interface DeliveryProof {
+  claim: DeliveryStatus | "provider_accepted";
+  delivered: boolean;
+  providerMessageId: string | null;
+  explanation: string;
+}
+
+export interface DeliveryRetry {
+  eligible: boolean;
+  nextAttempt: number | null;
+  remediation: string;
+}
+
+export interface OutboxEvidence {
+  id: string;
+  status: "pending" | "claimed" | "dispatched" | "failed" | "dead_letter";
+  attempts: number;
+  availableAt: string;
+  dispatchedAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+}
+
+export interface CommunicationSource {
+  type: string;
+  label: string;
+  workflowHref: string;
+  context: Record<string, unknown>;
 }
 
 export interface CommunicationCampaign {
@@ -55,7 +90,23 @@ export interface CommunicationCampaign {
   status: CommunicationStatus;
   audienceSnapshot: Record<string, unknown>;
   createdAt: string;
+  source?: CommunicationSource;
   recipients: CommunicationRecipient[];
+}
+
+export interface CommunicationCampaignSummary extends Omit<CommunicationCampaign, "recipients"> {
+  source: CommunicationSource;
+  recipientCounts: Partial<Record<DeliveryStatus, number>>;
+}
+
+export interface CommunicationHistoryPage {
+  campaigns: CommunicationCampaignSummary[];
+  pagination: { limit: number; hasMore: boolean; nextCursor: string | null };
+}
+
+export interface CommunicationDetail extends Omit<CommunicationCampaign, "source"> {
+  source: CommunicationSource;
+  recipients: Array<CommunicationRecipient & { proof: DeliveryProof; retry: DeliveryRetry; outbox: OutboxEvidence[] }>;
 }
 
 export interface CalendarArtifact {
@@ -73,6 +124,26 @@ export interface CommunicationsWorkspace {
   templates: CommunicationTemplate[];
   campaigns: CommunicationCampaign[];
   calendarArtifacts: CalendarArtifact[];
+}
+
+export interface CommunicationsSummary {
+  event: { id: string; slug: string; name: string };
+  templates: CommunicationTemplate[];
+  calendarArtifacts: CalendarArtifact[];
+  historyPageSize: number;
+  maxDeliveryAttempts: number;
+  operations: {
+    outboxCounts: Partial<Record<OutboxEvidence["status"], number>>;
+    latestActivityAt: string | null;
+  };
+}
+
+export interface DeliveryPollReceipt {
+  recipientId: string;
+  status: DeliveryStatus;
+  pending: boolean;
+  outcomesApplied: number;
+  proof: DeliveryProof;
 }
 
 export interface AudienceSpeaker {

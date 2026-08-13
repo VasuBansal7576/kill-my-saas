@@ -6,6 +6,7 @@ import type { ActorContext } from "../identity-access/actor";
 import { BrevoEmailAdapter, type ProviderOutcome } from "./brevo-adapter";
 import {
   BrevoWebhookEventSchema,
+  CommunicationHistoryQuerySchema,
   CreatePlacementCalendarSchema,
   QueueOrganizerCommunicationSchema,
   RetryDeliverySchema,
@@ -17,6 +18,9 @@ import {
   CommunicationsError,
   createPlacementCalendarArtifacts,
   dispatchDelivery,
+  getCommunicationDetail,
+  listCommunicationHistory,
+  listCommunicationsSummary,
   listCommunicationsWorkspace,
   pollDeliveryOutcome,
   queueOrganizerCommunication,
@@ -38,6 +42,30 @@ export const communicationsProviderRoutes = new Hono<WebhookContext>();
 
 communicationsOrganizerRoutes.get("/events/:eventSlug/communications", async (context) => run(context, async (database) =>
   context.json(await listCommunicationsWorkspace(database, context.get("actor"), context.req.param("eventSlug"))),
+));
+
+communicationsOrganizerRoutes.get("/events/:eventSlug/communications/summary", async (context) => run(context, async (database) =>
+  context.json(await listCommunicationsSummary(database, context.get("actor"), context.req.param("eventSlug"))),
+));
+
+communicationsOrganizerRoutes.get("/events/:eventSlug/communications/history", async (context) => {
+  const parsed = CommunicationHistoryQuerySchema.safeParse(context.req.query());
+  if (!parsed.success) return invalid(context, "invalid_communication_history_query", parsed.error.flatten().fieldErrors);
+  return run(context, async (database) => context.json(await listCommunicationHistory(
+    database,
+    context.get("actor"),
+    context.req.param("eventSlug"),
+    parsed.data,
+  )));
+});
+
+communicationsOrganizerRoutes.get("/events/:eventSlug/communications/:communicationId", async (context) => run(context, async (database) =>
+  context.json(await getCommunicationDetail(
+    database,
+    context.get("actor"),
+    context.req.param("eventSlug"),
+    context.req.param("communicationId"),
+  )),
 ));
 
 communicationsOrganizerRoutes.put("/events/:eventSlug/communications/templates", async (context) => {
@@ -78,7 +106,13 @@ communicationsOrganizerRoutes.post("/events/:eventSlug/communications/deliveries
   run(context, async (database) => {
     const provider = configuredBrevo(context.env);
     if (!provider) return context.json({ error: { code: "brevo_not_configured", message: "Brevo credentials and a verified sender are required to reconcile delivery." } }, 503);
-    return context.json(await pollDeliveryOutcome(database, context.req.param("recipientId"), provider));
+    return context.json(await pollDeliveryOutcome(
+      database,
+      context.get("actor"),
+      context.req.param("eventSlug"),
+      context.req.param("recipientId"),
+      provider,
+    ));
   }),
 );
 
