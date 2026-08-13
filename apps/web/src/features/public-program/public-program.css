@@ -174,6 +174,16 @@
 .widget-list details label { display: grid; gap: 4px; margin-top: 7px; }
 .widget-list textarea { min-height: 75px; padding: 7px; resize: vertical; border: 1px solid #303030; border-radius: 5px; background: #101010; color: #888; font: 8px/1.5 ui-monospace, monospace; }
 .publication-loading { min-height: 300px; display: grid; place-items: center; color: #777; }
+.publication-confirm-backdrop { position: fixed; z-index: 50; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.76); backdrop-filter: blur(6px); }
+.publication-confirm-dialog { width: min(520px, 100%); padding: 24px; border: 1px solid #3b3b3b; border-radius: 9px; background: #181818; box-shadow: 0 24px 80px #000; }
+.publication-confirm-dialog h2 { margin: 0; font-size: 23px; }
+.publication-confirm-dialog > p:not(.publication-kicker), .publication-confirm-impact p { color: #aaa; font-size: 12px; line-height: 1.65; }
+.publication-confirm-impact { margin: 18px 0; padding: 14px; border: 1px solid rgba(227,97,108,.32); border-radius: 7px; background: rgba(227,97,108,.07); }
+.publication-confirm-impact strong { color: #ef8991; font-size: 11px; }
+.publication-confirm-impact p { margin: 6px 0 0; }
+.publication-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.publication-danger { min-height: 44px; padding: 0 15px; border: 1px solid #e3616c; border-radius: 6px; background: #e3616c; color: #141414; font-size: 12px; font-weight: 750; }
+.publication-danger:disabled { opacity: .45; }
 
 @media (max-width: 900px) {
   .public-filters { grid-template-columns: 1fr 1fr; }

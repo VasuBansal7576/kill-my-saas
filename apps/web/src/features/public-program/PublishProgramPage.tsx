@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { AccessibleDialog } from "../../app/AccessibleDialog";
 import { jsonRequest, publicProgramRequest } from "./api";
 import type {
   EmbedOutputFormat,
@@ -39,6 +40,7 @@ export function PublishProgramPage() {
   const [roomId, setRoomId] = useState("");
   const [fields, setFields] = useState<WidgetField[]>(allFields);
   const [outputs, setOutputs] = useState<EmbedOutputFormat[]>(allOutputs);
+  const [pauseConfirmationOpen, setPauseConfirmationOpen] = useState(false);
 
   const load = useCallback(async () => {
     const result = await publicProgramRequest<PublishingWorkspace>(`/api/v1/organizer/events/${encodeURIComponent(eventSlug)}/publish`);
@@ -90,6 +92,7 @@ export function PublishProgramPage() {
       );
       await load();
       setNotice("Public access is paused.");
+      setPauseConfirmationOpen(false);
     });
   }
 
@@ -173,7 +176,7 @@ export function PublishProgramPage() {
       <div className="publication-gate-copy"><span>Schedule update</span><h2>{selectedRevision?.status === "ready" ? "Your latest conflict-free schedule is ready" : "Finish the schedule before publishing"}</h2><p>{workspace.eligibility.approvedSessions} approved session{workspace.eligibility.approvedSessions === 1 ? " is" : "s are"} ready. {workspace.eligibility.excludedSessions} unapproved session{workspace.eligibility.excludedSessions === 1 ? " stays" : "s stay"} private.</p></div>
       <div className="publication-gate-controls">
         <button type="button" className="publication-primary" disabled={busy || selectedRevision?.status !== "ready"} onClick={() => { void publish(); }}>{busy ? "Updating…" : workspace.publication?.state === "live" ? "Update public program" : "Publish public program"}</button>
-        <details className="publication-advanced"><summary>Advanced publication settings</summary><label>Schedule version<select value={selectedRevisionId} onChange={(event) => setSelectedRevisionId(event.target.value)}><option value="">Choose version</option>{workspace.revisions.map((revision) => <option value={revision.id} key={revision.id}>Version {revision.version} · {revision.status} · {revision.placementCount} sessions</option>)}</select></label>{workspace.publication?.state === "live" ? <button className="publication-secondary" type="button" disabled={busy} onClick={() => { void pause(); }}>Pause public access</button> : null}<small>Public update {workspace.publication?.publicRevision ?? 0}; schedule version {selectedRevision?.version ?? "none"}.</small></details>
+        <details className="publication-advanced"><summary>Advanced publication settings</summary><label>Schedule version<select value={selectedRevisionId} onChange={(event) => setSelectedRevisionId(event.target.value)}><option value="">Choose version</option>{workspace.revisions.map((revision) => <option value={revision.id} key={revision.id}>Version {revision.version} · {revision.status} · {revision.placementCount} sessions</option>)}</select></label>{workspace.publication?.state === "live" ? <button className="publication-secondary" type="button" disabled={busy} onClick={() => setPauseConfirmationOpen(true)}>Pause public access</button> : null}<small>Public update {workspace.publication?.publicRevision ?? 0}; schedule version {selectedRevision?.version ?? "none"}.</small></details>
       </div>
       <div className="publication-metrics"><article><span>Total sessions</span><strong>{workspace.eligibility.totalSessions}</strong></article><article><span>Approved & eligible</span><strong>{workspace.eligibility.approvedSessions}</strong></article><article><span>Excluded as unapproved</span><strong>{workspace.eligibility.excludedSessions}</strong></article></div>
     </section>
@@ -194,6 +197,13 @@ export function PublishProgramPage() {
         </article>)}</aside>
       </div>
     </section>
+    {pauseConfirmationOpen ? <AccessibleDialog close={() => setPauseConfirmationOpen(false)} titleId="pause-public-title" backdropClassName="publication-confirm-backdrop" dialogClassName="publication-confirm-dialog" initialFocus="[data-pause-cancel]">
+      <p className="publication-kicker">Pause public access</p>
+      <h2 id="pause-public-title">Pause {workspace.event.name}?</h2>
+      <p>Public update {workspace.publication?.publicRevision ?? 0}, using schedule version {selectedRevision?.version ?? "none"}, is live now.</p>
+      <div className="publication-confirm-impact"><strong>Attendee impact</strong><p>All five public views, saved share links, and website embeds will stop loading the program until an organizer publishes it again. Canonical sessions, placements, and attendee itinerary selections remain stored.</p></div>
+      <div className="publication-confirm-actions"><button data-pause-cancel type="button" className="publication-secondary" disabled={busy} onClick={() => setPauseConfirmationOpen(false)}>Cancel — keep live</button><button type="button" className="publication-danger" disabled={busy} onClick={() => { void pause(); }}>{busy ? "Pausing…" : "Pause public access"}</button></div>
+    </AccessibleDialog> : null}
   </div>;
 }
 
