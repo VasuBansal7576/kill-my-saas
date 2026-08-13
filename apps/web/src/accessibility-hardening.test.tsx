@@ -27,6 +27,8 @@ describe("release accessibility hardening", () => {
     const dialogSource = readFileSync(new URL("./app/AccessibleDialog.tsx", import.meta.url), "utf8");
     expect(dialogSource).toContain('document.addEventListener("keydown", closeOnEscape, true)');
     expect(dialogSource).toContain("useLayoutEffect");
+    const publicProgram = readFileSync(new URL("./features/public-program/PublicProgramPage.tsx", import.meta.url), "utf8");
+    expect(publicProgram).toContain("<button autoFocus className=\"modal-close\"");
     expect(markup).toContain('class="accessible-dialog-surface dialog"');
   });
 
