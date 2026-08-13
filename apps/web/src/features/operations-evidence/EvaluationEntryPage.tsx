@@ -49,7 +49,7 @@ export function EvaluationEntryPage() {
     </section>
 
     <section className={styles.proofSection} aria-labelledby="proof-title">
-      <div><p className={styles.eyebrow}>Production behavior, not a stage set</p><h2 id="proof-title">The proof lives beside the work.</h2><p>Organizer actions persist to PostgreSQL. Required side effects retain recipient, provider, file, calendar, integration, retry, and failure evidence. Provider success is shown only when a real provider returns it.</p><Link to="/help">Read the evaluator guide →</Link></div>
+      <div><p className={styles.eyebrow}>Production behavior, not a stage set</p><h2 id="proof-title">A green toast is not delivery.</h2><p>ProgramFlow keeps the receipt through every handoff. Organizer actions persist to PostgreSQL, while required side effects retain recipient, provider, file, calendar, integration, retry, and failure evidence. Provider success is shown only when a real provider returns it.</p><Link to="/help">Read the evaluator guide →</Link></div>
       <dl><div><dt>Role boundaries</dt><dd>Organizer, reviewer, speaker, and anonymous routes are independently scoped.</dd></div><div><dt>Persisted handoffs</dt><dd>Acceptance creates a distinct linked Session; publication exposes approved scheduled records.</dd></div><div><dt>Truthful outcomes</dt><dd>Queued, delivered, blocked, partial, and failed states remain visible instead of collapsing into a success toast.</dd></div></dl>
     </section>
 

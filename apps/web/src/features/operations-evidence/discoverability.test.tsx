@@ -12,6 +12,7 @@ describe("evaluation route discoverability", () => {
     expect(markup).toContain('href="/events/devflow-conf-2027/agenda"');
     expect(markup).toContain("From first proposal to the published program. No re‑entry.");
     expect(markup).toContain("Public product tour");
+    expect(markup).toContain("A green toast is not delivery.");
     expect(markup).toContain("Provider success is shown only when a real provider returns it.");
     expect(markup).toContain("Privately supplied credentials");
     expect(markup).toContain('href="/help"');
