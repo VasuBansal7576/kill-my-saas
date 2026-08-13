@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   assertCleanEvaluationWorkflowState,
@@ -9,6 +10,32 @@ import {
 } from "./evaluation-environment";
 
 describe("evaluation environment guard and run isolation", () => {
+  it("exposes one guarded judge-preparation command and consistent operator instructions", () => {
+    const packageJson = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8")) as {
+      scripts: Record<string, string>;
+    };
+    const releaseRunbook = readFileSync(new URL("../../../docs/runbooks/evaluation.md", import.meta.url), "utf8");
+
+    expect(packageJson.scripts["prepare:evaluation"]).toBe(
+      "npm run reset:evaluation && npm run db:migrate && npm run seed:evaluation && npm run sync:evaluator-auth",
+    );
+    expect(releaseRunbook).toContain("EVALUATION_SEED_CONFIRM=\"CREATE judge-YYYY-MM-DD-N\"");
+    expect(releaseRunbook).toContain("EVALUATION_RESET_CONFIRM=\"RESET judge-YYYY-MM-DD-N\"");
+    expect(releaseRunbook).toContain("npm run prepare:evaluation");
+    expect(releaseRunbook).not.toContain("EVALUATION_SEED_CONFIRM=\"DevFlow Conf 2027\"");
+  });
+
+  it("keeps CI on the same explicit seed contract", () => {
+    const workflow = readFileSync(new URL("../../../.github/workflows/ci.yml", import.meta.url), "utf8");
+
+    expect(workflow).toContain("APP_ENV: evaluation");
+    expect(workflow).toContain("EVALUATION_RUN_ID: ci-golden-path");
+    expect(workflow).toContain("EVALUATION_DATABASE_SCOPE: run_scoped");
+    expect(workflow).toContain("EVALUATION_SEED_CONFIRM: CREATE ci-golden-path");
+    expect(workflow).toContain("EVALUATION_RESET_CONFIRM: RESET ci-golden-path");
+    expect(workflow).not.toContain("EVALUATION_SEED_CONFIRM: DevFlow Conf 2027");
+  });
+
   it("produces the same deterministic scope on repeated seed planning", () => {
     const first = buildEvaluationRunIdentity("judge-2026-08-13");
     const retry = buildEvaluationRunIdentity("judge-2026-08-13");

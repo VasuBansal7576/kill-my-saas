@@ -28,10 +28,9 @@ ProgramFlow intentionally has no public reset endpoint. The Evidence Center retu
 An authorized operator resets the evaluation environment as one controlled operation:
 
 1. Confirm `APP_ENV` is `evaluation` or `preview`, then download the current release manifest for traceability.
-2. Restore the named clean-evaluation Neon branch/snapshot and its matching private-file prefix. Never target Production.
-3. Apply committed migrations with `npm run db:migrate`.
-4. Set `EVALUATION_SEED_CONFIRM="DevFlow Conf 2027"` and run `npm run seed:evaluation`.
-5. With the same explicit confirmation and private persona configuration, run `npm run sync:evaluator-auth`.
-6. Verify `/api/v1/health/ready`, all three persona sign-ins, the CFP, all five anonymous public routes, and the organizer Evidence Center before returning the evaluation URL.
+2. Select the named isolated Neon evaluation database. Never target Production, and never manually repair individual workflow rows.
+3. Set `EVALUATION_RUN_ID=judge-YYYY-MM-DD-N`, `EVALUATION_DATABASE_SCOPE=disposable_neon_branch`, `EVALUATION_SEED_CONFIRM="CREATE judge-YYYY-MM-DD-N"`, and `EVALUATION_RESET_CONFIRM="RESET judge-YYYY-MM-DD-N"`. Supply persona passwords only through `EVALUATOR_PERSONA_PASSWORDS_JSON`.
+4. Run `npm run prepare:evaluation`. This fail-fast command validates the reset boundary before applying migrations, reseeding the deterministic event, and synchronizing every evaluator persona.
+5. Verify `/api/v1/health/ready`, organizer, both speakers, and reviewer sign-ins, the CFP, all five anonymous public routes, and the organizer Evidence Center before returning the evaluation URL.
 
-The seed and auth scripts already reject `APP_ENV=production`; a reset must also use a provider-level snapshot/branch target that is explicitly named for evaluation. Do not place database URLs, auth secrets, persona passwords, provider tokens, or destructive provider controls in this document or in anonymous application output.
+Reset, seed, and auth synchronization reject `APP_ENV=production`. Reset additionally requires the exact run ID, database scope, and `RESET <run-id>` confirmation before migrations can run. Do not place database URLs, auth secrets, persona passwords, provider tokens, or destructive provider controls in this document or in anonymous application output.

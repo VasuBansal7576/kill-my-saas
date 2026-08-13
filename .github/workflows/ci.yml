@@ -27,8 +27,11 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://programflow:programflow_test@127.0.0.1:5432/programflow
-      APP_ENV: local
-      EVALUATION_SEED_CONFIRM: DevFlow Conf 2027
+      APP_ENV: evaluation
+      EVALUATION_RUN_ID: ci-golden-path
+      EVALUATION_DATABASE_SCOPE: run_scoped
+      EVALUATION_SEED_CONFIRM: CREATE ci-golden-path
+      EVALUATION_RESET_CONFIRM: RESET ci-golden-path
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

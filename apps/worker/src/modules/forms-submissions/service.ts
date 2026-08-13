@@ -296,18 +296,52 @@ export async function closeForm(
 }
 
 export async function getPublicForm(database: Database, eventSlug: string, now = new Date()): Promise<PublicForm> {
-  const event = await requireEvent(database, eventSlug);
-  const [form] = await database.select().from(cfpForms)
-    .where(and(eq(cfpForms.eventId, event.id), or(eq(cfpForms.status, "published"), eq(cfpForms.status, "closed"))))
-    .orderBy(desc(cfpForms.updatedAt)).limit(1);
-  if (!form) throw new FormsSubmissionsError("form_not_published", "This event has not published a call for speakers.");
-  const [version] = await database.select().from(cfpFormVersions)
-    .where(eq(cfpFormVersions.formId, form.id)).orderBy(desc(cfpFormVersions.version)).limit(1);
-  if (!version) throw new FormsSubmissionsError("form_not_published", "This event has not published a call for speakers.");
-  const [tracks, formats] = await Promise.all([
-    database.select({ name: eventTracks.name }).from(eventTracks).where(eq(eventTracks.eventId, event.id)).orderBy(asc(eventTracks.sortOrder)),
-    database.select({ name: eventFormats.name, durationMinutes: eventFormats.durationMinutes }).from(eventFormats).where(eq(eventFormats.eventId, event.id)).orderBy(asc(eventFormats.sortOrder)),
-  ]);
+  const [record] = await database.select({
+    event: {
+      id: events.id,
+      slug: events.slug,
+      name: events.name,
+      location: events.location,
+      startsOn: events.startsOn,
+      endsOn: events.endsOn,
+      timezone: events.timezone,
+      branding: events.branding,
+    },
+    form: {
+      id: cfpForms.id,
+      name: cfpForms.name,
+      status: cfpForms.status,
+    },
+    version: {
+      id: cfpFormVersions.id,
+      version: cfpFormVersions.version,
+      definition: cfpFormVersions.definition,
+    },
+    tracks: sql<string[]>`coalesce((
+      select jsonb_agg(${eventTracks.name} order by ${eventTracks.sortOrder})
+      from ${eventTracks}
+      where ${eventTracks.eventId} = ${events.id}
+    ), '[]'::jsonb)`,
+    formats: sql<Array<{ name: string; durationMinutes: number }>>`coalesce((
+      select jsonb_agg(
+        jsonb_build_object('name', ${eventFormats.name}, 'durationMinutes', ${eventFormats.durationMinutes})
+        order by ${eventFormats.sortOrder}
+      )
+      from ${eventFormats}
+      where ${eventFormats.eventId} = ${events.id}
+    ), '[]'::jsonb)`,
+  }).from(events)
+    .leftJoin(cfpForms, and(
+      eq(cfpForms.eventId, events.id),
+      or(eq(cfpForms.status, "published"), eq(cfpForms.status, "closed")),
+    ))
+    .leftJoin(cfpFormVersions, eq(cfpFormVersions.formId, cfpForms.id))
+    .where(eq(events.slug, eventSlug))
+    .orderBy(desc(cfpForms.updatedAt), desc(cfpFormVersions.version))
+    .limit(1);
+  if (!record) throw new FormsSubmissionsError("event_not_found", "Event not found.");
+  const { event, form, version, tracks, formats } = record;
+  if (!form || !version) throw new FormsSubmissionsError("form_not_published", "This event has not published a call for speakers.");
   const availability = formAvailability(form.status, version.definition, now);
   if (availability === "draft") throw new FormsSubmissionsError("form_not_published", "This event has not published a call for speakers.");
   return {
@@ -319,7 +353,7 @@ export async function getPublicForm(database: Database, eventSlug: string, now =
       endsOn: event.endsOn,
       timezone: event.timezone,
       primaryColor: event.branding.primaryColor,
-      tracks: tracks.map((track) => track.name),
+      tracks,
       formats: formats.map(formatLabel),
     },
     form: { id: form.id, versionId: version.id, version: version.version, name: form.name, availability, definition: version.definition },

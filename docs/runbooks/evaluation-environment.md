@@ -56,14 +56,15 @@ CFP-S2 creates the two proposals. CFP-S4 alone accepts “Taming 40-Minute CI”
 
 ## Explicit reset of one isolated run
 
-Only after verifying the run ID and target database:
+Only after verifying the run ID and target database, set both operation-specific confirmations and run the guarded preparation command:
 
 ```sh
-npm run reset:evaluation
-npm run seed:evaluation
+EVALUATION_SEED_CONFIRM="CREATE judge-YYYY-MM-DD-N"
+EVALUATION_RESET_CONFIRM="RESET judge-YYYY-MM-DD-N"
+npm run prepare:evaluation
 ```
 
-Reset is idempotent. It also removes run-owned outbox rows before deleting event data, preventing an old queued decision/publication/email operation from firing after reseed. It does not delete people, aliases, Auth accounts, provider accounts, R2 objects, a Neon branch, or any deployed Worker.
+`prepare:evaluation` runs reset, committed migrations, deterministic seed, and persona synchronization in that order. Reset is deliberately first: its production guard, database-scope check, run ID, and exact `RESET <run-id>` confirmation must pass before the migration step can run. The command stops at the first failure and is never a substitute for checking the target database name. Reset is idempotent. It also removes run-owned outbox rows before deleting event data, preventing an old queued decision/publication/email operation from firing after reseed. It does not delete people, aliases, Auth accounts, provider accounts, R2 objects, a Neon branch, or any deployed Worker.
 
 ## Failure interpretation
 

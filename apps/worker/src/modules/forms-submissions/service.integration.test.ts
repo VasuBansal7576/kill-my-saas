@@ -209,3 +209,85 @@ integration("forms and submissions persistence", () => {
     }, new Date("2027-01-17T00:00:00.000Z"))).rejects.toMatchObject({ code: "editing_locked" } satisfies Partial<FormsSubmissionsError>);
   });
 });
+
+describe("public CFP query budget", () => {
+  it("loads the public CFP in one database round trip", async () => {
+    const event = {
+      id: "event-1",
+      organizationId: "organization-1",
+      slug: "fast-conf",
+      name: "Fast Conf",
+      startsOn: "2027-05-12",
+      endsOn: "2027-05-14",
+      timezone: "America/Los_Angeles",
+      location: "San Francisco",
+      branding: { primaryColor: "#2d63e2" },
+      createdAt: new Date("2027-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2027-01-01T00:00:00.000Z"),
+    };
+    const form = {
+      id: "form-1",
+      eventId: event.id,
+      name: "Fast Conf CFP",
+      status: "published" as const,
+      updatedAt: new Date("2027-01-01T00:00:00.000Z"),
+    };
+    const version = {
+      id: "version-1",
+      formId: form.id,
+      version: 1,
+      definition: {
+        target: "abstract" as const,
+        opensAt: null,
+        closesAt: null,
+        welcomeCopy: "Welcome",
+        instructionsCopy: "Be specific",
+        successCopy: "Received",
+        allowDrafts: true,
+        allowMultipleDrafts: true,
+        draftsCountTowardLimit: false,
+        allowSubmittedEdits: true,
+        confirmationEmailEnabled: true,
+        draftReminderEnabled: true,
+        draftReminderLeadHours: 48,
+        maxSubmissionsPerPerson: 3,
+        minimumParticipants: 1,
+        maximumParticipants: 4,
+        participantRoleLabels: { author: "Primary author", co_author: "Co-author", presenter: "Presenter" },
+        fields: [],
+      },
+    };
+    const tracks = [{ name: "Platform" }];
+    const formats = [{ name: "Talk", durationMinutes: 30 }];
+    const results = [
+      [{ ...event, event, form, version, tracks: tracks.map((track) => track.name), formats }],
+      [form],
+      [version],
+      tracks,
+      formats,
+    ];
+    let selectCount = 0;
+    const fakeDatabase = {
+      select() {
+        const result = results[selectCount] ?? [];
+        selectCount += 1;
+        const query = {
+          from: () => query,
+          innerJoin: () => query,
+          leftJoin: () => query,
+          where: () => query,
+          orderBy: () => query,
+          limit: () => query,
+          then: <TResult1 = unknown>(onfulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | null) => Promise.resolve(result).then(onfulfilled),
+        };
+        return query;
+      },
+    } as unknown as Database;
+
+    const publicForm = await getPublicForm(fakeDatabase, event.slug, new Date("2027-01-15T00:00:00.000Z"));
+
+    expect(publicForm.event.tracks).toEqual(["Platform"]);
+    expect(publicForm.event.formats).toEqual(["Talk (30 min)"]);
+    expect(selectCount).toBe(1);
+  });
+});
