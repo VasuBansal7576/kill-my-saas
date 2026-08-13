@@ -22,7 +22,7 @@ import "./public-program.css";
 
 const surfaces: Array<{ key: PublicSurface; label: string }> = [
   { key: "sessions", label: "Sessions" },
-  { key: "speakers", label: "Speakers" },
+  { key: "speakers", label: "Speaker directory" },
   { key: "agenda", label: "Agenda" },
   { key: "itinerary", label: "My itinerary" },
   { key: "gallery", label: "Speaker gallery" },
@@ -173,6 +173,8 @@ export function PublicProgramPage({ surface }: { surface: PublicSurface }) {
     <main id="main-content" className="public-program-main">
       <div className="public-title-row">
         <div><p>{surfaceLabel(surface)}</p><h2>{surfaceTitle(surface)}</h2><small>{surfaceDescription(surface)}</small></div>
+        {surface === "speakers" ? <Link className="surface-switch-link" to={`/program/${eventSlug}/speaker-gallery`}>Prefer photos? Open speaker gallery</Link> : null}
+        {surface === "gallery" ? <Link className="surface-switch-link" to={`/program/${eventSlug}/speakers`}>Need a compact index? Open speaker directory</Link> : null}
         {surface === "itinerary" ? <div className="itinerary-actions">
           <div className="public-segmented"><button className={!showPersonal ? "active" : ""} type="button" onClick={() => setShowPersonal(false)}>All sessions</button><button className={showPersonal ? "active" : ""} type="button" onClick={() => setShowPersonal(true)}>My schedule <b aria-live="polite">{itineraryLoading ? "…" : selectedItineraryIds.size}</b></button></div>
           {itineraryLoading ? <span className="itinerary-loading-status" role="status">Loading saved itinerary…</span> : itineraryBusyId ? <span className="itinerary-loading-status" role="status">Saving itinerary…</span> : <a className={selectedItineraryIds.size ? "calendar-export" : "calendar-export disabled"} aria-disabled={!selectedItineraryIds.size} href={`/api/v1/public/program/${encodeURIComponent(eventSlug)}/anonymous-itinerary/calendar.ics`}>Add to calendar</a>}
@@ -352,16 +354,16 @@ function surfaceLabel(surface: PublicSurface): string {
 }
 
 function surfaceTitle(surface: PublicSurface): string {
-  return { sessions: "Explore sessions", speakers: "Meet the speakers", agenda: "Agenda", itinerary: "Build your itinerary", gallery: "Speaker gallery" }[surface];
+  return { sessions: "Explore sessions", speakers: "Speaker directory", agenda: "Agenda", itinerary: "Build your itinerary", gallery: "Speaker photo gallery" }[surface];
 }
 
 function surfaceDescription(surface: PublicSurface): string {
   return {
     sessions: "Search the complete approved program by topic, speaker, track, format or room.",
-    speakers: "Browse the program's speakers in surname order and open any profile for their sessions.",
+    speakers: "Use this compact alphabetical index to find a person quickly and open their linked sessions.",
     agenda: "Navigate each event day and see every session at its published time and room.",
     itinerary: "Star sessions, keep them across reloads, and export your personal schedule.",
-    gallery: "A visual directory of every speaker in the live program.",
+    gallery: "Browse every speaker in a photo-first grid, designed for discovering people in the live program.",
   }[surface];
 }
 

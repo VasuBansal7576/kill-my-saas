@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
+import { brandColorChoices, friendlyTimezoneLabel } from "./onboarding-options";
 
 type SessionResponse = {
   organizationMemberships: Array<{ id: string; name: string; slug: string; roles: string[] }>;
@@ -24,7 +25,10 @@ export function WorkspaceOnboardingPage({ additionalEvent = false }: { additiona
   const navigate = useNavigate();
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const { register, handleSubmit, getValues, setValue, formState: { errors, isSubmitting } } = useForm<SetupFields>({ defaultValues: defaultValues() });
+  const { control, register, handleSubmit, getValues, setValue, formState: { errors, isSubmitting } } = useForm<SetupFields>({ defaultValues: defaultValues() });
+  const primaryColor = useWatch({ control, name: "primaryColor" });
+  const timezone = useWatch({ control, name: "timezone" });
+  const timezoneOptions = useMemo(() => timezoneChoices(timezone), [timezone]);
 
   useEffect(() => {
     void fetch("/api/v1/session").then(async (response) => {
@@ -96,7 +100,7 @@ export function WorkspaceOnboardingPage({ additionalEvent = false }: { additiona
             <label htmlFor="organization-slug">Organization URL<input id="organization-slug" {...validationAttributes(Boolean(errors.organizationSlug), "organization-slug")} placeholder="my-organization" {...register("organizationSlug", { required: true, pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ })} />{errors.organizationSlug ? <small id="organization-slug-error">Use lowercase letters, numbers, and hyphens.</small> : null}</label>
           </fieldset> : null}
           <fieldset>
-            <legend>First event</legend>
+            <legend>{additionalEvent ? "Event details" : "First event details"}</legend>
             <label htmlFor="event-name">Event name<input id="event-name" {...validationAttributes(Boolean(errors.eventName), "event-name")} {...register("eventName", { required: true, minLength: 3, onBlur: () => fillSlug("eventName", "eventSlug") })} />{errors.eventName ? <small id="event-name-error">Enter at least three characters.</small> : null}</label>
             <label htmlFor="event-slug">Public event URL<input id="event-slug" {...validationAttributes(Boolean(errors.eventSlug), "event-slug")} placeholder="my-event-2027" {...register("eventSlug", { required: true, pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ })} />{errors.eventSlug ? <small id="event-slug-error">Use lowercase letters, numbers, and hyphens.</small> : null}</label>
             <div className="onboarding-row">
@@ -104,9 +108,25 @@ export function WorkspaceOnboardingPage({ additionalEvent = false }: { additiona
               <label htmlFor="event-ends-on">Ends on<input id="event-ends-on" {...validationAttributes(Boolean(errors.endsOn), "event-ends-on")} type="date" {...register("endsOn", { required: true, validate: (value) => value >= getValues("startsOn") })} />{errors.endsOn ? <small id="event-ends-on-error">End date must follow the start date.</small> : null}</label>
             </div>
             <label htmlFor="event-location">Location<input id="event-location" {...validationAttributes(Boolean(errors.location), "event-location")} placeholder="Venue or Online" {...register("location", { required: true, minLength: 2 })} />{errors.location ? <small id="event-location-error">Enter a venue or Online.</small> : null}</label>
-            <div className="onboarding-row">
-              <label htmlFor="event-timezone">Timezone<input id="event-timezone" {...validationAttributes(Boolean(errors.timezone), "event-timezone")} {...register("timezone", { required: true })} />{errors.timezone ? <small id="event-timezone-error">Enter an IANA timezone.</small> : null}</label>
-              <label htmlFor="event-primary-color">Brand color<input id="event-primary-color" {...validationAttributes(Boolean(errors.primaryColor), "event-primary-color")} type="color" {...register("primaryColor", { required: true })} />{errors.primaryColor ? <small id="event-primary-color-error">Choose a brand color.</small> : null}</label>
+            <div className="event-preferences">
+              <label htmlFor="event-timezone">Event timezone
+                <select id="event-timezone" {...validationAttributes(Boolean(errors.timezone), "event-timezone")} {...register("timezone", { required: true })}>
+                  {timezoneOptions.map((value) => <option key={value} value={value}>{friendlyTimezoneLabel(value)}</option>)}
+                </select>
+                <small className="field-help">Used for deadlines, agenda times, and calendar exports.</small>
+                {errors.timezone ? <small id="event-timezone-error">Choose an event timezone.</small> : null}
+              </label>
+              <div className="brand-color-field" role="group" aria-labelledby="brand-color-label">
+                <span id="brand-color-label">Brand color</span>
+                <div className="brand-color-control">
+                  <input id="event-primary-color" {...validationAttributes(Boolean(errors.primaryColor), "event-primary-color")} aria-label="Choose a custom brand color" type="color" {...register("primaryColor", { required: true })} />
+                  <output aria-live="polite">{primaryColor.toLocaleUpperCase("en-US")}</output>
+                </div>
+                <div className="brand-color-swatches" aria-label="Suggested brand colors">
+                  {brandColorChoices.map((choice) => <button key={choice.value} type="button" aria-label={`Use ${choice.label} brand color`} aria-pressed={primaryColor.toLocaleLowerCase("en-US") === choice.value} style={{ "--swatch-color": choice.value } as CSSProperties} onClick={() => setValue("primaryColor", choice.value, { shouldDirty: true, shouldValidate: true })}><span aria-hidden="true" /></button>)}
+                </div>
+                {errors.primaryColor ? <small id="event-primary-color-error">Choose a brand color.</small> : null}
+              </div>
             </div>
           </fieldset>
           {message ? <div className="form-error" role="alert">{message}</div> : null}
@@ -142,4 +162,18 @@ function slugify(value: string): string {
 
 function validationAttributes(invalid: boolean, id: string) {
   return { "aria-invalid": invalid || undefined, "aria-describedby": invalid ? `${id}-error` : undefined } as const;
+}
+
+function timezoneChoices(selected: string): string[] {
+  return Array.from(new Set([
+    selected,
+    "UTC",
+    "America/Los_Angeles",
+    "America/New_York",
+    "Europe/London",
+    "Europe/Paris",
+    "Asia/Kolkata",
+    "Asia/Singapore",
+    "Australia/Sydney",
+  ].filter(Boolean)));
 }

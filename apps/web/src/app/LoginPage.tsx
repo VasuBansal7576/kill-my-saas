@@ -2,6 +2,7 @@ import { type FormEvent, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { authClient } from "./auth-client";
 import { PasswordInput } from "./PasswordInput";
+import { authFailureMessage } from "./auth-messages";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -34,7 +35,7 @@ export function LoginPage() {
         ? await authClient.signUp.email({ email, password, name })
         : await authClient.signIn.email({ email, password });
       if (result.error) {
-        setError(result.error.message ?? (signingUp ? "Account creation failed." : "Sign in failed."));
+        setError(authFailureMessage(result.error.message, signingUp));
         return;
       }
       if (next) {
@@ -94,7 +95,7 @@ export function LoginPage() {
           <form onSubmit={submit}>
             {signingUp ? <label>Your name<input autoFocus autoComplete="name" required value={name} onChange={(event) => setName(event.target.value)} placeholder="Jordan Alvarez" /></label> : null}
             <label>Email address<input autoFocus={!signingUp} autoComplete="username" required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" /></label>
-            <PasswordInput label="Password" autoComplete={signingUp ? "new-password" : "current-password"} minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder={signingUp ? "Create a password" : "Enter your password"} help={signingUp ? "Use at least 8 characters." : undefined} />
+            <PasswordInput label="Password" autoComplete={signingUp ? "new-password" : "current-password"} minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder={signingUp ? "Create a password" : "Enter your password"} help={signingUp ? "Use at least 8 characters." : "Passwords are case-sensitive."} />
             {!signingUp ? <div className="login-recovery"><Link to="/forgot-password">Forgot password?</Link></div> : null}
             {error ? <div className="form-error" role="alert"><strong>We couldn’t continue</strong><span>{error}</span></div> : null}
             <button type="submit" disabled={submitting}>{submitting ? (signingUp ? "Creating your account…" : "Signing you in…") : (signingUp ? (accessContext === "organizer" ? "Create workspace" : "Create account & continue") : "Sign in")}</button>
@@ -104,17 +105,10 @@ export function LoginPage() {
               ? <>Already have an account? <Link to={`/login?event=${encodeURIComponent(eventSlug)}${next ? `&next=${encodeURIComponent(next)}` : ""}`}>Sign in</Link></>
               : <>Need an organizer workspace? <Link to="/signup">Create one</Link></>}
           </div>
+          {!signingUp ? <p className="login-recovery">Need another option? <Link to="/help">Get account access help</Link>.</p> : null}
           <p className="login-evaluator-note">Evaluating ProgramFlow? Use the role credentials supplied with the submission. Each account is server-scoped.</p>
         </section>
       </div>
     </main>
   );
-}
-
-function authFailureMessage(cause: unknown, signingUp: boolean): string {
-  const fallback = signingUp ? "Account creation failed. Please try again." : "Sign in failed. Check the email and password, then try again.";
-  if (!(cause instanceof Error)) return fallback;
-  const message = cause.message.trim();
-  if (!message || /fetch|network|failed to fetch/i.test(message)) return fallback;
-  return message;
 }
