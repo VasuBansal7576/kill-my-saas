@@ -100,7 +100,7 @@ export function CfpBuilderPage() {
       {state === "loading" ? <p className="muted">Loading the form builder…</p> : (
         <div className="cfp-builder-grid">
           <section className="cfp-panel">
-            <div className="section-head"><h2>Submission questions</h2><span>{form.fields.length} fields · ordered</span></div>
+            <div className="section-head"><div><h2>Submission questions</h2><p>Questions appear in this order on the public form. Conditional questions stay hidden until their rule matches.</p></div><span>{form.fields.length} fields · ordered</span></div>
             <div className="cfp-field-list">
               {form.fields.map((field, index) => (
                 <article className="cfp-builder-field" key={`${field.key}-${index}`}>
@@ -131,7 +131,7 @@ export function CfpBuilderPage() {
                       <label className="cfp-check"><input type="checkbox" checked={field.required} onChange={(event) => patchField(index, { required: event.target.checked })} /> Required when visible</label>
                     </div>
                   </div>
-                  <button type="button" className="cfp-remove" onClick={() => patch("fields", form.fields.filter((_, fieldIndex) => fieldIndex !== index).map((item, sortOrder) => ({ ...item, sortOrder })))} aria-label={`Remove ${field.label}`}>×</button>
+                  <button type="button" className="cfp-remove" onClick={() => patch("fields", form.fields.filter((_, fieldIndex) => fieldIndex !== index).map((item, sortOrder) => ({ ...item, sortOrder })))}>Remove question<span className="visually-hidden">: {field.label}</span></button>
                 </article>
               ))}
             </div>
@@ -140,7 +140,7 @@ export function CfpBuilderPage() {
 
           <aside className="cfp-settings-stack">
             <section className="cfp-panel">
-              <div className="section-head"><h2>Form settings</h2><span>{form.status}</span></div>
+              <div className="section-head"><div><h2>Form settings</h2><p>Public copy and submission window for this version.</p></div><span>{form.status}</span></div>
               <label>Internal form name<input value={form.name} onChange={(event) => patch("name", event.target.value)} /></label>
               <label>Collect<select value={form.target} onChange={(event) => patch("target", event.target.value as "abstract" | "session")}><option value="abstract">Review-stage abstract</option><option value="session">Full session</option></select></label>
               <div className="cfp-inline-grid">
@@ -152,11 +152,11 @@ export function CfpBuilderPage() {
               <label>Success message<textarea rows={3} value={form.successCopy} onChange={(event) => patch("successCopy", event.target.value)} /></label>
             </section>
             <section className="cfp-panel">
-              <div className="section-head"><h2>Limits and contact</h2><span>Server enforced</span></div>
+              <div className="section-head"><div><h2>Participants and limits</h2><p>Counts include the required primary participant. One person must always be able to submit a valid proposal.</p></div><span>Server enforced</span></div>
               <div className="cfp-inline-grid">
-                <label>Submission limit<input type="number" min={1} value={form.maxSubmissionsPerPerson ?? ""} onChange={(event) => patch("maxSubmissionsPerPerson", event.target.value ? Number(event.target.value) : null)} /></label>
-                <label>Minimum participants<input type="number" min={1} value={form.minimumParticipants} onChange={(event) => patch("minimumParticipants", Number(event.target.value))} /></label>
-                <label>Maximum participants<input type="number" min={1} value={form.maximumParticipants} onChange={(event) => patch("maximumParticipants", Number(event.target.value))} /></label>
+                <label>Proposals per person <small>Submitted proposals allowed per speaker</small><input type="number" min={1} value={form.maxSubmissionsPerPerson ?? ""} onChange={(event) => patch("maxSubmissionsPerPerson", event.target.value ? Number(event.target.value) : null)} /></label>
+                <label>Minimum people <small>Includes the primary participant</small><input type="number" min={1} max={form.maximumParticipants} value={form.minimumParticipants} onChange={(event) => patch("minimumParticipants", Number(event.target.value))} /></label>
+                <label>Maximum people <small>Total people credited on a proposal</small><input type="number" min={form.minimumParticipants} value={form.maximumParticipants} onChange={(event) => patch("maximumParticipants", Number(event.target.value))} /></label>
               </div>
               {(["author", "co_author", "presenter"] as const).map((role) => <label key={role}>{role.replace("_", " ")} label<input value={form.participantRoleLabels[role]} onChange={(event) => patch("participantRoleLabels", { ...form.participantRoleLabels, [role]: event.target.value })} /></label>)}
               <Toggle label="Allow saved drafts" checked={form.allowDrafts} onChange={(value) => patch("allowDrafts", value)} />

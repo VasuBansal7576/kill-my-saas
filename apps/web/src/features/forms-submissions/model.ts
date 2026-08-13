@@ -116,14 +116,32 @@ export type SubmissionRecord = {
   updatedAt: string;
 };
 
+export class ApiError extends Error {
+  readonly code: string;
+  readonly fieldErrors: Record<string, string>;
+
+  constructor(message: string, code: string, fields: Record<string, string[] | undefined> = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.fieldErrors = Object.fromEntries(Object.entries(fields).flatMap(([field, messages]) => {
+      const message = messages?.find(Boolean);
+      return message ? [[field, message]] : [];
+    }));
+  }
+}
+
 export async function readApi<T>(response: Response): Promise<T> {
-  const body = await response.json().catch(() => null) as { error?: { message?: string; fields?: Record<string, string[]> } } | T | null;
+  const body = await response.json().catch(() => null) as { error?: { code?: string; message?: string; fields?: Record<string, string[] | undefined> } } | T | null;
   if (!response.ok) {
     const error = body && typeof body === "object" && "error" in body
-      ? (body as { error?: { message?: string; fields?: Record<string, string[]> } }).error
+      ? (body as { error?: { code?: string; message?: string; fields?: Record<string, string[] | undefined> } }).error
       : undefined;
-    const fieldMessage = error?.fields ? Object.values(error.fields).flat()[0] : undefined;
-    throw new Error(fieldMessage ?? error?.message ?? "The request could not be completed.");
+    throw new ApiError(
+      error?.message ?? "The request could not be completed.",
+      error?.code ?? "request_failed",
+      error?.fields,
+    );
   }
   return body as T;
 }

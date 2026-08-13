@@ -2,9 +2,15 @@ import { useEffect, useMemo, useState, type CSSProperties, type Dispatch, type S
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { formatEventDateRange, formatEventDateTime } from "../../app/event-time";
 import "./forms-submissions.css";
-import { fieldIsVisible, readApi, type FormField, type ParticipantRole, type PublicForm, type SubmissionRecord } from "./model";
+import { ApiError, fieldIsVisible, readApi, type FormField, type ParticipantRole, type PublicForm, type SubmissionRecord } from "./model";
+import {
+  ensurePrimaryParticipant,
+  participantLimitGuidance,
+  participantValidationMessage,
+  removeAdditionalParticipant,
+  type ParticipantInput,
+} from "./presentation";
 
-type ParticipantInput = { name: string; email: string; role: ParticipantRole };
 type LocalProposal = { title: string; answers: Record<string, unknown>; participants: ParticipantInput[]; savedAt: string };
 
 export function PublicCfpPage() {
@@ -15,9 +21,11 @@ export function PublicCfpPage() {
   const [submissions, setSubmissions] = useState<SubmissionRecord[]>([]);
   const [title, setTitle] = useState(localProposal?.title ?? "");
   const [answers, setAnswers] = useState<Record<string, unknown>>(localProposal?.answers ?? {});
-  const [participants, setParticipants] = useState<ParticipantInput[]>(localProposal?.participants ?? []);
+  const [participants, setParticipants] = useState<ParticipantInput[]>(() => ensurePrimaryParticipant(localProposal?.participants ?? []));
   const [state, setState] = useState<"loading" | "idle" | "saving" | "submitted" | "error">("loading");
+  const [pendingAction, setPendingAction] = useState<"draft" | "submit" | null>(null);
   const [message, setMessage] = useState<string | null>(localProposal ? "Your unfinished proposal was restored on this device." : null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [authenticated, setAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const submissionId = searchParams.get("submission");
@@ -40,7 +48,7 @@ export function PublicCfpPage() {
           if (submission) {
             setTitle(submission.title);
             setAnswers(submission.answers);
-            setParticipants(submission.participants.map(({ name, email, role }) => ({ name, email, role })));
+            setParticipants(ensurePrimaryParticipant(submission.participants.map(({ name, email, role }) => ({ name, email, role }))));
           }
       }
       setAuthChecked(true);
@@ -57,7 +65,7 @@ export function PublicCfpPage() {
 
   useEffect(() => {
     if (!authChecked || authenticated || submissionId) return;
-    if (!title.trim() && Object.keys(answers).length === 0 && participants.length === 0) return;
+    if (!title.trim() && Object.keys(answers).length === 0 && compactParticipants(participants).length === 0) return;
     writeLocalProposal(eventSlug, { title, answers, participants, savedAt: new Date().toISOString() });
   }, [answers, authChecked, authenticated, eventSlug, participants, submissionId, title]);
 
@@ -67,8 +75,24 @@ export function PublicCfpPage() {
 
   const save = async (saveAsDraft: boolean) => {
     if (!publicForm) return;
+    if (!saveAsDraft) {
+      const participantError = participantValidationMessage(
+        participants,
+        publicForm.form.definition.minimumParticipants,
+        publicForm.form.definition.maximumParticipants,
+      );
+      if (participantError) {
+        setFieldErrors({ participants: participantError });
+        setMessage("Review the proposal and correct the highlighted information.");
+        setState("error");
+        focusFirstError();
+        return;
+      }
+    }
     setState("saving");
+    setPendingAction(saveAsDraft ? "draft" : "submit");
     setMessage(null);
+    setFieldErrors({});
     const path = selected
       ? `/api/v1/speaker/events/${eventSlug}/submissions/${selected.id}`
       : `/api/v1/speaker/events/${eventSlug}/submissions?formId=${encodeURIComponent(publicForm.form.id)}`;
@@ -82,10 +106,14 @@ export function PublicCfpPage() {
       clearLocalProposal(eventSlug);
       setSearchParams({ submission: saved.id });
       setState(saveAsDraft ? "idle" : "submitted");
+      setPendingAction(null);
       setMessage(saveAsDraft ? "Draft saved. You can close this page and resume later." : publicForm.form.definition.successCopy);
     } catch (error) {
+      setFieldErrors(error instanceof ApiError ? error.fieldErrors : {});
       setMessage(error instanceof Error ? error.message : "The proposal could not be saved.");
       setState("error");
+      setPendingAction(null);
+      focusFirstError();
     }
   };
 
@@ -113,7 +141,7 @@ export function PublicCfpPage() {
             <div className="cfp-own-submissions">
               <h2>Your proposals</h2>
               {submissions.map((submission) => <button type="button" key={submission.id} className={submission.id === selected?.id ? "active" : ""} onClick={() => setSearchParams({ submission: submission.id })}><span>{submission.title}</span><em>{submission.state}</em></button>)}
-              <button type="button" onClick={() => { setSearchParams({}); setTitle(""); setAnswers({}); setParticipants([]); }}>+ Start another proposal</button>
+              <button type="button" onClick={() => { setSearchParams({}); setTitle(""); setAnswers({}); setParticipants(ensurePrimaryParticipant([])); setFieldErrors({}); setMessage(null); }}>+ Start another proposal</button>
             </div>
           ) : authenticated ? <p className="cfp-signin-note">Your submitted proposals will appear here.</p> : null}
         </section>
@@ -136,26 +164,41 @@ export function PublicCfpPage() {
               <small>No organizer access is granted. Speaker accounts can only see their own proposals and event work.</small>
             </div>
           ) : (
-            <form onSubmit={(event_) => { event_.preventDefault(); void save(false); }}>
-              <p className="cfp-instructions">{form.definition.instructionsCopy}</p>
-              <label>Proposal title <span aria-hidden="true">*</span><small>This becomes the session title if accepted. If another question asks for a session title, use the same title.</small><input value={title} minLength={3} maxLength={180} required onChange={(event_) => setTitle(event_.target.value)} /></label>
-              {visibleFields.map((field) => <PublicField key={field.key} field={field} value={answers[field.key]} event={event} onChange={(value) => setAnswers((current) => ({ ...current, [field.key]: value }))} />)}
-              <fieldset className="cfp-participants">
-                <legend>Participants <small>{form.definition.minimumParticipants}–{form.definition.maximumParticipants}</small></legend>
+            <form aria-busy={state === "saving"} onSubmit={(event_) => { event_.preventDefault(); void save(false); }}>
+              <div className="cfp-form-intro">
+                <p className="cfp-instructions">{form.definition.instructionsCopy}</p>
+                <p className="cfp-required-note"><span aria-hidden="true">*</span> Required fields</p>
+              </div>
+              <fieldset className="cfp-form-section">
+                <legend>Proposal details</legend>
+                <p className="cfp-section-help">Tell the program team what you want to present. You can save a draft before every required answer is complete.</p>
+                <label className="cfp-control" htmlFor="proposal-title">Proposal title <span aria-hidden="true">*</span><small id="proposal-title-help">This becomes the session title if accepted. If another question asks for a session title, use the same title.</small><input id="proposal-title" value={title} minLength={3} maxLength={180} required aria-invalid={Boolean(fieldErrors.title)} aria-describedby={`proposal-title-help${fieldErrors.title ? " proposal-title-error" : ""}`} onChange={(event_) => { setTitle(event_.target.value); clearFieldError(setFieldErrors, "title"); }} />{fieldErrors.title ? <small className="cfp-field-error" id="proposal-title-error">{fieldErrors.title}</small> : null}</label>
+                {visibleFields.map((field) => <PublicField key={field.key} field={field} value={answers[field.key]} event={event} error={fieldErrors[field.key] ?? fieldErrors.answers} onChange={(value) => { setAnswers((current) => ({ ...current, [field.key]: value })); clearFieldError(setFieldErrors, field.key); clearFieldError(setFieldErrors, "answers"); }} />)}
+              </fieldset>
+              <fieldset className="cfp-participants cfp-form-section" tabIndex={-1} aria-invalid={Boolean(fieldErrors.participants)} aria-describedby={`participant-guidance${fieldErrors.participants ? " participant-error" : ""}`}>
+                <legend>Participant details</legend>
+                <div className="cfp-participant-summary">
+                  <p id="participant-guidance">{participantLimitGuidance(form.definition.minimumParticipants, form.definition.maximumParticipants)}</p>
+                  <span aria-live="polite">{compactParticipants(participants).length} of {form.definition.maximumParticipants} added</span>
+                </div>
                 {participants.map((participant, index) => (
                   <div className="cfp-participant-row" key={index}>
-                    <label>Name<input value={participant.name} required onChange={(event_) => patchParticipant(setParticipants, index, { name: event_.target.value })} /></label>
-                    <label>Email<input type="email" value={participant.email} required onChange={(event_) => patchParticipant(setParticipants, index, { email: event_.target.value })} /></label>
-                    <label>Role<select value={participant.role} onChange={(event_) => patchParticipant(setParticipants, index, { role: event_.target.value as ParticipantRole })}>{Object.entries(form.definition.participantRoleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></label>
-                    <button type="button" onClick={() => setParticipants((current) => current.filter((_, participantIndex) => participantIndex !== index))} aria-label={`Remove ${participant.name || "participant"}`}>×</button>
+                    <div className="cfp-participant-row-head"><strong>{index === 0 ? "Primary participant" : `Additional participant ${index}`}</strong>{index === 0 ? <span>Required</span> : <button type="button" className="cfp-remove-participant" onClick={() => { setParticipants((current) => removeAdditionalParticipant(current, index)); clearFieldError(setFieldErrors, "participants"); }}>Remove participant</button>}</div>
+                    <div className="cfp-participant-fields">
+                      <label>Name<input value={participant.name} required onChange={(event_) => { patchParticipant(setParticipants, index, { name: event_.target.value }); clearFieldError(setFieldErrors, "participants"); }} /></label>
+                      <label>Email<input type="email" value={participant.email} required onChange={(event_) => { patchParticipant(setParticipants, index, { email: event_.target.value }); clearFieldError(setFieldErrors, "participants"); }} /></label>
+                      <label>Role<select value={participant.role} disabled={index === 0} aria-describedby={index === 0 ? "primary-role-help" : undefined} onChange={(event_) => { patchParticipant(setParticipants, index, { role: event_.target.value as ParticipantRole }); clearFieldError(setFieldErrors, "participants"); }}>{Object.entries(form.definition.participantRoleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select>{index === 0 ? <small id="primary-role-help">The primary role is kept so the proposal always has an owner.</small> : null}</label>
+                    </div>
                   </div>
                 ))}
-                {participants.length < form.definition.maximumParticipants ? <button className="cfp-add-participant" type="button" onClick={() => setParticipants((current) => [...current, { name: "", email: "", role: current.length === 0 ? "author" : "co_author" }])}>+ Add participant</button> : null}
+                {fieldErrors.participants ? <p className="cfp-field-error cfp-participant-error" id="participant-error" role="alert">{fieldErrors.participants}</p> : null}
+                {participants.length < form.definition.maximumParticipants ? <button className="cfp-add-participant" type="button" onClick={() => { setParticipants((current) => [...ensurePrimaryParticipant(current), { name: "", email: "", role: "co_author" }]); clearFieldError(setFieldErrors, "participants"); }}>+ Add another participant</button> : <p className="cfp-limit-reached" role="status">Participant limit reached.</p>}
               </fieldset>
               {message ? <div className={state === "error" ? "form-error" : "saved-notice"} role={state === "error" ? "alert" : "status"}>{message}</div> : null}
               <div className="cfp-submit-actions">
-                {form.definition.allowDrafts && selected?.state !== "submitted" ? <button type="button" className="secondary-action" disabled={state === "saving" || title.trim().length < 3} onClick={() => void save(true)}>Save draft</button> : null}
-                <button type="submit" className="primary-action" disabled={state === "saving"}>{state === "saving" ? "Saving…" : selected?.state === "submitted" ? "Save proposal changes" : "Submit proposal"}</button>
+                <div className="cfp-submit-feedback" aria-live="polite">{state === "saving" ? (pendingAction === "draft" ? "Saving your draft…" : "Submitting your proposal…") : "Drafts stay private until you submit."}</div>
+                {form.definition.allowDrafts && selected?.state !== "submitted" ? <button type="button" className="secondary-action" disabled={state === "saving" || title.trim().length < 3} onClick={() => void save(true)}>{state === "saving" && pendingAction === "draft" ? "Saving draft…" : "Save draft"}</button> : null}
+                <button type="submit" className="primary-action" disabled={state === "saving"}>{state === "saving" && pendingAction === "submit" ? "Submitting proposal…" : selected?.state === "submitted" ? "Save proposal changes" : "Submit proposal"}</button>
               </div>
             </form>
           )}
@@ -166,17 +209,21 @@ export function PublicCfpPage() {
   );
 }
 
-function PublicField({ field, value, event, onChange }: { field: FormField; value: unknown; event: PublicForm["event"]; onChange: (value: unknown) => void }) {
+function PublicField({ field, value, event, error, onChange }: { field: FormField; value: unknown; event: PublicForm["event"]; error?: string; onChange: (value: unknown) => void }) {
   const options = field.settings.catalog === "track" ? event.tracks : field.settings.catalog === "format" ? event.formats : field.settings.options ?? [];
   const help = typeof field.settings.helpText === "string" ? field.settings.helpText : null;
+  const inputId = `proposal-field-${field.key}`;
+  const describedBy = [help ? `${inputId}-help` : null, error ? `${inputId}-error` : null].filter(Boolean).join(" ") || undefined;
+  const attributes = { id: inputId, "aria-invalid": Boolean(error), "aria-describedby": describedBy };
   return (
-    <label>{field.label} {field.required ? <span aria-hidden="true">*</span> : null}{help ? <small>{help}</small> : null}
-      {field.type === "long_text" ? <textarea rows={6} value={typeof value === "string" ? value : ""} required={field.required} onChange={(event_) => onChange(event_.target.value)} /> : null}
-      {field.type === "short_text" ? <input value={typeof value === "string" ? value : ""} required={field.required} onChange={(event_) => onChange(event_.target.value)} /> : null}
-      {field.type === "date" ? <input type="date" value={typeof value === "string" ? value : ""} required={field.required} onChange={(event_) => onChange(event_.target.value)} /> : null}
-      {field.type === "checkbox" ? <span className="cfp-checkbox"><input type="checkbox" checked={value === true} onChange={(event_) => onChange(event_.target.checked)} /> Yes</span> : null}
-      {field.type === "select" ? <select value={typeof value === "string" ? value : ""} required={field.required} onChange={(event_) => onChange(event_.target.value)}><option value="">Choose…</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select> : null}
-      {field.type === "multi_select" ? <select multiple value={Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []} required={field.required} onChange={(event_) => onChange(Array.from(event_.target.selectedOptions, (option) => option.value))}>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select> : null}
+    <label className="cfp-control" htmlFor={inputId}>{field.label} {field.required ? <span aria-hidden="true">*</span> : null}{help ? <small id={`${inputId}-help`}>{help}</small> : null}
+      {field.type === "long_text" ? <textarea {...attributes} rows={6} value={typeof value === "string" ? value : ""} required={field.required} onChange={(event_) => onChange(event_.target.value)} /> : null}
+      {field.type === "short_text" ? <input {...attributes} value={typeof value === "string" ? value : ""} required={field.required} onChange={(event_) => onChange(event_.target.value)} /> : null}
+      {field.type === "date" ? <input {...attributes} type="date" value={typeof value === "string" ? value : ""} required={field.required} onChange={(event_) => onChange(event_.target.value)} /> : null}
+      {field.type === "checkbox" ? <span className="cfp-checkbox"><input {...attributes} type="checkbox" checked={value === true} onChange={(event_) => onChange(event_.target.checked)} /> Yes</span> : null}
+      {field.type === "select" ? <select {...attributes} value={typeof value === "string" ? value : ""} required={field.required} onChange={(event_) => onChange(event_.target.value)}><option value="">Choose…</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select> : null}
+      {field.type === "multi_select" ? <select {...attributes} multiple value={Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []} required={field.required} onChange={(event_) => onChange(Array.from(event_.target.selectedOptions, (option) => option.value))}>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select> : null}
+      {error ? <small className="cfp-field-error" id={`${inputId}-error`}>{error}</small> : null}
     </label>
   );
 }
@@ -187,6 +234,21 @@ function patchParticipant(setParticipants: Dispatch<SetStateAction<ParticipantIn
 
 function compactParticipants(participants: ParticipantInput[]) {
   return participants.filter((participant) => participant.name.trim() || participant.email.trim());
+}
+
+function clearFieldError(setFieldErrors: Dispatch<SetStateAction<Record<string, string>>>, field: string) {
+  setFieldErrors((current) => {
+    if (!(field in current)) return current;
+    const next = { ...current };
+    delete next[field];
+    return next;
+  });
+}
+
+function focusFirstError() {
+  window.setTimeout(() => {
+    document.querySelector<HTMLElement>('.cfp-proposal-form [aria-invalid="true"]')?.focus();
+  });
 }
 
 function localProposalKey(eventSlug: string) {

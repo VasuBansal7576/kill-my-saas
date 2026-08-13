@@ -20,6 +20,7 @@ import {
   updateForm,
   updateSpeakerSubmission,
 } from "./service";
+import { friendlyValidationFields } from "./validation-copy";
 
 type ProtectedContext = { Bindings: Env } & ActorContext;
 type PublicContext = { Bindings: Env };
@@ -222,7 +223,15 @@ function invalidBody(
   code: string,
   fields: Record<string, string[] | undefined>,
 ) {
-  return context.json({ error: { code, message: "The request body is invalid.", fields } }, 400);
+  return context.json({
+    error: {
+      code,
+      message: code === "invalid_submission"
+        ? "Review the proposal and correct the highlighted information."
+        : "Review the form settings and correct the highlighted information.",
+      fields: friendlyValidationFields(code, fields),
+    },
+  }, 400);
 }
 
 function formsError(context: Context<PublicContext> | Context<ProtectedContext>, error: unknown) {
