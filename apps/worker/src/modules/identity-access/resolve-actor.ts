@@ -6,6 +6,7 @@ import {
   identities,
   people,
   personEmailAliases,
+  rowsFromExecuteResult,
   type Database,
 } from "@programflow/database";
 import { and, eq, sql } from "drizzle-orm";
@@ -120,7 +121,7 @@ async function activeSessionActor(database: Database, token: string) {
       and coalesce(auth_user.banned, false) = false
     limit 1
   `);
-  return SessionActorSchema.safeParse(result.rows[0]).data ?? null;
+  return SessionActorSchema.safeParse(rowsFromExecuteResult(result)[0]).data ?? null;
 }
 
 export function invalidateActorCache(cookieHeader: string | undefined) {

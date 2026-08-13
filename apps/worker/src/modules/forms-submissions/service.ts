@@ -9,6 +9,7 @@ import {
   outboxEvents,
   people,
   personEmailAliases,
+  rowsFromExecuteResult,
   sessions,
   submissionParticipants,
   submissions,
@@ -577,8 +578,15 @@ async function listSubmissionRecords(database: Database, where: SQL<unknown>): P
       ${submissions.id}, current_version.id, form_version.id, decision.id
     order by ${submissions.updatedAt} desc
   `);
-  const submissionIds = result.rows.map((value) => (value as { id: string }).id);
-  const eventIds = [...new Set(result.rows.map((value) => (value as { event_id: string }).event_id))];
+  const rows = rowsFromExecuteResult<{
+    id: string; event_id: string; form_id: string; submitter_person_id: string | null;
+    state: "draft" | "submitted"; triage_state: "unreviewed" | "maybe"; routing_key: string | null;
+    submitted_at: Date | string | null; updated_at: Date | string; content_version: number; title: string;
+    answers: Record<string, unknown>; form_version: number; decision: "accepted" | "rejected" | null;
+    participants: SubmissionRecord["participants"];
+  }>(result);
+  const submissionIds = rows.map((row) => row.id);
+  const eventIds = [...new Set(rows.map((row) => row.event_id))];
   const acceptedSessions = submissionIds.length > 0
     ? await database.select({ id: sessions.id, sourceSubmissionId: sessions.sourceSubmissionId, title: sessions.title })
       .from(sessions).where(and(inArray(sessions.sourceSubmissionId, submissionIds), inArray(sessions.eventId, eventIds)))
@@ -586,14 +594,7 @@ async function listSubmissionRecords(database: Database, where: SQL<unknown>): P
   const acceptedSessionBySubmission = new Map(acceptedSessions.flatMap((session) => session.sourceSubmissionId
     ? [[session.sourceSubmissionId, { id: session.id, title: session.title }] as const]
     : []));
-  return result.rows.map((value) => {
-    const row = value as {
-      id: string; event_id: string; form_id: string; submitter_person_id: string | null;
-      state: "draft" | "submitted"; triage_state: "unreviewed" | "maybe"; routing_key: string | null;
-      submitted_at: Date | string | null; updated_at: Date | string; content_version: number; title: string;
-      answers: Record<string, unknown>; form_version: number; decision: "accepted" | "rejected" | null;
-      participants: SubmissionRecord["participants"];
-    };
+  return rows.map((row) => {
     return {
       id: row.id,
       eventId: row.event_id,
