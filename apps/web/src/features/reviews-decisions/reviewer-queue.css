@@ -41,7 +41,7 @@
   background: transparent;
   color: #8f8f8a;
   font: inherit;
-  font-size: 10px;
+  font-size:12px;
   font-weight: 700;
 }
 
@@ -53,7 +53,7 @@
 .rd-queue-filters button span {
   display: inline;
   margin-left: 4px;
-  color: #777772;
+  color:#979792;
 }
 
 .rd-queue-empty {
@@ -61,7 +61,7 @@
   gap: 5px;
   padding: 20px 6px;
   color: #aaa;
-  font-size: 11px;
+  font-size:13px;
 }
 
 .rd-queue-empty span {

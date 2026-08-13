@@ -5,20 +5,56 @@ const eventSlug = "devflow-conf-2027";
 
 export function EvaluationEntryPage() {
   return <main id="main-content" className={styles.entryPage}>
-    <section className={styles.entryHero}>
+    <header className={styles.entryNav}>
       <div className={styles.brand}><span>PF</span>ProgramFlow</div>
-      <p className={styles.eyebrow}>DevFlow Conf 2027 · Judge entry</p>
-      <h1>Start with the live program. Follow the work upstream.</h1>
-      <p className={styles.entryLead}>The public call and program require no account. Organizer, speaker, and reviewer workspaces use the private credentials supplied with the evaluation package.</p>
-      <div className={styles.primaryEntryActions}>
-        <Link className={styles.primaryAction} to={`/cfp/${eventSlug}`}>Open public call for speakers</Link>
-        <Link to={`/events/${eventSlug}/sessions`}>Open live public program</Link>
+      <nav aria-label="Evaluation entry shortcuts"><Link to="/help">How to evaluate</Link><Link className={styles.navDemo} to={`/events/${eventSlug}/sessions`}>Open public demo →</Link></nav>
+    </header>
+
+    <section className={styles.entryHero}>
+      <div className={styles.heroCopy}>
+        <p className={styles.eyebrow}>Conference program operations · Live evaluation</p>
+        <h1>From first proposal to the published program. No re-entry.</h1>
+        <p className={styles.entryLead}>ProgramFlow carries the same conference data through review, decisions, speaker onboarding, content, scheduling, and every attendee view.</p>
+        <div className={styles.primaryEntryActions}>
+          <Link className={styles.primaryAction} to={`/events/${eventSlug}/sessions`}>Explore the live program</Link>
+          <Link to={`/cfp/${eventSlug}`}>Submit a proposal</Link>
+        </div>
+        <ul className={styles.heroProof} aria-label="Public demo proof">
+          <li><strong>5 public views</strong><span>No account required</span></li>
+          <li><strong>1 canonical program</strong><span>Sessions stay consistent</span></li>
+          <li><strong>4 scoped roles</strong><span>Permissions enforced upstream</span></li>
+        </ul>
       </div>
-      <small className={styles.securityNote}>No evaluator password, reset control, provider secret, or private evidence is exposed on this page.</small>
+      <aside className={styles.programPreview} aria-labelledby="public-tour-title">
+        <div className={styles.previewHead}><span><small>Public product tour</small><strong id="public-tour-title">DevFlow Conf 2027</strong></span><em>No account required</em></div>
+        <div className={styles.previewRoutes}>
+          <Link to={`/events/${eventSlug}/sessions`}><span>01</span><strong>Browse the published sessions</strong><small>Search, filters, details, and itinerary actions</small></Link>
+          <Link to={`/events/${eventSlug}/speakers`}><span>02</span><strong>Follow the speaker directory</strong><small>Public profiles linked to approved sessions</small></Link>
+          <Link to={`/events/${eventSlug}/agenda`}><span>03</span><strong>Inspect the current agenda</strong><small>Published dates, rooms, and times from program state</small></Link>
+        </div>
+        <Link className={styles.previewCta} to={`/events/${eventSlug}/agenda`}>Open the public agenda →</Link>
+      </aside>
+    </section>
+
+    <section className={styles.lifecycleSection} aria-labelledby="lifecycle-title">
+      <div className={styles.sectionHead}><div><p className={styles.eyebrow}>One connected lifecycle</p><h2 id="lifecycle-title">Every handoff stays inspectable.</h2><small>Operational state moves forward; canonical people and program data do not get copied into parallel tools.</small></div></div>
+      <ol className={styles.lifecycleRail}>
+        <li><span>01</span><strong>Call</strong><small>Public form &amp; drafts</small></li>
+        <li><span>02</span><strong>Review</strong><small>Scoped assignments</small></li>
+        <li><span>03</span><strong>Decide</strong><small>Authoritative outcome</small></li>
+        <li><span>04</span><strong>Onboard</strong><small>Tasks &amp; files</small></li>
+        <li><span>05</span><strong>Schedule</strong><small>Conflicts &amp; revisions</small></li>
+        <li><span>06</span><strong>Publish</strong><small>Agenda &amp; embeds</small></li>
+      </ol>
+    </section>
+
+    <section className={styles.proofSection} aria-labelledby="proof-title">
+      <div><p className={styles.eyebrow}>Production behavior, not a stage set</p><h2 id="proof-title">The proof lives beside the work.</h2><p>Organizer actions persist to PostgreSQL. Required side effects retain recipient, provider, file, calendar, integration, retry, and failure evidence. Provider success is shown only when a real provider returns it.</p><Link to="/help">Read the evaluator guide →</Link></div>
+      <dl><div><dt>Role boundaries</dt><dd>Organizer, reviewer, speaker, and anonymous routes are independently scoped.</dd></div><div><dt>Persisted handoffs</dt><dd>Acceptance creates a distinct linked Session; publication exposes approved scheduled records.</dd></div><div><dt>Truthful outcomes</dt><dd>Queued, delivered, blocked, partial, and failed states remain visible instead of collapsing into a success toast.</dd></div></dl>
     </section>
 
     <section className={styles.entrySection} aria-labelledby="public-entry-title">
-      <div className={styles.sectionHead}><div><p className={styles.eyebrow}>No sign-in required</p><h2 id="public-entry-title">Public DevFlow surfaces</h2></div><Link to="/help">Evaluator help →</Link></div>
+      <div className={styles.sectionHead}><div><p className={styles.eyebrow}>No sign-in required</p><h2 id="public-entry-title">Tour every attendee view</h2><small>All five published surfaces read the same approved, scheduled program.</small></div><Link to="/help">Evaluator help →</Link></div>
       <div className={styles.routeCards}>
         <RouteCard label="Call for speakers" detail="Branding, dates, tracks, formats, validation, and proposal entry." to={`/cfp/${eventSlug}`} />
         <RouteCard label="Sessions" detail="Searchable and faceted approved session cards." to={`/events/${eventSlug}/sessions`} />
@@ -30,13 +66,13 @@ export function EvaluationEntryPage() {
     </section>
 
     <section className={styles.entrySection} aria-labelledby="persona-entry-title">
-      <div className={styles.sectionHead}><div><p className={styles.eyebrow}>Privately supplied credentials</p><h2 id="persona-entry-title">Persona entry paths</h2></div><Link to="/login">Standard sign in →</Link></div>
+      <div className={styles.sectionHead}><div><p className={styles.eyebrow}>Privately supplied credentials</p><h2 id="persona-entry-title">Continue upstream by role</h2><small>Protected workspaces are conventional, discoverable, and intentionally limited.</small></div><Link to="/login">Standard sign in →</Link></div>
       <div className={styles.personaGrid}>
         <PersonaCard label="Organizer" detail="Full DevFlow operations workspace, evidence center, and release manifest." to="/login?next=%2Forganizer" />
         <PersonaCard label="Speaker" detail="Priya’s own submissions, profile, tasks, resources, sessions, and files." to={`/login?next=${encodeURIComponent(`/speaker/events/${eventSlug}`)}`} />
         <PersonaCard label="Reviewer" detail="Sam’s assigned review queue with organizer capabilities excluded." to={`/login?next=${encodeURIComponent(`/reviewer/events/${eventSlug}/reviews`)}`} />
       </div>
-      <p className={styles.privateNote}>Use the matching email and password from the private evaluator configuration. ProgramFlow intentionally does not publish credentials in source-controlled copy or anonymous HTML.</p>
+      <p className={styles.privateNote}>Use the matching email and password from the private evaluator configuration. Credentials, reset controls, provider secrets, and private evidence are never exposed in this anonymous page or source-controlled copy.</p>
     </section>
   </main>;
 }

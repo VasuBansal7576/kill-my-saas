@@ -10,9 +10,14 @@ describe("evaluation route discoverability", () => {
     expect(markup).toContain('href="/cfp/devflow-conf-2027"');
     expect(markup).toContain('href="/events/devflow-conf-2027/sessions"');
     expect(markup).toContain('href="/events/devflow-conf-2027/agenda"');
+    expect(markup).toContain("From first proposal to the published program. No re-entry.");
+    expect(markup).toContain("Public product tour");
+    expect(markup).toContain("Provider success is shown only when a real provider returns it.");
     expect(markup).toContain("Privately supplied credentials");
     expect(markup).toContain('href="/help"');
     expect(markup.toLowerCase()).not.toContain("password=");
+    expect(markup).not.toContain("Live public program");
+    expect(markup).not.toMatch(/100\s*\/\s*100/);
   });
 
   it("keeps help and the evidence center in conventional organizer navigation", () => {
