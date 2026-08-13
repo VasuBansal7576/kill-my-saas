@@ -1,9 +1,7 @@
 import {
   decisions,
-  decisionAuditEvents,
   eventMemberships,
   events,
-  outboxEvents,
   people,
   reviewAiAssessments,
   reviewAssignments,
@@ -12,6 +10,7 @@ import {
   reviewResponses,
   reviewRoundReviewers,
   reviewRounds,
+  sessions,
   submissionParticipants,
   submissions,
   submissionVersions,
@@ -469,7 +468,7 @@ export class ReviewsDecisionsRepository {
         : eq(reviewRounds.eventId, eventId));
     const submissionIds = [...new Set(assignmentRows.map((assignment) => assignment.submissionId))];
     if (submissionIds.length === 0) return [];
-    const [submissionRows, participantRows, decisionRows] = await Promise.all([
+    const [submissionRows, participantRows, decisionRows, sessionRows] = await Promise.all([
       this.database.select({ id: submissions.id, title: submissionVersions.title }).from(submissions)
         .innerJoin(submissionVersions, and(
           eq(submissionVersions.submissionId, submissions.id),
@@ -484,8 +483,10 @@ export class ReviewsDecisionsRepository {
       }).from(submissionParticipants)
         .where(inArray(submissionParticipants.submissionId, submissionIds))
         .orderBy(asc(submissionParticipants.sortOrder)),
-      this.database.select({ submissionId: decisions.submissionId, outcome: decisions.outcome }).from(decisions)
+      this.database.select({ id: decisions.id, submissionId: decisions.submissionId, outcome: decisions.outcome, releasedAt: decisions.releasedAt }).from(decisions)
         .where(inArray(decisions.submissionId, submissionIds)),
+      this.database.select({ id: sessions.id, sourceSubmissionId: sessions.sourceSubmissionId, title: sessions.title }).from(sessions)
+        .where(inArray(sessions.sourceSubmissionId, submissionIds)),
     ]);
     return submissionRows.map((submission) => {
       const assigned = assignmentRows.filter((assignment) => assignment.submissionId === submission.id);
@@ -504,59 +505,11 @@ export class ReviewsDecisionsRepository {
         recused: assigned.filter((assignment) => assignment.status === "recused").length,
         aggregateScore,
         decision: decisionRows.find((decision) => decision.submissionId === submission.id)?.outcome ?? null,
+        decisionId: decisionRows.find((decision) => decision.submissionId === submission.id)?.id ?? null,
+        decisionReleasedAt: decisionRows.find((decision) => decision.submissionId === submission.id)?.releasedAt?.toISOString() ?? null,
+        acceptedSession: sessionRows.find((session) => session.sourceSubmissionId === submission.id) ?? null,
       };
     }).sort((left, right) => (right.aggregateScore ?? -1) - (left.aggregateScore ?? -1) || left.title.localeCompare(right.title));
-  }
-
-  async getDecision(submissionId: string) {
-    const [decision] = await this.database.select().from(decisions).where(eq(decisions.submissionId, submissionId)).limit(1);
-    return decision ?? null;
-  }
-
-  async recordRejection(input: {
-    eventId: string;
-    submissionId: string;
-    decidedByPersonId: string;
-    reason: string;
-    idempotencyKey: string;
-  }): Promise<{ decisionId: string; outboxEventId: string; idempotent: boolean }> {
-    await this.assertSubmission(input.eventId, input.submissionId);
-    return this.database.transaction(async (transaction) => {
-      const [existing] = await transaction.select().from(decisions).where(eq(decisions.submissionId, input.submissionId)).limit(1);
-      if (existing) {
-        if (existing.outcome === "accepted") {
-          throw new ReviewsRepositoryError("decision_requires_acceptance_port", "Changing an accepted decision requires the parent-owned atomic acceptance coordinator.");
-        }
-        const [outbox] = await transaction.select({ id: outboxEvents.id }).from(outboxEvents)
-          .where(eq(outboxEvents.idempotencyKey, `decision-notification:${existing.id}`)).limit(1);
-        if (!outbox) throw new Error("The rejection exists without its transactional notification handoff.");
-        return { decisionId: existing.id, outboxEventId: outbox.id, idempotent: true };
-      }
-      const [decision] = await transaction.insert(decisions).values({
-        submissionId: input.submissionId,
-        outcome: "rejected",
-        reason: input.reason,
-        idempotencyKey: input.idempotencyKey,
-        decidedByPersonId: input.decidedByPersonId,
-      }).returning({ id: decisions.id });
-      if (!decision) throw new Error("The rejection insert did not return a record.");
-      await transaction.insert(decisionAuditEvents).values({
-        decisionId: decision.id,
-        outcome: "rejected",
-        reason: input.reason,
-        actorPersonId: input.decidedByPersonId,
-        idempotencyKey: input.idempotencyKey,
-      });
-      const [outbox] = await transaction.insert(outboxEvents).values({
-        aggregateType: "decision",
-        aggregateId: decision.id,
-        eventType: "decision.rejected",
-        payload: { decisionId: decision.id, submissionId: input.submissionId, eventId: input.eventId, outcome: "rejected" },
-        idempotencyKey: `decision-notification:${decision.id}`,
-      }).returning({ id: outboxEvents.id });
-      if (!outbox) throw new Error("The rejection notification handoff insert did not return a record.");
-      return { decisionId: decision.id, outboxEventId: outbox.id, idempotent: false };
-    });
   }
 
   async recordAiAssessment(input: {
@@ -630,7 +583,6 @@ export type ReviewsRepositoryPort = Pick<ReviewsDecisionsRepository,
   | "saveResponse"
   | "recuse"
   | "listResults"
-  | "recordRejection"
   | "recordAiAssessment"
   | "recordAiFailure"
   | "assertAiAssessment"

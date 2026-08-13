@@ -22,6 +22,7 @@ import type { Actor, ActorContext } from "./modules/identity-access/actor";
 import { resolveActor } from "./modules/identity-access/resolve-actor";
 import { workspaceRoutes } from "./modules/identity-access/workspace";
 import { decideSubmission } from "./modules/program/acceptance";
+import { createProgramOrganizerRoutes, programSpeakerRoutes } from "./modules/program/routes";
 import {
   communicationsOrganizerRoutes,
   communicationsProviderRoutes,
@@ -103,8 +104,8 @@ export function createApp() {
   app.route("/api/v1/organizer/events", eventConfigurationRoutes);
   app.route("/api/v1/organizer/events", organizerFormsSubmissionsRoutes);
   app.route("/api/v1/organizer/events", createOrganizerReviewsDecisionsRoutes({
-    acceptancePortFactory: (environment) => ({
-      accept: (input) => {
+    decisionCoordinatorFactory: (environment) => ({
+      decide: (input) => {
         if (!environment.DATABASE_URL) throw new Error("Database configuration is required.");
         const actor: Actor = {
           identityId: "reviews-acceptance-port",
@@ -114,7 +115,7 @@ export function createApp() {
         };
         return decideSubmission(createDatabase(environment.DATABASE_URL), actor, {
           submissionId: input.submissionId,
-          outcome: "accepted",
+          outcome: input.outcome,
           reason: input.reason,
           idempotencyKey: input.idempotencyKey,
         });
@@ -135,6 +136,11 @@ export function createApp() {
       await claimAndEnqueueOutbox(environment);
     },
   }));
+  app.route("/api/v1/organizer", createProgramOrganizerRoutes({
+    onDecisionReleased: async (environment, outboxEventIds) => {
+      await claimAndEnqueueOutbox(environment, outboxEventIds);
+    },
+  }));
   app.route("/api/v1/organizer", speakerOperationsOrganizerRoutes);
   app.route("/api/v1/organizer", filesDeliverablesOrganizerRoutes);
   app.route("/api/v1/organizer", communicationsOrganizerRoutes);
@@ -147,6 +153,7 @@ export function createApp() {
   app.route("/api/v1/organizer", operationsEvidenceOrganizerRoutes);
   app.route("/api/v1/reviewer/events", createReviewerReviewsDecisionsRoutes());
   app.route("/api/v1/speaker", speakerFormsSubmissionsRoutes);
+  app.route("/api/v1/speaker", programSpeakerRoutes);
   app.route("/api/v1/speaker", speakerOperationsPortalRoutes);
   app.route("/api/v1/speaker", filesDeliverablesSpeakerRoutes);
   app.route("/api/v1/public/cfp", publicFormsSubmissionsRoutes);

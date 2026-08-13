@@ -87,6 +87,9 @@ it("exports organizer-visible co-author roles and exact aggregates as parseable 
     recused: 0,
     aggregateScore: 87.25,
     decision: "accepted",
+    decisionId: "decision-a",
+    decisionReleasedAt: "2027-01-01T00:00:00.000Z",
+    acceptedSession: { id: "session-a", sourceSubmissionId: "submission-a", title: "Reliable Agents, Without Vibes" },
   }]);
   expect(csv).toContain('"Reliable Agents, Without Vibes"');
   expect(csv).toContain("Leah Park (co_author)");

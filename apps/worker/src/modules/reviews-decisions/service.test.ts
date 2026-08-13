@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Actor } from "../identity-access/actor";
 import type { ReviewsRepositoryPort } from "./repository";
 import { ReviewsDecisionsError, ReviewsDecisionsService } from "./service";
-import type { AcceptancePort, ReviewCriterion } from "./types";
+import type { DecisionCoordinatorPort, ReviewCriterion } from "./types";
 
 const event = { id: "00000000-0000-4000-8000-000000000001", slug: "devflow", name: "DevFlow" };
 const submissionId = "00000000-0000-4000-8000-000000000002";
@@ -12,17 +12,16 @@ const reviewer = actor("reviewer", "00000000-0000-4000-8000-000000000011");
 const scorecard: ReviewCriterion[] = [{ key: "score", label: "Score", type: "numeric", required: true, weight: 100, min: 1, max: 5 }];
 
 describe("authoritative decision boundary", () => {
-  it("delegates acceptance to the injected atomic coordinator and never records a standalone accepted decision", async () => {
-    const recordRejection = vi.fn();
-    const repository = makeRepository({ recordRejection });
-    const accept = vi.fn<AcceptancePort["accept"]>().mockResolvedValue({
+  it("delegates every final outcome to the injected atomic Decision coordinator", async () => {
+    const repository = makeRepository();
+    const decide = vi.fn<DecisionCoordinatorPort["decide"]>().mockResolvedValue({
       decisionId: "00000000-0000-4000-8000-000000000020",
       submissionId,
       sessionId: "00000000-0000-4000-8000-000000000021",
       eventSpeakerIds: ["00000000-0000-4000-8000-000000000022"],
       outboxEventId: "00000000-0000-4000-8000-000000000023",
     });
-    const service = new ReviewsDecisionsService(repository, { accept });
+    const service = new ReviewsDecisionsService(repository, { decide });
 
     const result = await service.decide(organizer, event.slug, {
       submissionId,
@@ -32,8 +31,7 @@ describe("authoritative decision boundary", () => {
     });
 
     expect(result.outcome).toBe("accepted");
-    expect(accept).toHaveBeenCalledWith(expect.objectContaining({ submissionId, eventId: event.id }));
-    expect(recordRejection).not.toHaveBeenCalled();
+    expect(decide).toHaveBeenCalledWith(expect.objectContaining({ submissionId, eventId: event.id, outcome: "accepted" }));
   });
 
   it("refuses acceptance when the parent-owned coordinator is not wired", async () => {
@@ -46,17 +44,23 @@ describe("authoritative decision boundary", () => {
     })).rejects.toMatchObject({ code: "acceptance_port_required" } satisfies Partial<ReviewsDecisionsError>);
   });
 
-  it("persists rejection locally with the organizer identity and idempotency key", async () => {
-    const recordRejection = vi.fn().mockResolvedValue({ decisionId: "decision-r", outboxEventId: "outbox-r", idempotent: false });
-    const service = new ReviewsDecisionsService(makeRepository({ recordRejection }));
+  it("uses the same coordinator for rejection so staging and audit behavior cannot diverge", async () => {
+    const decide = vi.fn<DecisionCoordinatorPort["decide"]>().mockResolvedValue({
+      decisionId: "decision-r",
+      submissionId,
+      sessionId: null,
+      eventSpeakerIds: [],
+      outboxEventId: "outbox-r",
+    });
+    const service = new ReviewsDecisionsService(makeRepository(), { decide });
     const result = await service.decide(organizer, event.slug, {
       submissionId,
       outcome: "rejected",
       reason: "Outside this year's scope",
       idempotencyKey: "decision-command-0003",
     });
-    expect(result).toMatchObject({ outcome: "rejected", decisionId: "decision-r", idempotent: false });
-    expect(recordRejection).toHaveBeenCalledWith(expect.objectContaining({ decidedByPersonId: organizer.personId }));
+    expect(result).toMatchObject({ outcome: "rejected", handoff: { decisionId: "decision-r", sessionId: null } });
+    expect(decide).toHaveBeenCalledWith(expect.objectContaining({ outcome: "rejected", decidedByPersonId: organizer.personId }));
   });
 });
 
@@ -131,7 +135,6 @@ function makeRepository(overrides: Partial<ReviewsRepositoryPort> = {}): Reviews
     saveResponse: vi.fn(),
     recuse: vi.fn(),
     listResults: vi.fn().mockResolvedValue([]),
-    recordRejection: vi.fn(),
     recordAiAssessment: vi.fn(),
     recordAiFailure: vi.fn(),
     assertAiAssessment: vi.fn(),

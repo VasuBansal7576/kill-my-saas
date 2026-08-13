@@ -406,9 +406,14 @@
 .submission-decision-dialog h2 { margin: 0; color: #ededed; font-size: 24px; letter-spacing: -.025em; }
 .submission-decision-dialog > p:not(.eyebrow) { color: #879089; font-size: 11px; line-height: 1.65; }
 .submission-decision-dialog label { display: grid; gap: 7px; margin-top: 20px; color: #adb6b0; font-size: 10px; font-weight: 700; }
+.submission-decision-dialog input,
 .submission-decision-dialog textarea { width: 100%; padding: 11px; border: 1px solid #343a36; border-radius: 7px; background: #101311; color: #e4e8e5; resize: vertical; }
 .submission-decision-dialog footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .submission-decision-dialog .danger { border-color: rgba(227,97,108,.4); color: #e47a83; }
+.decision-notification-dialog { width: min(680px, 100%); max-height: calc(100vh - 40px); overflow: auto; }
+.submission-change-request { grid-column: 1 / -1; margin-top: 8px; padding: 10px 12px; border: 1px solid #343a36; border-radius: 7px; background: #111412; }
+.submission-change-request p { margin: 5px 0 10px; color: #89938d; font-size: 10px; }
+.submission-change-request > div { display: flex; justify-content: flex-end; gap: 7px; }
 
 .submission-row:last-child {
   border-bottom: 0;
@@ -697,6 +702,8 @@
   font-size: 11px;
   line-height: 1.6;
 }
+.speaker-proposal-actions { display: grid; gap: 10px; }
+.speaker-proposal-actions .secondary-action { justify-self: start; }
 
 .cfp-empty {
   padding: 38px 18px;

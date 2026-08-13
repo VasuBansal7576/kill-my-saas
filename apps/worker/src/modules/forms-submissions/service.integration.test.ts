@@ -164,6 +164,8 @@ integration("forms and submissions persistence", () => {
       reason: "Strong fit",
       idempotencyKey: `forms-decision-${ids.event}`,
       decidedByPersonId: ids.organizer,
+      releasedByPersonId: ids.organizer,
+      releasedAt: new Date("2027-01-16T01:00:00.000Z"),
     });
     const [acceptedSession] = await tooling.database.insert(sessions).values({
       eventId: ids.event,

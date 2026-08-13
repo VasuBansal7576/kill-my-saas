@@ -14,6 +14,14 @@ export function SubmissionsPage() {
   const [decisionTarget, setDecisionTarget] = useState<SubmissionRecord | null>(null);
   const [decisionReason, setDecisionReason] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [notificationTarget, setNotificationTarget] = useState<SubmissionRecord | null>(null);
+  const [notificationSubject, setNotificationSubject] = useState("");
+  const [notificationHtml, setNotificationHtml] = useState("");
+  const [notificationText, setNotificationText] = useState("");
+  const [notificationRevision, setNotificationRevision] = useState(0);
+  const [notificationStatus, setNotificationStatus] = useState<"draft" | "reviewed" | "queued" | "handed_off">("draft");
+  const [changeDecisionTarget, setChangeDecisionTarget] = useState<SubmissionRecord | null>(null);
+  const [changeReason, setChangeReason] = useState("");
 
   const visibleSubmissions = submissions.filter((submission) => {
     if (filter === "all") return true;
@@ -56,12 +64,110 @@ export function SubmissionsPage() {
       }));
       await reloadSubmissions();
       setMessage(outcome === "accepted"
-        ? `“${decisionTarget.title}” was accepted. Its session, speaker record, onboarding tasks, and notification were created together.`
-        : `“${decisionTarget.title}” was rejected and the submitter notification was queued.`);
+        ? `“${decisionTarget.title}” was accepted privately. Its linked Session is ready; review the staged message before release.`
+        : `“${decisionTarget.title}” was rejected privately. Review the staged message before release.`);
       setDecisionTarget(null);
       setDecisionReason("");
     } catch (caught) {
       setMessage(caught instanceof Error ? caught.message : "The decision could not be recorded.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function openNotification(submission: SubmissionRecord) {
+    const notification = submission.decisionNotification;
+    if (!notification) return;
+    setNotificationTarget(submission);
+    setNotificationSubject(notification.subjectTemplate);
+    setNotificationHtml(notification.htmlTemplate);
+    setNotificationText(notification.textTemplate);
+    setNotificationRevision(notification.revision);
+    setNotificationStatus(notification.status);
+  }
+
+  async function saveNotification() {
+    if (!notificationTarget?.decisionId) return;
+    setBusyId(notificationTarget.id);
+    try {
+      const saved = await readApi<NonNullable<SubmissionRecord["decisionNotification"]>>(await fetch(
+        `/api/v1/organizer/events/${eventSlug}/decisions/${notificationTarget.decisionId}/notification`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ revision: notificationRevision, subjectTemplate: notificationSubject, htmlTemplate: notificationHtml, textTemplate: notificationText }),
+        },
+      ));
+      setNotificationRevision(saved.revision);
+      setNotificationStatus(saved.status);
+      setMessage("Decision communication reviewed and saved. It is ready for explicit release.");
+      await reloadSubmissions();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "The staged decision communication could not be saved.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function releaseNotification() {
+    if (!notificationTarget?.decisionId) return;
+    setBusyId(notificationTarget.id);
+    try {
+      await readApi(await fetch(`/api/v1/organizer/events/${eventSlug}/decisions/${notificationTarget.decisionId}/release`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ idempotencyKey: crypto.randomUUID() }),
+      }));
+      setMessage(`“${notificationTarget.title}” is now released to the submitter and its reviewed notification is queued.`);
+      setNotificationTarget(null);
+      await reloadSubmissions();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "The Decision could not be released.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function changeDecision() {
+    if (!changeDecisionTarget?.decisionId || !changeDecisionTarget.decision) return;
+    const outcome = changeDecisionTarget.decision === "accepted" ? "rejected" : "accepted";
+    setBusyId(changeDecisionTarget.id);
+    try {
+      await readApi(await fetch(`/api/v1/organizer/events/${eventSlug}/decisions/${changeDecisionTarget.decisionId}/change`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          submissionId: changeDecisionTarget.id,
+          outcome,
+          reason: decisionReason,
+          changeReason,
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      }));
+      setMessage(`Decision changed to ${outcome}. The new outcome is private until its new message is reviewed and released.`);
+      setChangeDecisionTarget(null);
+      setDecisionReason("");
+      setChangeReason("");
+      await reloadSubmissions();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "The Decision could not be changed safely.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function resolveChangeRequest(requestId: string, resolution: "approved" | "rejected") {
+    setBusyId(requestId);
+    try {
+      await readApi(await fetch(`/api/v1/organizer/events/${eventSlug}/session-change-requests/${requestId}/resolve`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ resolution, note: resolution === "approved" ? "Approved into a new audited Session version." : "Request declined by the program team.", idempotencyKey: crypto.randomUUID() }),
+      }));
+      setMessage(resolution === "approved" ? "Session change approved. A new version was created and content returned to review." : "Session change request rejected with an audit record.");
+      await reloadSubmissions();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "The Session change request could not be resolved.");
     } finally {
       setBusyId(null);
     }
@@ -118,13 +224,16 @@ export function SubmissionsPage() {
               {submission.state === "submitted" && !submission.decision ? <>
                 <button type="button" disabled={busyId === submission.id} onClick={() => setDecisionTarget(submission)}>Accept / reject</button>
                 <button type="button" disabled={busyId === submission.id} className={submission.triageState === "maybe" ? "active" : ""} onClick={() => void markMaybe(submission)}>{submission.triageState === "maybe" ? "Undo maybe" : "Maybe"}</button>
-              </> : <small>{submission.decision === "accepted" ? "Session created" : submission.decision === "rejected" ? "Final outcome recorded" : "Draft is private"}</small>}
+              </> : submission.decision ? <><small>{submission.decisionReleasedAt ? `Released · ${submission.decisionNotification?.status ?? "queued"}` : `Private · message ${submission.decisionNotification?.status ?? "draft"}`}</small>{submission.decisionNotification && !submission.decisionReleasedAt ? <button type="button" onClick={() => openNotification(submission)}>Review & release</button> : null}<button type="button" className="secondary-action" onClick={() => { setChangeDecisionTarget(submission); setDecisionReason(submission.decision === "accepted" ? "Program requirements changed" : "Corrected program decision"); setChangeReason(""); }}>Change decision</button></> : <small>Draft is private</small>}
             </div>
+            {submission.changeRequests.filter((request) => request.status === "pending").map((request) => <div className="submission-change-request" key={request.id}><strong>Session change requested</strong><small>{request.proposedTitle}</small><p>{request.reason}</p><div><button type="button" disabled={busyId === request.id} onClick={() => void resolveChangeRequest(request.id, "rejected")}>Reject</button><button type="button" className="primary-action" disabled={busyId === request.id} onClick={() => void resolveChangeRequest(request.id, "approved")}>Approve new version</button></div></div>)}
           </article>
         )) : null}
         {!loading && visibleSubmissions.length === 0 && !message ? <div className="cfp-empty"><strong>{submissions.length ? `No ${filter} proposals.` : "No proposals yet."}</strong><p>{submissions.length ? "Choose another decision queue to keep working." : "New proposals will appear here automatically."}</p></div> : null}
       </section>
-      {decisionTarget ? <div className="submission-decision-backdrop"><section className="submission-decision-dialog" role="dialog" aria-modal="true" aria-labelledby="submission-decision-title"><p className="eyebrow">Final program decision</p><h2 id="submission-decision-title">{decisionTarget.title}</h2><p>Accept adds this proposal to the program, creates the speaker’s onboarding work, and prepares their decision message. Reject records the outcome and prepares the rejection message.</p><label>Private decision note<textarea autoFocus rows={5} value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} placeholder="Why is this the right program decision?" /></label><footer><button type="button" className="secondary-action" onClick={() => { setDecisionTarget(null); setDecisionReason(""); }}>Cancel</button><button type="button" className="secondary-action danger" disabled={busyId === decisionTarget.id || decisionReason.trim().length < 3} onClick={() => void decide("rejected")}>Reject</button><button type="button" className="primary-action" disabled={busyId === decisionTarget.id || decisionReason.trim().length < 3} onClick={() => void decide("accepted")}>{busyId === decisionTarget.id ? "Recording…" : "Accept & create session"}</button></footer></section></div> : null}
+      {decisionTarget ? <div className="submission-decision-backdrop"><section className="submission-decision-dialog" role="dialog" aria-modal="true" aria-labelledby="submission-decision-title"><p className="eyebrow">Private program decision</p><h2 id="submission-decision-title">{decisionTarget.title}</h2><p>Accept creates the linked Session as a private organizer handoff. Neither outcome, onboarding, nor email is released until you review the staged communication.</p><label>Private decision note<textarea autoFocus rows={5} value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} placeholder="Why is this the right program decision?" /></label><footer><button type="button" className="secondary-action" onClick={() => { setDecisionTarget(null); setDecisionReason(""); }}>Cancel</button><button type="button" className="secondary-action danger" disabled={busyId === decisionTarget.id || decisionReason.trim().length < 3} onClick={() => void decide("rejected")}>Record rejection privately</button><button type="button" className="primary-action" disabled={busyId === decisionTarget.id || decisionReason.trim().length < 3} onClick={() => void decide("accepted")}>{busyId === decisionTarget.id ? "Recording…" : "Accept privately & create Session"}</button></footer></section></div> : null}
+      {notificationTarget?.decisionNotification ? <div className="submission-decision-backdrop"><section className="submission-decision-dialog decision-notification-dialog" role="dialog" aria-modal="true"><p className="eyebrow">Decision release queue</p><h2>{notificationTarget.title}</h2><p>The outcome is still private. Review the exact email snapshot, save it, then release the Decision and queue delivery.</p><label>Subject<input value={notificationSubject} onChange={(event) => setNotificationSubject(event.target.value)} /></label><label>HTML body<textarea rows={7} value={notificationHtml} onChange={(event) => setNotificationHtml(event.target.value)} /></label><label>Plain-text body<textarea rows={5} value={notificationText} onChange={(event) => setNotificationText(event.target.value)} /></label><footer><button type="button" className="secondary-action" onClick={() => setNotificationTarget(null)}>Close</button><button type="button" className="secondary-action" disabled={busyId === notificationTarget.id} onClick={() => void saveNotification()}>Save reviewed message</button><button type="button" className="primary-action" disabled={busyId === notificationTarget.id || notificationStatus !== "reviewed"} onClick={() => void releaseNotification()}>Release & queue notification</button></footer></section></div> : null}
+      {changeDecisionTarget?.decision ? <div className="submission-decision-backdrop"><section className="submission-decision-dialog" role="dialog" aria-modal="true"><p className="eyebrow">Audited Decision change</p><h2>{changeDecisionTarget.title}</h2><p>{changeDecisionTarget.decision === "accepted" ? "Accepted outcomes have a linked Session and may have placements or a live Publication. The server will reject a reversal that would silently corrupt those downstream records." : "Changing Rejected to Accepted creates the canonical linked Session, resets release state, and stages a fresh acceptance communication."}</p><label>New decision note<textarea rows={4} value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} /></label><label>Why is the final Decision changing?<textarea rows={4} value={changeReason} onChange={(event) => setChangeReason(event.target.value)} /></label><footer><button type="button" className="secondary-action" onClick={() => setChangeDecisionTarget(null)}>Cancel</button><button type="button" className={changeDecisionTarget.decision === "accepted" ? "secondary-action danger" : "primary-action"} disabled={busyId === changeDecisionTarget.id || decisionReason.trim().length < 1 || changeReason.trim().length < 3} onClick={() => void changeDecision()}>Change to {changeDecisionTarget.decision === "accepted" ? "Rejected" : "Accepted"}</button></footer></section></div> : null}
     </div>
   );
 }

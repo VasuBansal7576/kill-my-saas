@@ -32,6 +32,9 @@ export interface ReviewsWorkspace {
     recused: number;
     aggregateScore: number | null;
     decision: "accepted" | "rejected" | null;
+    decisionId: string | null;
+    decisionReleasedAt: string | null;
+    acceptedSession: { id: string; sourceSubmissionId: string | null; title: string } | null;
   }>;
   aiAssessments: Array<{
     id: string;

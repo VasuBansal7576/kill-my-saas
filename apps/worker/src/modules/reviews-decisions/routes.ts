@@ -6,7 +6,7 @@ import type { ActorContext } from "../identity-access/actor";
 import { ReviewsDecisionsRepository, ReviewsRepositoryError } from "./repository";
 import { ReviewRuleError } from "./rules";
 import { ReviewsDecisionsError, ReviewsDecisionsService } from "./service";
-import type { AcceptancePort, DecisionResult, ReviewReminderPort } from "./types";
+import type { DecisionCoordinatorPort, DecisionResult, ReviewReminderPort } from "./types";
 import { WorkersAiReviewAdapter, type WorkersAiBinding } from "./workers-ai-adapter";
 
 type ReviewsContext = { Bindings: Env } & ActorContext;
@@ -61,7 +61,7 @@ const DecisionSchema = z.object({
 });
 
 export function createOrganizerReviewsDecisionsRoutes(dependencies: {
-  acceptancePortFactory?: (environment: Env) => AcceptancePort;
+  decisionCoordinatorFactory?: (environment: Env) => DecisionCoordinatorPort;
   reviewReminderPortFactory?: (environment: Env) => ReviewReminderPort;
   onDecisionRecorded?: (environment: Env, result: DecisionResult) => Promise<void>;
 } = {}) {
@@ -169,7 +169,7 @@ export function createOrganizerReviewsDecisionsRoutes(dependencies: {
       : undefined;
     return new ReviewsDecisionsService(
       new ReviewsDecisionsRepository(createDatabase(databaseUrl)),
-      dependencies.acceptancePortFactory?.(context.env),
+      dependencies.decisionCoordinatorFactory?.(context.env),
       aiPort,
       dependencies.reviewReminderPortFactory?.(context.env),
     );

@@ -23,6 +23,7 @@ import type { Actor } from "./modules/identity-access/actor";
 const SOURCE_COMMUNICATION_EVENTS = [
   "submission.confirmation_requested",
   "submission.draft_reminder_requested",
+  "decision.notification.released",
   "decision.notification.requested",
   "decision.rejected",
   "speaker.portal-invitation.requested",

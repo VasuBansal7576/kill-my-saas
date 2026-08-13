@@ -89,6 +89,9 @@ export interface ReviewResultRow {
   recused: number;
   aggregateScore: number | null;
   decision: "accepted" | "rejected" | null;
+  decisionId: string | null;
+  decisionReleasedAt: string | null;
+  acceptedSession: { id: string; sourceSubmissionId: string | null; title: string } | null;
 }
 
 export interface DistributionInput {
@@ -115,10 +118,11 @@ export interface ReviewAiPort {
   }>;
 }
 
-export interface AcceptancePort {
-  accept(input: {
+export interface DecisionCoordinatorPort {
+  decide(input: {
     eventId: string;
     submissionId: string;
+    outcome: "accepted" | "rejected";
     decidedByPersonId: string;
     reason: string;
     idempotencyKey: string;
@@ -134,6 +138,4 @@ export interface ReviewReminderPort {
   }): Promise<{ communicationId: string; recipientCount: number; outboxEventIds: ReadonlyArray<string> }>;
 }
 
-export type DecisionResult =
-  | { outcome: "accepted"; handoff: AcceptanceHandoff }
-  | { outcome: "rejected"; decisionId: string; submissionId: string; outboxEventId: string; idempotent: boolean };
+export type DecisionResult = { outcome: "accepted" | "rejected"; handoff: AcceptanceHandoff };

@@ -4,6 +4,7 @@ import { submissions } from "./forms-submissions";
 import { eventSpeakers } from "./speaker-operations";
 
 export const sessionContentStatus = pgEnum("session_content_status", ["draft", "in_review", "approved"]);
+export const sessionChangeRequestStatus = pgEnum("session_change_request_status", ["pending", "approved", "rejected"]);
 
 export const sessions = pgTable("sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -38,3 +39,26 @@ export const sessionSpeakers = pgTable("session_speakers", {
   eventSpeakerId: uuid("event_speaker_id").notNull().references(() => eventSpeakers.id, { onDelete: "cascade" }),
   role: text("role").notNull().default("speaker"),
 }, (table) => [primaryKey({ columns: [table.sessionId, table.eventSpeakerId] })]);
+
+export const sessionChangeRequests = pgTable("session_change_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventId: uuid("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  sessionId: uuid("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+  requestedByPersonId: uuid("requested_by_person_id").notNull().references(() => people.id),
+  proposedTitle: text("proposed_title").notNull(),
+  proposedAbstract: text("proposed_abstract").notNull().default(""),
+  reason: text("reason").notNull(),
+  status: sessionChangeRequestStatus("status").notNull().default("pending"),
+  idempotencyKey: text("idempotency_key").notNull(),
+  resolutionIdempotencyKey: text("resolution_idempotency_key"),
+  resolvedByPersonId: uuid("resolved_by_person_id").references(() => people.id),
+  resolutionNote: text("resolution_note"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("session_change_requests_idempotency_unique").on(table.idempotencyKey),
+  uniqueIndex("session_change_requests_resolution_idempotency_unique").on(table.resolutionIdempotencyKey),
+  index("session_change_requests_session_status_idx").on(table.sessionId, table.status),
+  index("session_change_requests_event_status_idx").on(table.eventId, table.status),
+]);

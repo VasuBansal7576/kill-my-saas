@@ -9,7 +9,7 @@ import {
   validateReviewPlan,
 } from "./rules";
 import type {
-  AcceptancePort,
+  DecisionCoordinatorPort,
   DecisionResult,
   ReviewAiPort,
   ReviewPlanInput,
@@ -33,7 +33,7 @@ export class ReviewsDecisionsError extends Error {
 export class ReviewsDecisionsService {
   constructor(
     private readonly repository: ReviewsRepositoryPort,
-    private readonly acceptancePort?: AcceptancePort,
+    private readonly decisionCoordinator?: DecisionCoordinatorPort,
     private readonly aiPort?: ReviewAiPort,
     private readonly reviewReminderPort?: ReviewReminderPort,
   ) {}
@@ -177,30 +177,21 @@ export class ReviewsDecisionsService {
   ): Promise<DecisionResult> {
     const event = await this.organizerEvent(actor, eventSlug);
     await this.repository.assertSubmission(event.id, input.submissionId);
-    if (input.outcome === "accepted") {
-      if (!this.acceptancePort) {
-        throw new ReviewsDecisionsError(
-          "acceptance_port_required",
-          "Accepted decisions require the parent-owned atomic acceptance coordinator.",
-        );
-      }
-      const handoff = await this.acceptancePort.accept({
-        eventId: event.id,
-        submissionId: input.submissionId,
-        decidedByPersonId: actor.personId,
-        reason: input.reason.trim(),
-        idempotencyKey: input.idempotencyKey,
-      });
-      return { outcome: "accepted", handoff };
+    if (!this.decisionCoordinator) {
+      throw new ReviewsDecisionsError(
+        "acceptance_port_required",
+        "Final decisions require the parent-owned atomic Decision coordinator.",
+      );
     }
-    const rejection = await this.repository.recordRejection({
+    const handoff = await this.decisionCoordinator.decide({
       eventId: event.id,
       submissionId: input.submissionId,
+      outcome: input.outcome,
       decidedByPersonId: actor.personId,
       reason: input.reason.trim(),
       idempotencyKey: input.idempotencyKey,
     });
-    return { outcome: "rejected", submissionId: input.submissionId, ...rejection };
+    return { outcome: input.outcome, handoff };
   }
 
   async requestAiAssessment(actor: Actor, eventSlug: string, roundId: string, submissionId: string) {

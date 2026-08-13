@@ -1,4 +1,5 @@
 import {
+  decisions,
   eventMemberships,
   eventSpeakers,
   events,
@@ -12,7 +13,7 @@ import {
   speakerTasks,
   type Database,
 } from "@programflow/database";
-import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Actor } from "../identity-access/actor";
 import { actorCanAccessEvent } from "../identity-access/actor";
 import type {
@@ -186,7 +187,7 @@ export async function getSpeakerDetail(
   eventSpeakerId: string,
 ): Promise<SpeakerDetail> {
   const event = await requireEvent(database, actor, eventSlug, "organizer");
-  return loadSpeakerDetail(database, event, eventSpeakerId);
+  return loadSpeakerDetail(database, event, eventSpeakerId, true);
 }
 
 export async function addSpeaker(
@@ -197,7 +198,7 @@ export async function addSpeaker(
 ): Promise<SpeakerDetail> {
   const event = await requireEvent(database, actor, eventSlug, "organizer");
   const { eventSpeakerId } = await persistExplicitSpeaker(database, event.id, input);
-  return loadSpeakerDetail(database, event, eventSpeakerId);
+  return loadSpeakerDetail(database, event, eventSpeakerId, true);
 }
 
 export async function importSpeakers(
@@ -289,7 +290,7 @@ export async function updateSpeaker(
   const event = await requireEvent(database, actor, eventSlug, "organizer");
   const speaker = await requireEventSpeaker(database, event.id, eventSpeakerId);
   await persistProfileUpdate(database, speaker.personId, eventSpeakerId, input);
-  return loadSpeakerDetail(database, event, eventSpeakerId);
+  return loadSpeakerDetail(database, event, eventSpeakerId, true);
 }
 
 export async function updateSpeakerStatus(
@@ -302,7 +303,7 @@ export async function updateSpeakerStatus(
   const event = await requireEvent(database, actor, eventSlug, "organizer");
   await requireEventSpeaker(database, event.id, eventSpeakerId);
   await database.update(eventSpeakers).set({ status, updatedAt: new Date() }).where(eq(eventSpeakers.id, eventSpeakerId));
-  return loadSpeakerDetail(database, event, eventSpeakerId);
+  return loadSpeakerDetail(database, event, eventSpeakerId, true);
 }
 
 export async function listSpeakerTasks(database: Database, actor: Actor, eventSlug: string): Promise<SpeakerTaskSummary[]> {
@@ -592,7 +593,7 @@ async function persistProfileUpdate(database: Database, personId: string, eventS
   });
 }
 
-async function loadSpeakerDetail(database: Database, event: EventRecord, eventSpeakerId: string): Promise<SpeakerDetail> {
+async function loadSpeakerDetail(database: Database, event: EventRecord, eventSpeakerId: string, includePrivateSessions = false): Promise<SpeakerDetail> {
   const [speaker] = await database.select({
     eventSpeakerId: eventSpeakers.id,
     personId: eventSpeakers.personId,
@@ -640,7 +641,12 @@ async function loadSpeakerDetail(database: Database, event: EventRecord, eventSp
       role: sessionSpeakers.role,
     }).from(sessionSpeakers)
       .innerJoin(sessions, eq(sessions.id, sessionSpeakers.sessionId))
-      .where(and(eq(sessionSpeakers.eventSpeakerId, eventSpeakerId), eq(sessions.eventId, event.id)))
+      .leftJoin(decisions, eq(decisions.submissionId, sessions.sourceSubmissionId))
+      .where(and(
+        eq(sessionSpeakers.eventSpeakerId, eventSpeakerId),
+        eq(sessions.eventId, event.id),
+        includePrivateSessions ? sql`true` : or(isNull(sessions.sourceSubmissionId), isNotNull(decisions.releasedAt)),
+      ))
       .orderBy(asc(sessions.title)),
   ]);
   const normalizedTasks = tasks.map(({ dueAtOverride, dueAt, ...task }) => ({ ...task, dueAt: dueAtOverride ?? dueAt }));

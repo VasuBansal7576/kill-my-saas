@@ -44,6 +44,8 @@ export const reviewRoundStatus = pgEnum("review_round_status", ["draft", "open",
 export const reviewAssignmentStatus = pgEnum("review_assignment_status", ["assigned", "in_progress", "submitted", "recused"]);
 export const reviewAiAssessmentStatus = pgEnum("review_ai_assessment_status", ["pending", "completed", "failed"]);
 export const decisionOutcome = pgEnum("decision_outcome", ["accepted", "rejected"]);
+export const decisionAuditAction = pgEnum("decision_audit_action", ["recorded", "changed", "notification_updated", "released"]);
+export const decisionNotificationStatus = pgEnum("decision_notification_status", ["draft", "reviewed", "queued", "handed_off"]);
 
 export const reviewPlans = pgTable("review_plans", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -152,6 +154,8 @@ export const decisions = pgTable("decisions", {
   idempotencyKey: text("idempotency_key").notNull(),
   decidedByPersonId: uuid("decided_by_person_id").notNull().references(() => people.id),
   decidedAt: timestamp("decided_at", { withTimezone: true }).defaultNow().notNull(),
+  releasedByPersonId: uuid("released_by_person_id").references(() => people.id),
+  releasedAt: timestamp("released_at", { withTimezone: true }),
   notifiedAt: timestamp("notified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -164,11 +168,32 @@ export const decisionAuditEvents = pgTable("decision_audit_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   decisionId: uuid("decision_id").notNull().references(() => decisions.id, { onDelete: "cascade" }),
   outcome: decisionOutcome("outcome").notNull(),
+  previousOutcome: decisionOutcome("previous_outcome"),
+  action: decisionAuditAction("action").notNull().default("recorded"),
   reason: text("reason").notNull().default(""),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
   actorPersonId: uuid("actor_person_id").notNull().references(() => people.id),
   idempotencyKey: text("idempotency_key").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("decision_audit_idempotency_unique").on(table.idempotencyKey),
   index("decision_audit_decision_idx").on(table.decisionId, table.createdAt),
+]);
+
+export const decisionNotifications = pgTable("decision_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  decisionId: uuid("decision_id").notNull().references(() => decisions.id, { onDelete: "cascade" }),
+  status: decisionNotificationStatus("status").notNull().default("draft"),
+  revision: integer("revision").notNull().default(1),
+  subjectTemplate: text("subject_template").notNull(),
+  htmlTemplate: text("html_template").notNull(),
+  textTemplate: text("text_template").notNull(),
+  communicationId: uuid("communication_id"),
+  queuedAt: timestamp("queued_at", { withTimezone: true }),
+  handedOffAt: timestamp("handed_off_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("decision_notifications_decision_unique").on(table.decisionId),
+  index("decision_notifications_status_idx").on(table.status, table.updatedAt),
 ]);

@@ -80,7 +80,27 @@ export type SubmissionRecord = {
   state: "draft" | "submitted";
   triageState: "unreviewed" | "maybe";
   decision: "accepted" | "rejected" | null;
-  acceptedSession: { id: string; title: string } | null;
+  decisionId: string | null;
+  decisionReleasedAt: string | null;
+  decisionNotification: {
+    id: string;
+    status: "draft" | "reviewed" | "queued" | "handed_off";
+    revision: number;
+    subjectTemplate: string;
+    htmlTemplate: string;
+    textTemplate: string;
+    communicationId: string | null;
+  } | null;
+  acceptedSession: { id: string; title: string; abstract: string } | null;
+  changeRequests: Array<{
+    id: string;
+    proposedTitle: string;
+    proposedAbstract: string;
+    reason: string;
+    status: "pending" | "approved" | "rejected";
+    resolutionNote: string | null;
+    createdAt: string;
+  }>;
   routingKey: string | null;
   version: number;
   answers: Record<string, unknown>;

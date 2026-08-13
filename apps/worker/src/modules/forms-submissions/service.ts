@@ -1,6 +1,7 @@
 import {
   cfpForms,
   cfpFormVersions,
+  decisionNotifications,
   decisions,
   eventFormats,
   eventTracks,
@@ -11,6 +12,7 @@ import {
   personEmailAliases,
   rowsFromExecuteResult,
   sessions,
+  sessionChangeRequests,
   submissionParticipants,
   submissions,
   submissionVersions,
@@ -113,7 +115,27 @@ export type SubmissionRecord = {
   state: "draft" | "submitted";
   triageState: "unreviewed" | "maybe";
   decision: "accepted" | "rejected" | null;
-  acceptedSession: { id: string; title: string } | null;
+  decisionId: string | null;
+  decisionReleasedAt: string | null;
+  decisionNotification: {
+    id: string;
+    status: "draft" | "reviewed" | "queued" | "handed_off";
+    revision: number;
+    subjectTemplate: string;
+    htmlTemplate: string;
+    textTemplate: string;
+    communicationId: string | null;
+  } | null;
+  acceptedSession: { id: string; title: string; abstract: string } | null;
+  changeRequests: Array<{
+    id: string;
+    proposedTitle: string;
+    proposedAbstract: string;
+    reason: string;
+    status: "pending" | "approved" | "rejected";
+    resolutionNote: string | null;
+    createdAt: string;
+  }>;
   routingKey: string | null;
   version: number;
   answers: Record<string, unknown>;
@@ -430,6 +452,14 @@ export async function updateSpeakerSubmission(
     .where(and(eq(submissions.id, submissionId), eq(submissions.eventId, event.id))).limit(1);
   if (!submission) throw new FormsSubmissionsError("submission_not_found", "Submission not found.");
   if (submission.submitterPersonId !== actor.personId) throw new FormsSubmissionsError("forbidden", "You can only edit your own submissions.");
+  const [decision] = await database.select({ id: decisions.id }).from(decisions)
+    .where(eq(decisions.submissionId, submission.id)).limit(1);
+  if (decision) {
+    throw new FormsSubmissionsError(
+      "editing_locked",
+      "A final Decision locks the proposal snapshot. Request an audited change to the linked Session instead.",
+    );
+  }
   const [form, version, activeVersion] = await Promise.all([
     requireForm(database, submission.formId, event.id),
     requireFormVersion(database, submission.formVersionId),
@@ -493,7 +523,7 @@ export async function updateSpeakerSubmission(
 export async function listOrganizerSubmissions(database: Database, actor: Actor, eventSlug: string): Promise<SubmissionRecord[]> {
   const event = await requireEvent(database, eventSlug);
   requireRole(actor, event.id, "organizer");
-  return listSubmissionRecords(database, eq(submissions.eventId, event.id));
+  return listSubmissionRecords(database, eq(submissions.eventId, event.id), true);
 }
 
 export async function setSubmissionTriage(
@@ -518,7 +548,7 @@ export async function setSubmissionTriage(
 export async function listSpeakerSubmissions(database: Database, actor: Actor, eventSlug: string): Promise<SubmissionRecord[]> {
   const event = await requireEvent(database, eventSlug);
   requireRole(actor, event.id, "speaker");
-  return listSubmissionRecords(database, and(eq(submissions.eventId, event.id), eq(submissions.submitterPersonId, actor.personId))!);
+  return listSubmissionRecords(database, and(eq(submissions.eventId, event.id), eq(submissions.submitterPersonId, actor.personId))!, false);
 }
 
 export async function getSpeakerSubmission(
@@ -529,14 +559,14 @@ export async function getSpeakerSubmission(
 ): Promise<SubmissionRecord> {
   const event = await requireEvent(database, eventSlug);
   requireRole(actor, event.id, "speaker");
-  const record = await requireSubmissionRecord(database, submissionId);
+  const record = await requireSubmissionRecord(database, submissionId, false);
   if (record.eventId !== event.id || record.submitterPersonId !== actor.personId) {
     throw new FormsSubmissionsError("forbidden", "You can only view your own submissions.");
   }
   return record;
 }
 
-async function listSubmissionRecords(database: Database, where: SQL<unknown>): Promise<SubmissionRecord[]> {
+async function listSubmissionRecords(database: Database, where: SQL<unknown>, includePrivateDecisions: boolean): Promise<SubmissionRecord[]> {
   const result = await database.execute(sql`
     select
       ${submissions.id} as id,
@@ -552,7 +582,16 @@ async function listSubmissionRecords(database: Database, where: SQL<unknown>): P
       current_version.title as title,
       current_version.answers as answers,
       form_version.version as form_version,
+      decision.id as decision_id,
       decision.outcome as decision,
+      decision.released_at as decision_released_at,
+      notification.id as notification_id,
+      notification.status as notification_status,
+      notification.revision as notification_revision,
+      notification.subject_template as notification_subject,
+      notification.html_template as notification_html,
+      notification.text_template as notification_text,
+      notification.communication_id as notification_communication_id,
       coalesce(
         json_agg(
           json_build_object(
@@ -571,29 +610,42 @@ async function listSubmissionRecords(database: Database, where: SQL<unknown>): P
       on current_version.submission_id = ${submissions.id}
       and current_version.version = ${submissions.currentVersion}
     inner join ${cfpFormVersions} as form_version on form_version.id = ${submissions.formVersionId}
-    left join ${decisions} as decision on decision.submission_id = ${submissions.id}
+    left join ${decisions} as decision
+      on decision.submission_id = ${submissions.id}
+      and (${includePrivateDecisions} or decision.released_at is not null)
+    left join ${decisionNotifications} as notification on notification.decision_id = decision.id
     left join ${submissionParticipants} as participant on participant.submission_id = ${submissions.id}
     where ${where}
     group by
-      ${submissions.id}, current_version.id, form_version.id, decision.id
+      ${submissions.id}, current_version.id, form_version.id, decision.id, notification.id
     order by ${submissions.updatedAt} desc
   `);
   const rows = rowsFromExecuteResult<{
     id: string; event_id: string; form_id: string; submitter_person_id: string | null;
     state: "draft" | "submitted"; triage_state: "unreviewed" | "maybe"; routing_key: string | null;
     submitted_at: Date | string | null; updated_at: Date | string; content_version: number; title: string;
-    answers: Record<string, unknown>; form_version: number; decision: "accepted" | "rejected" | null;
+    answers: Record<string, unknown>; form_version: number; decision_id: string | null; decision: "accepted" | "rejected" | null;
+    decision_released_at: Date | string | null; notification_id: string | null;
+    notification_status: "draft" | "reviewed" | "queued" | "handed_off" | null; notification_revision: number | null;
+    notification_subject: string | null; notification_html: string | null; notification_text: string | null;
+    notification_communication_id: string | null;
     participants: SubmissionRecord["participants"];
   }>(result);
   const submissionIds = rows.map((row) => row.id);
   const eventIds = [...new Set(rows.map((row) => row.event_id))];
   const acceptedSessions = submissionIds.length > 0
-    ? await database.select({ id: sessions.id, sourceSubmissionId: sessions.sourceSubmissionId, title: sessions.title })
+    ? await database.select({ id: sessions.id, sourceSubmissionId: sessions.sourceSubmissionId, title: sessions.title, abstract: sessions.abstract })
       .from(sessions).where(and(inArray(sessions.sourceSubmissionId, submissionIds), inArray(sessions.eventId, eventIds)))
     : [];
   const acceptedSessionBySubmission = new Map(acceptedSessions.flatMap((session) => session.sourceSubmissionId
-    ? [[session.sourceSubmissionId, { id: session.id, title: session.title }] as const]
+    ? [[session.sourceSubmissionId, { id: session.id, title: session.title, abstract: session.abstract }] as const]
     : []));
+  const acceptedSessionIds = acceptedSessions.map((session) => session.id);
+  const changeRequestRows = acceptedSessionIds.length
+    ? await database.select().from(sessionChangeRequests)
+      .where(inArray(sessionChangeRequests.sessionId, acceptedSessionIds))
+      .orderBy(desc(sessionChangeRequests.createdAt))
+    : [];
   return rows.map((row) => {
     return {
       id: row.id,
@@ -605,7 +657,31 @@ async function listSubmissionRecords(database: Database, where: SQL<unknown>): P
       state: row.state,
       triageState: row.triage_state,
       decision: row.decision,
-      acceptedSession: acceptedSessionBySubmission.get(row.id) ?? null,
+      decisionId: row.decision_id,
+      decisionReleasedAt: row.decision_released_at ? new Date(row.decision_released_at).toISOString() : null,
+      decisionNotification: row.notification_id && row.notification_status && row.notification_revision !== null
+        ? {
+          id: row.notification_id,
+          status: row.notification_status,
+          revision: row.notification_revision,
+          subjectTemplate: row.notification_subject ?? "",
+          htmlTemplate: row.notification_html ?? "",
+          textTemplate: row.notification_text ?? "",
+          communicationId: row.notification_communication_id,
+        }
+        : null,
+      acceptedSession: row.decision === "accepted" ? acceptedSessionBySubmission.get(row.id) ?? null : null,
+      changeRequests: row.decision === "accepted"
+        ? changeRequestRows.filter((request) => request.sessionId === acceptedSessionBySubmission.get(row.id)?.id).map((request) => ({
+          id: request.id,
+          proposedTitle: request.proposedTitle,
+          proposedAbstract: request.proposedAbstract,
+          reason: request.reason,
+          status: request.status,
+          resolutionNote: request.resolutionNote,
+          createdAt: request.createdAt.toISOString(),
+        }))
+        : [],
       routingKey: row.routing_key,
       version: row.content_version,
       answers: row.answers,
@@ -616,18 +692,43 @@ async function listSubmissionRecords(database: Database, where: SQL<unknown>): P
   });
 }
 
-async function requireSubmissionRecord(database: Database, id: string): Promise<SubmissionRecord> {
+async function requireSubmissionRecord(database: Database, id: string, includePrivateDecision = true): Promise<SubmissionRecord> {
   const [root] = await database.select().from(submissions).where(eq(submissions.id, id)).limit(1);
   if (!root) throw new FormsSubmissionsError("submission_not_found", "Submission not found.");
   const [current, participants, formVersion, decision, acceptedSession] = await Promise.all([
     database.select().from(submissionVersions).where(and(eq(submissionVersions.submissionId, root.id), eq(submissionVersions.version, root.currentVersion))).limit(1),
     database.select().from(submissionParticipants).where(eq(submissionParticipants.submissionId, root.id)).orderBy(asc(submissionParticipants.sortOrder)),
     requireFormVersion(database, root.formVersionId),
-    database.select({ outcome: decisions.outcome }).from(decisions).where(eq(decisions.submissionId, root.id)).limit(1),
-    database.select({ id: sessions.id, title: sessions.title }).from(sessions).where(and(eq(sessions.sourceSubmissionId, root.id), eq(sessions.eventId, root.eventId))).limit(1),
+    database.select({
+      id: decisions.id,
+      outcome: decisions.outcome,
+      releasedAt: decisions.releasedAt,
+    }).from(decisions).where(and(
+      eq(decisions.submissionId, root.id),
+      includePrivateDecision ? sql`true` : sql`${decisions.releasedAt} is not null`,
+    )).limit(1),
+    database.select({ id: sessions.id, title: sessions.title, abstract: sessions.abstract }).from(sessions).where(and(eq(sessions.sourceSubmissionId, root.id), eq(sessions.eventId, root.eventId))).limit(1),
   ]);
   if (!current[0]) throw new Error(`Submission ${root.id} has no current version.`);
-  return toSubmissionRecord(root, current[0], participants, formVersion.version, decision[0]?.outcome ?? null, acceptedSession[0] ?? null);
+  const visibleDecision = decision[0] ?? null;
+  const [notification, changeRequests] = visibleDecision
+    ? await Promise.all([
+      database.select().from(decisionNotifications).where(eq(decisionNotifications.decisionId, visibleDecision.id)).limit(1),
+      acceptedSession[0]
+        ? database.select().from(sessionChangeRequests).where(eq(sessionChangeRequests.sessionId, acceptedSession[0].id)).orderBy(desc(sessionChangeRequests.createdAt))
+        : Promise.resolve([]),
+    ])
+    : [[], []];
+  return toSubmissionRecord(
+    root,
+    current[0],
+    participants,
+    formVersion.version,
+    visibleDecision,
+    notification[0] ?? null,
+    visibleDecision?.outcome === "accepted" ? acceptedSession[0] ?? null : null,
+    changeRequests,
+  );
 }
 
 function toSubmissionRecord(
@@ -635,8 +736,10 @@ function toSubmissionRecord(
   current: typeof submissionVersions.$inferSelect,
   participants: Array<typeof submissionParticipants.$inferSelect>,
   formVersion: number,
-  decision: "accepted" | "rejected" | null,
-  acceptedSession: { id: string; title: string } | null,
+  decision: { id: string; outcome: "accepted" | "rejected"; releasedAt: Date | null } | null,
+  notification: typeof decisionNotifications.$inferSelect | null,
+  acceptedSession: { id: string; title: string; abstract: string } | null,
+  changeRequests: Array<typeof sessionChangeRequests.$inferSelect>,
 ): SubmissionRecord {
   return {
     id: root.id,
@@ -647,8 +750,28 @@ function toSubmissionRecord(
     title: current.title,
     state: root.state,
     triageState: root.triageState,
-    decision,
+    decision: decision?.outcome ?? null,
+    decisionId: decision?.id ?? null,
+    decisionReleasedAt: decision?.releasedAt?.toISOString() ?? null,
+    decisionNotification: notification ? {
+      id: notification.id,
+      status: notification.status,
+      revision: notification.revision,
+      subjectTemplate: notification.subjectTemplate,
+      htmlTemplate: notification.htmlTemplate,
+      textTemplate: notification.textTemplate,
+      communicationId: notification.communicationId,
+    } : null,
     acceptedSession,
+    changeRequests: changeRequests.map((request) => ({
+      id: request.id,
+      proposedTitle: request.proposedTitle,
+      proposedAbstract: request.proposedAbstract,
+      reason: request.reason,
+      status: request.status,
+      resolutionNote: request.resolutionNote,
+      createdAt: request.createdAt.toISOString(),
+    })),
     routingKey: root.routingKey,
     version: current.version,
     answers: current.answers,

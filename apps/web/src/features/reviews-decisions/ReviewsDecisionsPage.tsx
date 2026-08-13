@@ -217,8 +217,8 @@ export function ReviewsDecisionsPage() {
       setDecisionReason("");
       setNotice(
         outcome === "accepted"
-          ? "Proposal accepted. Its session, speaker invitation, onboarding tasks, and notification are now being prepared."
-          : "Proposal rejected. The submitter notification is now queued.",
+          ? "Proposal accepted privately. Its linked Session is ready; review the staged message in Submissions before release."
+          : "Proposal rejected privately. Review the staged message in Submissions before release.",
       );
       await reload();
     } catch (caught) {
@@ -579,14 +579,16 @@ export function ReviewsDecisionsPage() {
                       <span className={`rd-badge ${row.decision ?? "pending"}`}>
                         {row.decision ?? "Undecided"}
                       </span>
+                      {row.decision ? <small>{row.decisionReleasedAt ? "Released" : "Private"}</small> : null}
+                      {row.acceptedSession ? <small><a className="rd-link" href={`/organizer/events/${eventSlug}/agenda#session-${row.acceptedSession.id}`}>Session: {row.acceptedSession.title}</a></small> : null}
                     </td>
                     <td>
-                      <button
+                      {row.decision ? <a className="rd-link" href={`/organizer/events/${eventSlug}/submissions`}>Review release / change</a> : <button
                         className="rd-link"
                         onClick={() => setDecisionTarget(row.submissionId)}
                       >
-                        {row.decision ? "Change decision" : "Record decision"}
-                      </button>
+                        Record decision
+                      </button>}
                     </td>
                   </tr>
                 ))}
@@ -1254,8 +1256,8 @@ function DecisionDialog(props: {
           {blockedAcceptedChange
             ? "This acceptance already created a linked session and speaker onboarding work. Changing it to rejected also requires withdrawing that work, so it cannot be reversed from this screen."
             : props.currentDecision === "rejected"
-              ? "Changing this result to accepted will create a linked session, speaker access, onboarding tasks, and a new notification."
-              : "Accept creates a linked session, speaker access, onboarding tasks, and a notification. Reject records the result and queues a notification."}
+              ? "Use Submissions for the audited change-decision path, downstream guards, and a fresh staged notification."
+              : "Accept creates a linked Session privately. Either outcome remains hidden until its staged communication is reviewed and explicitly released."}
         </p>
         {blockedAcceptedChange ? (
           <footer className="rd-modal-actions">
@@ -1311,7 +1313,7 @@ function DecisionDialog(props: {
               >
                 {props.currentDecision === "rejected"
                   ? "Change to accepted"
-                  : "Accept and create session"}
+                  : "Accept privately and create Session"}
               </button>
             </footer>
           </>

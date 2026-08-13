@@ -5,6 +5,7 @@ import {
   communicationRecipients,
   communications,
   communicationTemplates,
+  decisionNotifications,
   decisions,
   deliveryAttempts,
   deliveryProviderEvents,
@@ -798,7 +799,7 @@ export async function consumeCommunicationOutboxEvent(database: Database, outbox
       },
     });
   }
-  if (["decision.notification.requested", "decision.rejected"].includes(outbox.eventType)) {
+  if (["decision.notification.released", "decision.notification.requested", "decision.rejected"].includes(outbox.eventType)) {
     const decisionId = stringValue(payload.decisionId);
     const [decision] = await database.select({
       outcome: decisions.outcome,
@@ -809,14 +810,15 @@ export async function consumeCommunicationOutboxEvent(database: Database, outbox
       .where(eq(decisions.id, decisionId)).limit(1);
     if (!decision?.personId) throw new CommunicationsError("invalid_recipient", "Decision has no canonical submitter recipient.");
     const decisionLabel = decision.outcome === "accepted" ? "Accepted" : "Not selected";
-    return queueCommunication(database, {
+    const releasedSnapshot = outbox.eventType === "decision.notification.released";
+    const result = await queueCommunication(database, {
       command: {
         eventId: decision.eventId,
         kind: "transactional",
         recipientPersonIds: [decision.personId],
-        subjectTemplate: "Decision for {{ submission_title }}: {{ decision_label }}",
-        htmlTemplate: "<p>Hello {{first_name}},</p><p>The decision for <strong>{{submission_title}}</strong> is <strong>{{decision_label}}</strong>.</p>",
-        textTemplate: "Hello {{first_name}}, the decision for {{submission_title}} is {{decision_label}}.",
+        subjectTemplate: releasedSnapshot ? stringValue(payload.subjectTemplate) : "Decision for {{ submission_title }}: {{ decision_label }}",
+        htmlTemplate: releasedSnapshot ? stringValue(payload.htmlTemplate) : "<p>Hello {{first_name}},</p><p>The decision for <strong>{{submission_title}}</strong> is <strong>{{decision_label}}</strong>.</p>",
+        textTemplate: releasedSnapshot ? stringValue(payload.textTemplate) : "Hello {{first_name}}, the decision for {{submission_title}} is {{decision_label}}.",
         mergeDataByPersonId: { [decision.personId]: { submission_title: decision.title, decision_label: decisionLabel } },
         idempotencyKey: `source-outbox:${outbox.id}`,
       },
@@ -829,6 +831,20 @@ export async function consumeCommunicationOutboxEvent(database: Database, outbox
         outcome: decision.outcome,
       },
     });
+    if (releasedSnapshot) {
+      const notificationId = stringValue(payload.notificationId);
+      await database.transaction(async (transaction) => {
+        await transaction.update(decisionNotifications).set({
+          status: "handed_off",
+          communicationId: result.communicationId,
+          handedOffAt: new Date(),
+          updatedAt: new Date(),
+        }).where(and(eq(decisionNotifications.id, notificationId), eq(decisionNotifications.decisionId, decisionId)));
+        await transaction.update(decisions).set({ notifiedAt: new Date(), updatedAt: new Date() })
+          .where(eq(decisions.id, decisionId));
+      });
+    }
+    return result;
   }
   if (outbox.eventType === "speaker.portal-invitation.requested") {
     const eventSpeakerIds = arrayOfStrings(payload.eventSpeakerIds);
