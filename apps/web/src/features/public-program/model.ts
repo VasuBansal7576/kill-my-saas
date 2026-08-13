@@ -57,7 +57,7 @@ export function initials(name: string): string {
 }
 
 export function biographyForDisplay(value: string): string {
-  const biography = value.trim();
+  const biography = value.replace(/\bSBEK-[A-Z0-9-]+\b/g, " ").replace(/[ \t]{2,}/g, " ").trim();
   if (!biography) return "";
   const midpoint = Math.floor(biography.length / 2);
   if (biography.length % 2 === 0 && biography.slice(0, midpoint).trim() === biography.slice(midpoint).trim()) {

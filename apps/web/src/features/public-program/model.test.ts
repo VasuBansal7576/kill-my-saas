@@ -27,6 +27,8 @@ describe("public program read models", () => {
   it("removes accidental repeated biography presentation without rewriting distinct paragraphs", () => {
     expect(biographyForDisplay("Builds reliable systems.Builds reliable systems.")).toBe("Builds reliable systems.");
     expect(biographyForDisplay("First paragraph.\n\nFirst paragraph.\n\nSecond paragraph.")).toBe("First paragraph.\n\nSecond paragraph.");
+    expect(biographyForDisplay("Public biography. SBEK-ORG-EDIT-01 SBEK-PORTAL-BIO-01 More public context."))
+      .toBe("Public biography. More public context.");
   });
 });
 
