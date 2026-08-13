@@ -1,2 +1,3 @@
-export const EVALUATION_FIXTURE_VERSION = 1;
+export const EVALUATION_FIXTURE_VERSION = 2;
 export * from "./evaluation-fixture";
+export * from "./evaluation-environment";

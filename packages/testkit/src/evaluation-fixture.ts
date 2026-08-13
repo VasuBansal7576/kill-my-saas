@@ -17,6 +17,28 @@ const PersonaSchema = z.object({
 
 export const EvaluationFixtureSchema = z.object({
   schema_version: z.number().int().positive(),
+  live_evaluator_contract: z.object({
+    total_items: z.literal(98),
+    total_scenarios: z.literal(20),
+    required_items: z.literal(86),
+    required_weighted_points: z.literal(183),
+    crm_items: z.literal(12),
+    crm_weighted_points: z.literal(19),
+    public_widgets_weighted_points: z.literal(35),
+    added_required_ids: z.tuple([z.literal("CFP-17"), z.literal("CFP-18")]),
+    embed_share: z.object({ id: z.literal("EMB-15"), weight: z.literal(3) }),
+  }),
+  ordered_scenario_start: z.object({
+    precreated_cfp_forms: z.literal(0),
+    precreated_submissions: z.literal(0),
+    precreated_decisions: z.literal(0),
+    precreated_sessions: z.literal(0),
+    precreated_publications: z.literal(0),
+    decision_ownership: z.object({
+      taming_ci: z.object({ scenario: z.literal("CFP-S4"), outcome: z.literal("accepted") }),
+      ai_pair: z.object({ scenario: z.literal("CFP-S4"), outcome: z.literal("rejected") }),
+    }),
+  }),
   event: z.object({
     name: z.string(),
     starts_on: z.iso.date(),

@@ -1,32 +1,45 @@
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { and, eq } from "drizzle-orm";
+import { and, count, eq, sql, type SQL } from "drizzle-orm";
+import type { AnyPgTable } from "drizzle-orm/pg-core";
 import { createToolingDatabase } from "../packages/database/src/tooling-client";
 import {
-  eventMemberships,
+  cfpForms,
+  decisions,
   eventFormats,
+  eventMemberships,
   eventRooms,
-  eventTracks,
+  eventSpeakers,
   events,
+  eventTracks,
   organizationMemberships,
   organizations,
   people,
   personEmailAliases,
+  placements,
+  publications,
+  reviewAssignments,
+  reviewPlans,
+  reviewRounds,
+  scheduleRevisions,
+  sessions,
+  speakerTasks,
+  submissions,
+  widgetConfigurations,
 } from "../packages/database/src/schema";
-import { applyPersonaEmailOverrides, normalizeEmail } from "../packages/testkit/src/evaluation-fixture";
+import {
+  applyPersonaEmailOverrides,
+  assertCleanEvaluationWorkflowState,
+  assertGoldenPathSeedViability,
+  deterministicEvaluationUuid,
+  normalizeEmail,
+  readEvaluationEnvironmentConfig,
+  type EvaluationWorkflowState,
+} from "../packages/testkit/src";
 
 const databaseUrl = process.env.DATABASE_URL;
-const appEnvironment = process.env.APP_ENV;
-const confirmation = process.env.EVALUATION_SEED_CONFIRM;
-
 if (!databaseUrl) throw new Error("DATABASE_URL is required.");
-if (!appEnvironment || !["local", "preview", "evaluation"].includes(appEnvironment)) {
-  throw new Error("Evaluation seed is allowed only in local, preview, or evaluation environments.");
-}
-if (confirmation !== "DevFlow Conf 2027") {
-  throw new Error("Set EVALUATION_SEED_CONFIRM=\"DevFlow Conf 2027\" to seed intentionally.");
-}
 
+const configuration = readEvaluationEnvironmentConfig(process.env, "seed");
 const fixtureJson = JSON.parse(await readFile("docs/fixtures/evaluator-personas.json", "utf8")) as unknown;
 const overrides = process.env.EVALUATOR_PERSONA_EMAILS_JSON
   ? JSON.parse(process.env.EVALUATOR_PERSONA_EMAILS_JSON) as Record<string, string>
@@ -34,137 +47,236 @@ const overrides = process.env.EVALUATOR_PERSONA_EMAILS_JSON
 const fixture = applyPersonaEmailOverrides(fixtureJson, overrides);
 const { database, close } = createToolingDatabase(databaseUrl);
 
-const organizationId = deterministicUuid("fixture-organization-programflow");
-const eventId = deterministicUuid("fixture-event-devflow-conf-2027");
+try {
+  const result = await database.transaction(async (transaction) => {
+    await transaction.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`evaluation-seed:${configuration.runId}`}, 0))`);
 
-await database.transaction(async (transaction) => {
-  await transaction.insert(organizations).values({
-    id: organizationId,
-    slug: "programflow-evaluation",
-    name: "ProgramFlow Evaluation",
-  }).onConflictDoUpdate({
-    target: organizations.slug,
-    set: { name: "ProgramFlow Evaluation", updatedAt: new Date() },
-  });
+    const [existingOrganization] = await transaction.select({ id: organizations.id, slug: organizations.slug })
+      .from(organizations)
+      .where(eq(organizations.id, configuration.organizationId))
+      .limit(1);
+    if (existingOrganization && existingOrganization.slug !== configuration.organizationSlug) {
+      throw new Error("The deterministic evaluation organization ID is already used by a different scope.");
+    }
+    const existingRunEvents = existingOrganization
+      ? await transaction.select({ id: events.id }).from(events)
+        .where(eq(events.organizationId, configuration.organizationId))
+      : [];
+    if (existingRunEvents.some((event) => event.id !== configuration.eventId)) {
+      throw new Error(
+        "Evaluation run contains additional events and will not be reseeded. Use the explicit isolated-run reset or a fresh run ID/Neon branch.",
+      );
+    }
 
-  await transaction.insert(events).values({
-    id: eventId,
-    organizationId,
-    slug: "devflow-conf-2027",
-    name: fixture.event.name,
-    startsOn: fixture.event.starts_on,
-    endsOn: fixture.event.ends_on,
-    timezone: fixture.event.timezone,
-    location: fixture.event.location,
-  }).onConflictDoUpdate({
-    target: events.slug,
-    set: {
+    const [existingEvent] = await transaction.select({ id: events.id })
+      .from(events)
+      .where(and(eq(events.id, configuration.eventId), eq(events.organizationId, configuration.organizationId)))
+      .limit(1);
+    if (existingEvent) {
+      assertCleanEvaluationWorkflowState(await readWorkflowState(transaction, configuration.eventId));
+    }
+
+    await transaction.insert(organizations).values({
+      id: configuration.organizationId,
+      slug: configuration.organizationSlug,
+      name: `ProgramFlow Evaluation (${configuration.runId})`,
+    }).onConflictDoUpdate({
+      target: organizations.id,
+      set: { name: `ProgramFlow Evaluation (${configuration.runId})`, updatedAt: new Date() },
+    });
+
+    await transaction.insert(events).values({
+      id: configuration.eventId,
+      organizationId: configuration.organizationId,
+      slug: configuration.eventSlug,
       name: fixture.event.name,
       startsOn: fixture.event.starts_on,
       endsOn: fixture.event.ends_on,
       timezone: fixture.event.timezone,
       location: fixture.event.location,
-      updatedAt: new Date(),
-    },
-  });
-
-  await transaction.delete(eventTracks).where(eq(eventTracks.eventId, eventId));
-  await transaction.delete(eventFormats).where(eq(eventFormats.eventId, eventId));
-  await transaction.delete(eventRooms).where(eq(eventRooms.eventId, eventId));
-  await transaction.insert(eventTracks).values(fixture.event.tracks.map((name, sortOrder) => ({
-    id: deterministicUuid(`fixture-event:track:${normalizeEmail(name)}`),
-    eventId,
-    name,
-    sortOrder,
-  })));
-  await transaction.insert(eventFormats).values(fixture.event.formats.map((label, sortOrder) => {
-    const match = label.match(/^(.*) \((\d+) min\)$/);
-    if (!match) throw new Error(`Evaluator format is invalid: ${label}`);
-    return {
-      id: deterministicUuid(`fixture-event:format:${normalizeEmail(label)}`),
-      eventId,
-      name: match[1] ?? label,
-      durationMinutes: Number(match[2]),
-      sortOrder,
-    };
-  }));
-  await transaction.insert(eventRooms).values(fixture.event.rooms.map((name, sortOrder) => ({
-    id: deterministicUuid(`fixture-event:room:${normalizeEmail(name)}`),
-    eventId,
-    name,
-    sortOrder,
-  })));
-
-  for (const persona of fixture.personas) {
-    if (!persona.canonical_person_key) continue;
-    const personId = deterministicUuid(persona.canonical_person_key);
-    await transaction.insert(people).values({
-      id: personId,
-      stableKey: persona.canonical_person_key,
-      displayName: persona.name,
-      canonicalEmail: persona.canonical_email,
     }).onConflictDoUpdate({
-      target: people.stableKey,
-      set: { displayName: persona.name, canonicalEmail: persona.canonical_email, updatedAt: new Date() },
+      target: events.id,
+      set: {
+        name: fixture.event.name,
+        startsOn: fixture.event.starts_on,
+        endsOn: fixture.event.ends_on,
+        timezone: fixture.event.timezone,
+        location: fixture.event.location,
+        updatedAt: new Date(),
+      },
     });
 
-    for (const [index, email] of [persona.canonical_email, ...persona.aliases].filter((value): value is string => Boolean(value)).entries()) {
-      const normalizedEmail = normalizeEmail(email);
-      const [existingAlias] = await transaction.select({ personId: personEmailAliases.personId })
-        .from(personEmailAliases)
-        .where(eq(personEmailAliases.normalizedEmail, normalizedEmail))
-        .limit(1);
-      if (existingAlias && existingAlias.personId !== personId) {
-        throw new Error(`Evaluator email ${email} is already linked to a different canonical person.`);
-      }
-      await transaction.insert(personEmailAliases).values({
-        id: deterministicUuid(`${persona.canonical_person_key}:email:${normalizedEmail}`),
-        personId,
-        email,
-        normalizedEmail,
-        isCanonical: index === 0,
+    await transaction.delete(eventTracks).where(eq(eventTracks.eventId, configuration.eventId));
+    await transaction.delete(eventFormats).where(eq(eventFormats.eventId, configuration.eventId));
+    await transaction.delete(eventRooms).where(eq(eventRooms.eventId, configuration.eventId));
+    await transaction.insert(eventTracks).values(fixture.event.tracks.map((name, sortOrder) => ({
+      id: deterministicEvaluationUuid(`run:${configuration.runId}:track:${normalizeEmail(name)}`),
+      eventId: configuration.eventId,
+      name,
+      sortOrder,
+    })));
+    await transaction.insert(eventFormats).values(fixture.event.formats.map((label, sortOrder) => {
+      const match = label.match(/^(.*) \((\d+) min\)$/);
+      if (!match) throw new Error(`Evaluator format is invalid: ${label}`);
+      return {
+        id: deterministicEvaluationUuid(`run:${configuration.runId}:format:${normalizeEmail(label)}`),
+        eventId: configuration.eventId,
+        name: match[1] ?? label,
+        durationMinutes: Number(match[2]),
+        sortOrder,
+      };
+    }));
+    await transaction.insert(eventRooms).values(fixture.event.rooms.map((name, sortOrder) => ({
+      id: deterministicEvaluationUuid(`run:${configuration.runId}:room:${normalizeEmail(name)}`),
+      eventId: configuration.eventId,
+      name,
+      sortOrder,
+    })));
+
+    for (const persona of fixture.personas) {
+      if (!persona.canonical_person_key) continue;
+      const personId = deterministicEvaluationUuid(`person:${persona.canonical_person_key}`);
+      await transaction.insert(people).values({
+        id: personId,
+        stableKey: persona.canonical_person_key,
+        displayName: persona.name,
+        canonicalEmail: persona.canonical_email,
       }).onConflictDoUpdate({
-        target: personEmailAliases.normalizedEmail,
-        set: { email, isCanonical: index === 0, updatedAt: new Date() },
+        target: people.stableKey,
+        set: { displayName: persona.name, canonicalEmail: persona.canonical_email, updatedAt: new Date() },
       });
+
+      for (const [index, email] of [persona.canonical_email, ...persona.aliases]
+        .filter((value): value is string => Boolean(value)).entries()) {
+        const normalizedEmail = normalizeEmail(email);
+        const [existingAlias] = await transaction.select({ personId: personEmailAliases.personId })
+          .from(personEmailAliases)
+          .where(eq(personEmailAliases.normalizedEmail, normalizedEmail))
+          .limit(1);
+        if (existingAlias && existingAlias.personId !== personId) {
+          throw new Error(`Evaluator email ${email} is already linked to a different canonical person.`);
+        }
+        await transaction.insert(personEmailAliases).values({
+          id: deterministicEvaluationUuid(`person:${persona.canonical_person_key}:email:${normalizedEmail}`),
+          personId,
+          email,
+          normalizedEmail,
+          isCanonical: index === 0,
+        }).onConflictDoUpdate({
+          target: personEmailAliases.normalizedEmail,
+          set: { email, personId, isCanonical: index === 0, updatedAt: new Date() },
+        });
+      }
+
+      for (const membership of persona.memberships) {
+        if (membership.scope === "organization" && membership.role === "organizer") {
+          await transaction.insert(organizationMemberships).values({
+            id: deterministicEvaluationUuid(`run:${configuration.runId}:person:${persona.canonical_person_key}:organization:organizer`),
+            organizationId: configuration.organizationId,
+            personId,
+            role: "organizer",
+          }).onConflictDoNothing();
+        }
+        if (membership.scope === "event") {
+          await transaction.insert(eventMemberships).values({
+            id: deterministicEvaluationUuid(`run:${configuration.runId}:person:${persona.canonical_person_key}:event:${membership.role}`),
+            eventId: configuration.eventId,
+            personId,
+            role: membership.role,
+          }).onConflictDoNothing();
+        }
+      }
     }
 
-    for (const membership of persona.memberships) {
-      if (membership.scope === "organization" && membership.role === "organizer") {
-        await transaction.insert(organizationMemberships).values({
-          id: deterministicUuid(`${persona.canonical_person_key}:organization:organizer`),
-          organizationId,
-          personId,
-          role: "organizer",
-        }).onConflictDoNothing();
-      }
-      if (membership.scope === "event") {
-        await transaction.insert(eventMemberships).values({
-          id: deterministicUuid(`${persona.canonical_person_key}:event:${membership.role}`),
-          eventId,
-          personId,
-          role: membership.role,
-        }).onConflictDoNothing();
-      }
+    const workflowState = await readWorkflowState(transaction, configuration.eventId);
+    const [eventCount, trackCount, formatCount, roomCount, membershipRows] = await Promise.all([
+      countRows(transaction, events, eq(events.id, configuration.eventId)),
+      countRows(transaction, eventTracks, eq(eventTracks.eventId, configuration.eventId)),
+      countRows(transaction, eventFormats, eq(eventFormats.eventId, configuration.eventId)),
+      countRows(transaction, eventRooms, eq(eventRooms.eventId, configuration.eventId)),
+      transaction.select({ stableKey: people.stableKey, role: eventMemberships.role })
+        .from(eventMemberships)
+        .innerJoin(people, eq(people.id, eventMemberships.personId))
+        .where(eq(eventMemberships.eventId, configuration.eventId)),
+    ]);
+    const personaByStableKey = new Map(fixture.personas.map((persona) => [persona.canonical_person_key, persona.persona]));
+    const personaEventRoles: Record<string, string[]> = {};
+    for (const membership of membershipRows) {
+      const persona = personaByStableKey.get(membership.stableKey);
+      if (!persona) continue;
+      (personaEventRoles[persona] ??= []).push(membership.role);
     }
-  }
-});
+    assertGoldenPathSeedViability({ eventCount, trackCount, formatCount, roomCount, personaEventRoles, workflowState });
+    return { workflowState, personaEventRoles };
+  });
 
-const [organization] = await database.select({ id: organizations.id }).from(organizations).where(eq(organizations.slug, "programflow-evaluation"));
-const [event] = await database.select({ id: events.id }).from(events).where(and(eq(events.organizationId, organizationId), eq(events.slug, "devflow-conf-2027")));
-if (!organization || !event) throw new Error("Evaluation seed verification failed.");
-await close();
+  console.info(JSON.stringify({
+    fixtureVersion: fixture.schema_version,
+    runId: configuration.runId,
+    databaseScope: configuration.databaseScope,
+    organizationId: configuration.organizationId,
+    organizationSlug: configuration.organizationSlug,
+    eventId: configuration.eventId,
+    eventSlug: configuration.eventSlug,
+    personas: Object.keys(result.personaEventRoles).length,
+    workflowState: result.workflowState,
+  }));
+} finally {
+  await close();
+}
 
-console.info(JSON.stringify({
-  fixtureVersion: fixture.schema_version,
-  organizationId: organization.id,
-  eventId: event.id,
-  personas: fixture.personas.filter((persona) => persona.canonical_person_key).length,
-}));
+type Transaction = Parameters<Parameters<typeof database.transaction>[0]>[0];
+async function countRows(transaction: Transaction, table: AnyPgTable, where: SQL<unknown>): Promise<number> {
+  const [row] = await transaction.select({ value: count() }).from(table).where(where);
+  return Number(row?.value ?? 0);
+}
 
-function deterministicUuid(key: string): string {
-  const hex = createHash("sha256").update(`programflow:${key}`).digest("hex").slice(0, 32).split("");
-  hex[12] = "4";
-  hex[16] = ((Number.parseInt(hex[16] ?? "0", 16) & 0x3) | 0x8).toString(16);
-  return `${hex.slice(0, 8).join("")}-${hex.slice(8, 12).join("")}-${hex.slice(12, 16).join("")}-${hex.slice(16, 20).join("")}-${hex.slice(20).join("")}`;
+async function readWorkflowState(transaction: Transaction, eventId: string): Promise<EvaluationWorkflowState> {
+  const [
+    cfpFormsCount,
+    submissionsCount,
+    decisionsCount,
+    sessionsCount,
+    reviewPlansCount,
+    reviewAssignmentsCount,
+    eventSpeakersCount,
+    speakerTasksCount,
+    scheduleRevisionsCount,
+    placementsCount,
+    publicationsCount,
+    widgetConfigurationsCount,
+  ] = await Promise.all([
+    countRows(transaction, cfpForms, eq(cfpForms.eventId, eventId)),
+    countRows(transaction, submissions, eq(submissions.eventId, eventId)),
+    transaction.select({ value: count() }).from(decisions)
+      .innerJoin(submissions, eq(submissions.id, decisions.submissionId))
+      .where(eq(submissions.eventId, eventId)).then((rows) => Number(rows[0]?.value ?? 0)),
+    countRows(transaction, sessions, eq(sessions.eventId, eventId)),
+    countRows(transaction, reviewPlans, eq(reviewPlans.eventId, eventId)),
+    transaction.select({ value: count() }).from(reviewAssignments)
+      .innerJoin(reviewRounds, eq(reviewRounds.id, reviewAssignments.roundId))
+      .where(eq(reviewRounds.eventId, eventId)).then((rows) => Number(rows[0]?.value ?? 0)),
+    countRows(transaction, eventSpeakers, eq(eventSpeakers.eventId, eventId)),
+    countRows(transaction, speakerTasks, eq(speakerTasks.eventId, eventId)),
+    countRows(transaction, scheduleRevisions, eq(scheduleRevisions.eventId, eventId)),
+    transaction.select({ value: count() }).from(placements)
+      .innerJoin(scheduleRevisions, eq(scheduleRevisions.id, placements.revisionId))
+      .where(eq(scheduleRevisions.eventId, eventId)).then((rows) => Number(rows[0]?.value ?? 0)),
+    countRows(transaction, publications, eq(publications.eventId, eventId)),
+    countRows(transaction, widgetConfigurations, eq(widgetConfigurations.eventId, eventId)),
+  ]);
+  return {
+    cfpForms: cfpFormsCount,
+    submissions: submissionsCount,
+    decisions: decisionsCount,
+    sessions: sessionsCount,
+    reviewPlans: reviewPlansCount,
+    reviewAssignments: reviewAssignmentsCount,
+    eventSpeakers: eventSpeakersCount,
+    speakerTasks: speakerTasksCount,
+    scheduleRevisions: scheduleRevisionsCount,
+    placements: placementsCount,
+    publications: publicationsCount,
+    widgetConfigurations: widgetConfigurationsCount,
+  };
 }

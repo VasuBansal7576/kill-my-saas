@@ -16,6 +16,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "dev": "WRANGLER_WRITE_LOGS=false vite",
     "lint": "eslint .",
+    "reset:evaluation": "tsx scripts/reset-evaluation.ts",
     "seed:evaluation": "tsx scripts/seed-evaluation.ts",
     "sync:evaluator-auth": "tsx scripts/sync-evaluator-auth.ts",
     "test": "vitest run",

@@ -1,6 +1,29 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "purpose": "Canonical identity and alias registry specification for deterministic evaluator seeds.",
+  "live_evaluator_contract": {
+    "source": "live evaluator HEAD contract supplied for the 2026-08-13 evaluation run",
+    "total_items": 98,
+    "total_scenarios": 20,
+    "required_items": 86,
+    "required_weighted_points": 183,
+    "crm_items": 12,
+    "crm_weighted_points": 19,
+    "public_widgets_weighted_points": 35,
+    "added_required_ids": ["CFP-17", "CFP-18"],
+    "embed_share": {"id": "EMB-15", "weight": 3}
+  },
+  "ordered_scenario_start": {
+    "precreated_cfp_forms": 0,
+    "precreated_submissions": 0,
+    "precreated_decisions": 0,
+    "precreated_sessions": 0,
+    "precreated_publications": 0,
+    "decision_ownership": {
+      "taming_ci": {"scenario": "CFP-S4", "outcome": "accepted"},
+      "ai_pair": {"scenario": "CFP-S4", "outcome": "rejected"}
+    }
+  },
   "sources": [
     "Kill My SaaS Research Vault/Attachments/Kill My SaaS Evals Repository/fixtures/sample-data.json",
     "Kill My SaaS Research Vault/Attachments/Kill My SaaS Evals Repository/fixtures/speakers.csv",
@@ -15,7 +38,8 @@
     "runtime_override": "evalconfig personaEmails or credentials.<persona>.email becomes the evaluator-facing login email and an alias of that persona's canonical person",
     "runtime_override_collision": "fail the seed before creating identities or memberships",
     "credential_policy": "passwords and live inbox addresses are supplied through evaluator configuration/secrets and never copied into this registry",
-    "seed_behavior": "deterministic, idempotent, evaluation-environment gated",
+    "seed_behavior": "deterministic, idempotent, run-scoped, evaluation-environment gated; refuses to repair progressed state",
+    "reset_behavior": "explicit confirmation only; production forbidden; removes only the isolated run organization/events and preserves canonical people/auth",
     "crm_duplicate_policy": "intentional CRM duplicate candidates remain separate people until the CRM merge scenario executes"
   },
   "event": {

@@ -5,20 +5,14 @@ import {
   buildEvaluatorAuthLogins,
   ensureEvaluatorAuthLogins,
   normalizeEmail,
+  readEvaluationEnvironmentConfig,
   type EvaluatorAuthLogin,
-} from "../packages/testkit/src/evaluation-fixture";
+} from "../packages/testkit/src";
 
-const appEnvironment = process.env.APP_ENV;
-const confirmation = process.env.EVALUATION_SEED_CONFIRM;
+const configuration = readEvaluationEnvironmentConfig(process.env, "sync-auth");
 const authBaseUrl = process.env.NEON_AUTH_BASE_URL;
 const authOrigin = process.env.EVALUATOR_AUTH_ORIGIN;
 
-if (!appEnvironment || !["local", "preview", "evaluation"].includes(appEnvironment)) {
-  throw new Error("Evaluator auth synchronization is allowed only in local, preview, or evaluation environments.");
-}
-if (confirmation !== "DevFlow Conf 2027") {
-  throw new Error("Set EVALUATION_SEED_CONFIRM=\"DevFlow Conf 2027\" to synchronize evaluator auth intentionally.");
-}
 if (!authBaseUrl) throw new Error("NEON_AUTH_BASE_URL is required.");
 if (!authOrigin) throw new Error("EVALUATOR_AUTH_ORIGIN is required.");
 
@@ -67,6 +61,7 @@ function isInvalidCredentials(error: { status?: number; code?: string }): boolea
 }
 
 console.info(JSON.stringify({
+  runId: configuration.runId,
   personas: new Set(logins.map((login) => login.persona)).size,
   loginVariants: logins.length,
   ...result,

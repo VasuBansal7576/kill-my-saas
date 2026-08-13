@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "product": "ProgramFlow",
   "release": "V1",
   "status": "in_progress",
@@ -8,19 +8,44 @@
     "architecture": "architecture.md",
     "visual": "prototype/kill-my-saas-ui-prototype.html",
     "eval_specs": "Kill My SaaS Research Vault/Attachments/Kill My SaaS Evals Repository/specs/*.yaml",
-    "captured_eval_commit": "d99935c3e3c6c50c6b9292220260ccfe2df6d6d4"
+    "captured_eval_commit": "d99935c3e3c6c50c6b9292220260ccfe2df6d6d4",
+    "live_head_contract_date": "2026-08-13",
+    "live_head_note": "Counts and weights in release_contract supersede the older captured-vault totals; CFP-17/18 semantics match current public evaluator spec and EMB-15 is w3 per the delegated live contract."
   },
   "release_contract": {
     "human_requirements": 20,
+    "total_scenarios": 20,
+    "total_rubric_items": 98,
     "required_scenarios": 18,
-    "required_rubric_items": 84,
-    "required_item_points": 178,
+    "required_rubric_items": 86,
+    "required_item_points": 183,
     "crm_scenarios": 2,
     "crm_rubric_items": 12,
     "crm_item_points": 19,
+    "public_widgets_item_points": 35,
     "named_bonus_rows": 10,
     "production_fakes_allowed": false,
     "v2_allowed_before_v1_gate": false
+  },
+  "live_rubric_contract": {
+    "CFP-17": {
+      "weight": 2,
+      "type": "exists",
+      "scenarios": ["CFP-S1"],
+      "criterion": "An organizer can create a second event and both events coexist, each reachable through the event list or switcher."
+    },
+    "CFP-18": {
+      "weight": 2,
+      "type": "scoping",
+      "scenarios": ["CFP-S1"],
+      "criterion": "Submissions, sessions, and speakers are event-scoped and do not leak into another event."
+    },
+    "EMB-15": {
+      "weight": 3,
+      "type": "handoff",
+      "scenarios": ["EMB-S3"],
+      "criterion": "Organizer embed/share administration generates a snippet or share URL per widget with output formats, branding/colors, content filters, and field selection; manual proof covers different-origin live interactive rendering and offered JSON/XML/iCal outputs."
+    }
   },
   "status_values": [
     "not_started",
@@ -54,6 +79,8 @@
     "CFP-14": {"status":"implemented","implementation_record":"apps/worker/src/modules/forms-submissions + apps/worker/src/modules/program + apps/worker/src/modules/communications","automated_evidence":["apps/worker/src/modules/forms-submissions/domain.test.ts","apps/worker/src/modules/forms-submissions/service.integration.test.ts","apps/worker/src/modules/communications/service.integration.test.ts"],"manual_evidence":[],"blocker":null},
     "CFP-15": {"status":"implemented","implementation_record":"apps/worker/src/modules/forms-submissions + apps/worker/src/modules/program + apps/worker/src/modules/communications","automated_evidence":["apps/worker/src/modules/forms-submissions/domain.test.ts","apps/worker/src/modules/forms-submissions/service.integration.test.ts","apps/worker/src/modules/communications/service.integration.test.ts"],"manual_evidence":[],"blocker":null},
     "CFP-16": {"status":"implemented","implementation_record":"apps/worker/src/modules/forms-submissions + apps/worker/src/modules/program + apps/worker/src/modules/communications","automated_evidence":["apps/worker/src/modules/forms-submissions/domain.test.ts","apps/worker/src/modules/forms-submissions/service.integration.test.ts","apps/worker/src/modules/communications/service.integration.test.ts"],"manual_evidence":[],"blocker":null},
+    "CFP-17": {"status":"implemented","implementation_record":"apps/worker/src/modules/event-configuration + apps/web/src/app/WorkspaceOnboardingPage.tsx","automated_evidence":["tests/integration/event-configuration.test.ts","apps/web/src/App.test.tsx","packages/testkit/src/evaluation-environment.test.ts"],"manual_evidence":[],"blocker":null},
+    "CFP-18": {"status":"implemented","implementation_record":"server-side event-scoped module queries + run-scoped evaluator environment","automated_evidence":["apps/worker/src/modules/speaker-operations/service.integration.test.ts","packages/testkit/src/evaluation-environment.test.ts"],"manual_evidence":[],"blocker":null},
     "ABS-01": {"status":"implemented","implementation_record":"apps/worker/src/modules/reviews-decisions","automated_evidence":["apps/worker/src/modules/reviews-decisions/rules.test.ts","apps/worker/src/modules/reviews-decisions/service.test.ts","apps/worker/src/modules/reviews-decisions/workers-ai-adapter.test.ts"],"manual_evidence":[],"blocker":null},
     "ABS-02": {"status":"implemented","implementation_record":"apps/worker/src/modules/reviews-decisions","automated_evidence":["apps/worker/src/modules/reviews-decisions/rules.test.ts","apps/worker/src/modules/reviews-decisions/service.test.ts","apps/worker/src/modules/reviews-decisions/workers-ai-adapter.test.ts"],"manual_evidence":[],"blocker":null},
     "ABS-03": {"status":"implemented","implementation_record":"apps/worker/src/modules/reviews-decisions","automated_evidence":["apps/worker/src/modules/reviews-decisions/rules.test.ts","apps/worker/src/modules/reviews-decisions/service.test.ts","apps/worker/src/modules/reviews-decisions/workers-ai-adapter.test.ts"],"manual_evidence":[],"blocker":null},
@@ -120,7 +147,7 @@
     "EMB-12": {"status":"implemented","implementation_record":"apps/worker/src/modules/publishing + apps/web/src/features/public-program","automated_evidence":["apps/worker/src/modules/publishing/rules.test.ts","apps/worker/src/modules/publishing/serializers.test.ts","apps/web/src/features/public-program/model.test.ts"],"manual_evidence":[],"blocker":null},
     "EMB-13": {"status":"implemented","implementation_record":"apps/worker/src/modules/publishing + apps/web/src/features/public-program","automated_evidence":["apps/worker/src/modules/publishing/rules.test.ts","apps/worker/src/modules/publishing/serializers.test.ts","apps/web/src/features/public-program/model.test.ts"],"manual_evidence":[],"blocker":null},
     "EMB-14": {"status":"implemented","implementation_record":"apps/worker/src/modules/publishing + apps/web/src/features/public-program","automated_evidence":["apps/worker/src/modules/publishing/rules.test.ts","apps/worker/src/modules/publishing/serializers.test.ts","apps/web/src/features/public-program/model.test.ts"],"manual_evidence":[],"blocker":null},
-    "EMB-15": {"status":"implemented","implementation_record":"apps/worker/src/modules/publishing + apps/web/src/features/public-program","automated_evidence":["apps/worker/src/modules/publishing/rules.test.ts","apps/worker/src/modules/publishing/serializers.test.ts","apps/web/src/features/public-program/model.test.ts"],"manual_evidence":[],"blocker":null},
+    "EMB-15": {"status":"implemented","live_weight":3,"implementation_record":"apps/worker/src/modules/publishing + apps/web/src/features/public-program","automated_evidence":["apps/worker/src/modules/publishing/rules.test.ts","apps/worker/src/modules/publishing/serializers.test.ts","apps/web/src/features/public-program/model.test.ts"],"manual_evidence":[],"blocker":null},
     "EMB-16": {"status":"implemented","implementation_record":"apps/worker/src/modules/publishing + apps/web/src/features/public-program","automated_evidence":["apps/worker/src/modules/publishing/rules.test.ts","apps/worker/src/modules/publishing/serializers.test.ts","apps/web/src/features/public-program/model.test.ts"],"manual_evidence":[],"blocker":null},
     "CRM-01": {"status":"implemented","implementation_record":"apps/worker/src/modules/speaker-crm + apps/web/src/features/speaker-crm","automated_evidence":["apps/worker/src/modules/speaker-crm/csv.test.ts","apps/worker/src/modules/speaker-crm/service.integration.test.ts","apps/worker/src/modules/communications/service.integration.test.ts"],"manual_evidence":[],"blocker":null},
     "CRM-02": {"status":"implemented","implementation_record":"apps/worker/src/modules/speaker-crm + apps/web/src/features/speaker-crm","automated_evidence":["apps/worker/src/modules/speaker-crm/csv.test.ts","apps/worker/src/modules/speaker-crm/service.integration.test.ts","apps/worker/src/modules/communications/service.integration.test.ts"],"manual_evidence":[],"blocker":null},
@@ -145,7 +172,7 @@
       "module_owners": ["forms-submissions", "reviews-decisions", "communications"],
       "roles": ["organizer", "speaker", "reviewer", "anonymous_attendee"],
       "scenario_ids": ["CFP-S1", "CFP-S2", "CFP-S3", "CFP-S4"],
-      "requirement_ids": ["CFP-01", "CFP-02", "CFP-03", "CFP-04", "CFP-05", "CFP-06", "CFP-07", "CFP-08", "CFP-09", "CFP-10", "CFP-11", "CFP-12", "CFP-13", "CFP-14", "CFP-15", "CFP-16"],
+      "requirement_ids": ["CFP-01", "CFP-02", "CFP-03", "CFP-04", "CFP-05", "CFP-06", "CFP-07", "CFP-08", "CFP-09", "CFP-10", "CFP-11", "CFP-12", "CFP-13", "CFP-14", "CFP-15", "CFP-16", "CFP-17", "CFP-18"],
       "persisted_transition": "published form -> draft/submitted/versioned proposal -> decision -> linked session and event speakers",
       "downstream_handoff": ["reviews-decisions", "program", "speaker-operations", "communications"],
       "evidence": ["module integration tests", "CFP-S1..S4 Playwright chain", "provider delivery records"],

@@ -9,6 +9,28 @@ import {
 
 const fixture = {
   schema_version: 1,
+  live_evaluator_contract: {
+    total_items: 98,
+    total_scenarios: 20,
+    required_items: 86,
+    required_weighted_points: 183,
+    crm_items: 12,
+    crm_weighted_points: 19,
+    public_widgets_weighted_points: 35,
+    added_required_ids: ["CFP-17", "CFP-18"],
+    embed_share: { id: "EMB-15", weight: 3 },
+  },
+  ordered_scenario_start: {
+    precreated_cfp_forms: 0,
+    precreated_submissions: 0,
+    precreated_decisions: 0,
+    precreated_sessions: 0,
+    precreated_publications: 0,
+    decision_ownership: {
+      taming_ci: { scenario: "CFP-S4", outcome: "accepted" },
+      ai_pair: { scenario: "CFP-S4", outcome: "rejected" },
+    },
+  },
   event: {
     name: "DevFlow Conf 2027",
     starts_on: "2027-05-12",
