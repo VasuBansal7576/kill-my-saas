@@ -9,9 +9,9 @@ import {
   type Database,
 } from "@programflow/database";
 import { eq, inArray } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createToolingDatabase } from "../../../../../packages/database/src/tooling-client";
-import { provisionFirstLogin, sessionTokenFromCookie } from "./resolve-actor";
+import { provisionFirstLogin, sessionTokenFromCookie, sessionUserFromAuthProxy } from "./resolve-actor";
 
 const databaseUrl = process.env.DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -97,5 +97,49 @@ describe("session cookie parsing", () => {
       .toBe("bearer-token-value-12345");
     expect(sessionTokenFromCookie("__Secure-neon-auth.session_token=short.signature")).toBeNull();
     expect(sessionTokenFromCookie("__Secure-neon-auth.session_token=%E0%A4%A")).toBeNull();
+  });
+
+  it("resolves the authenticated user through the configured auth service", async () => {
+    const request = new Request("https://programflow.example/api/v1/session", {
+      headers: { cookie: "__Secure-neon-auth.session_token=bearer-token-value-12345.signature" },
+    });
+    const proxy = vi.fn().mockResolvedValue(Response.json({
+      session: {
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+      user: {
+        id: "auth-user-1",
+        email: "organizer@example.com",
+        name: "Jordan Alvarez",
+      },
+    }));
+
+    await expect(sessionUserFromAuthProxy(request, "https://auth.example.com", "x".repeat(32), proxy))
+      .resolves.toEqual({ id: "auth-user-1", email: "organizer@example.com", name: "Jordan Alvarez" });
+    expect(proxy).toHaveBeenCalledWith(expect.objectContaining({
+      path: "get-session",
+      baseUrl: "https://auth.example.com",
+      cookieSecret: "x".repeat(32),
+    }));
+  });
+
+  it("rejects missing, expired, and malformed auth sessions", async () => {
+    const noCookie = new Request("https://programflow.example/api/v1/session");
+    const proxy = vi.fn();
+    await expect(sessionUserFromAuthProxy(noCookie, "https://auth.example.com", "x".repeat(32), proxy))
+      .resolves.toBeNull();
+    expect(proxy).not.toHaveBeenCalled();
+
+    const request = new Request("https://programflow.example/api/v1/session", {
+      headers: { cookie: "__Secure-neon-auth.session_token=bearer-token-value-12345.signature" },
+    });
+    proxy.mockResolvedValueOnce(Response.json({
+      session: { expiresAt: new Date(Date.now() - 60_000).toISOString() },
+      user: { id: "auth-user-1", email: "organizer@example.com", name: "Jordan Alvarez" },
+    })).mockResolvedValueOnce(Response.json({ nope: true }));
+    await expect(sessionUserFromAuthProxy(request, "https://auth.example.com", "x".repeat(32), proxy))
+      .resolves.toBeNull();
+    await expect(sessionUserFromAuthProxy(request, "https://auth.example.com", "x".repeat(32), proxy))
+      .resolves.toBeNull();
   });
 });

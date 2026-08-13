@@ -9,6 +9,7 @@ import {
   rowsFromExecuteResult,
   type Database,
 } from "@programflow/database";
+import { handleAuthProxyRequest } from "@neondatabase/auth/server";
 import { and, eq, sql } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
@@ -16,6 +17,10 @@ import type { Env } from "../../env";
 import type { Actor, ActorContext } from "./actor";
 
 const SessionUserSchema = z.object({ id: z.string(), email: z.email(), name: z.string().nullish() });
+const AuthSessionSchema = z.object({
+  session: z.object({ expiresAt: z.coerce.date() }),
+  user: SessionUserSchema,
+});
 const SessionActorSchema = SessionUserSchema.extend({
   personId: z.string().uuid().nullable(),
   organizationRoles: z.array(z.object({
@@ -50,9 +55,22 @@ export const resolveActor = createMiddleware<{ Bindings: Env } & ActorContext>(a
     return;
   }
   actorCache.delete(sessionToken);
-  let session = await activeSessionActor(database, sessionToken);
-  if (!session) {
+  const authenticatedUser = await sessionUserFromAuthProxy(
+    context.req.raw,
+    context.env.NEON_AUTH_BASE_URL,
+    context.env.NEON_AUTH_COOKIE_SECRET,
+  );
+  if (!authenticatedUser) {
     return context.json({ error: { code: "unauthorized", message: "Sign in is required." } }, 401);
+  }
+  let session = await activeIdentityActor(database, authenticatedUser);
+  if (!session) {
+    session = {
+      ...authenticatedUser,
+      personId: null,
+      organizationRoles: [],
+      eventRoles: [],
+    };
   }
   if (!session.personId) {
     const personId = await provisionFirstLogin(database, session, context.req.path);
@@ -62,7 +80,7 @@ export const resolveActor = createMiddleware<{ Bindings: Env } & ActorContext>(a
         403,
       );
     }
-    session = await activeSessionActor(database, sessionToken);
+    session = await activeIdentityActor(database, authenticatedUser);
     if (!session?.personId) {
       return context.json(
         { error: { code: "identity_not_provisioned", message: "This identity has not been linked to a ProgramFlow person." } },
@@ -88,12 +106,12 @@ export const resolveActor = createMiddleware<{ Bindings: Env } & ActorContext>(a
   await next();
 });
 
-async function activeSessionActor(database: Database, token: string) {
+async function activeIdentityActor(database: Database, user: z.infer<typeof SessionUserSchema>) {
   const result = await database.execute(sql`
     select
-      auth_user.id::text as id,
-      auth_user.email,
-      auth_user.name,
+      ${user.id}::text as id,
+      ${user.email}::text as email,
+      ${user.name ?? null}::text as name,
       identity.person_id::text as "personId",
       coalesce((
         select jsonb_agg(jsonb_build_object(
@@ -111,17 +129,40 @@ async function activeSessionActor(database: Database, token: string) {
         from event_memberships as membership
         where membership.person_id = identity.person_id
       ), '[]'::jsonb) as "eventRoles"
-    from neon_auth.session as auth_session
-    inner join neon_auth.user as auth_user on auth_user.id = auth_session."userId"
-    left join identities as identity
-      on identity.provider = 'neon_auth'
-      and identity.provider_subject = auth_user.id::text
-    where auth_session.token = ${token}
-      and auth_session."expiresAt" > now()
-      and coalesce(auth_user.banned, false) = false
+    from identities as identity
+    where identity.provider = 'neon_auth'
+      and identity.provider_subject = ${user.id}
     limit 1
   `);
   return SessionActorSchema.safeParse(rowsFromExecuteResult(result)[0]).data ?? null;
+}
+
+type AuthProxy = typeof handleAuthProxyRequest;
+
+export async function sessionUserFromAuthProxy(
+  request: Request,
+  baseUrl: string,
+  cookieSecret: string | undefined,
+  proxy: AuthProxy = handleAuthProxyRequest,
+): Promise<z.infer<typeof SessionUserSchema> | null> {
+  if (!cookieSecret || !sessionTokenFromCookie(request.headers.get("cookie") ?? undefined)) return null;
+  const response = await proxy({
+    request: new Request(request.url, {
+      method: "GET",
+      headers: {
+        cookie: request.headers.get("cookie") ?? "",
+        origin: new URL(request.url).origin,
+      },
+    }),
+    path: "get-session",
+    baseUrl,
+    cookieSecret,
+    sameSite: "lax",
+  });
+  if (!response.ok) return null;
+  const parsed = AuthSessionSchema.safeParse(await response.json().catch(() => null));
+  if (!parsed.success || parsed.data.session.expiresAt <= new Date()) return null;
+  return parsed.data.user;
 }
 
 export function invalidateActorCache(cookieHeader: string | undefined) {
