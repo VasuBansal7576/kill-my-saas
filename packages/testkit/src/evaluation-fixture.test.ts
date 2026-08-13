@@ -130,4 +130,41 @@ describe("evaluator identity overrides", () => {
     expect(result).toEqual({ created: 1, existing: 1, verified: 2 });
     expect(existing.get("jordan@example.com")).toBe("organizer-test-password");
   });
+
+  it("paces auth requests and resumes after a bounded provider rate limit", async () => {
+    const [login] = buildEvaluatorAuthLogins(fixture, {}, {
+      organizer: "organizer-test-password",
+      speaker: "speaker-test-password",
+    }).filter((candidate) => candidate.email === "jordan@example.com");
+    if (!login) throw new Error("Organizer login fixture is missing.");
+
+    let now = 0;
+    const sleeps: number[] = [];
+    let verifyAttempts = 0;
+    let created = false;
+    const result = await ensureEvaluatorAuthLogins([login], {
+      async signUp() {
+        created = true;
+      },
+      async verify() {
+        verifyAttempts += 1;
+        if (verifyAttempts === 1) throw Object.assign(new Error("rate limited"), { status: 429 });
+        return created;
+      },
+    }, {
+      minIntervalMs: 100,
+      maxRateLimitRetries: 2,
+      rateLimitBackoffMs: () => 1_000,
+      isRateLimitError: (error) => (error as { status?: number }).status === 429,
+      now: () => now,
+      sleep: async (milliseconds) => {
+        sleeps.push(milliseconds);
+        now += milliseconds;
+      },
+    });
+
+    expect(result).toEqual({ created: 1, existing: 0, verified: 1 });
+    expect(verifyAttempts).toBe(3);
+    expect(sleeps).toEqual([1_000, 100, 100]);
+  });
 });

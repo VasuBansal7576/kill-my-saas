@@ -53,11 +53,32 @@ const result = await ensureEvaluatorAuthLogins(logins, {
       throw caught;
     }
   },
+}, {
+  // Neon Auth applies a stricter account-operation limit than ordinary API reads.
+  // Keep the sync serial, checkpoint-safe, and deliberately below that burst rate.
+  minIntervalMs: readNonnegativeInteger("EVALUATOR_AUTH_MIN_INTERVAL_MS", 2_500),
+  maxRateLimitRetries: readNonnegativeInteger("EVALUATOR_AUTH_RATE_LIMIT_RETRIES", 2),
+  rateLimitBackoffMs: (attempt) => Math.min(60_000, 30_000 * 2 ** (attempt - 1)),
+  isRateLimitError,
 });
 
 function isInvalidCredentials(error: { status?: number; code?: string }): boolean {
   return error.status === 401
     || ["INVALID_EMAIL_OR_PASSWORD", "invalid_credentials"].includes(error.code ?? "");
+}
+
+function isRateLimitError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { status?: number; code?: string };
+  return candidate.status === 429 || candidate.code === "over_request_rate_limit";
+}
+
+function readNonnegativeInteger(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${name} must be a non-negative integer.`);
+  return parsed;
 }
 
 console.info(JSON.stringify({
@@ -86,8 +107,11 @@ function parseStringRecord(name: string, raw: string | undefined): Record<string
 function authOperationError(
   operation: "create" | "verify",
   login: EvaluatorAuthLogin,
-  error: { code?: string; message?: string },
+  error: { status?: number; code?: string; message?: string },
 ): Error {
   const reason = error.code ?? error.message ?? "unknown_auth_error";
-  return new Error(`Could not ${operation} evaluator login ${login.persona} at ${login.email}: ${reason}.`);
+  return Object.assign(
+    new Error(`Could not ${operation} evaluator login ${login.persona}: ${reason}.`),
+    { status: error.status, code: error.code },
+  );
 }

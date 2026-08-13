@@ -72,6 +72,15 @@ export interface EvaluatorAuthRegistrar {
   verify(login: EvaluatorAuthLogin): Promise<boolean>;
 }
 
+export interface EvaluatorAuthSyncOptions {
+  minIntervalMs?: number;
+  maxRateLimitRetries?: number;
+  rateLimitBackoffMs?: (retryAttempt: number) => number;
+  isRateLimitError?: (error: unknown) => boolean;
+  now?: () => number;
+  sleep?: (milliseconds: number) => Promise<void>;
+}
+
 export function applyPersonaEmailOverrides(
   input: unknown,
   overrides: Readonly<Record<string, string | undefined>>,
@@ -139,20 +148,46 @@ export function buildEvaluatorAuthLogins(
 export async function ensureEvaluatorAuthLogins(
   logins: readonly EvaluatorAuthLogin[],
   registrar: EvaluatorAuthRegistrar,
+  options: EvaluatorAuthSyncOptions = {},
 ): Promise<{ created: number; existing: number; verified: number }> {
   let created = 0;
   let existing = 0;
   let verified = 0;
+  const minIntervalMs = Math.max(0, options.minIntervalMs ?? 0);
+  const maxRateLimitRetries = Math.max(0, options.maxRateLimitRetries ?? 0);
+  const rateLimitBackoffMs = options.rateLimitBackoffMs ?? ((attempt) => Math.min(60_000, 2_000 * 2 ** (attempt - 1)));
+  const isRateLimitError = options.isRateLimitError ?? (() => false);
+  const now = options.now ?? Date.now;
+  const sleep = options.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+  let lastRequestAt: number | null = null;
+
+  async function authRequest<T>(operation: () => Promise<T>): Promise<T> {
+    let retries = 0;
+    while (true) {
+      if (lastRequestAt !== null) {
+        const remaining = minIntervalMs - (now() - lastRequestAt);
+        if (remaining > 0) await sleep(remaining);
+      }
+      lastRequestAt = now();
+      try {
+        return await operation();
+      } catch (error) {
+        if (!isRateLimitError(error) || retries >= maxRateLimitRetries) throw error;
+        retries += 1;
+        await sleep(Math.max(0, rateLimitBackoffMs(retries)));
+      }
+    }
+  }
 
   for (const login of logins) {
-    if (await registrar.verify(login)) {
+    if (await authRequest(() => registrar.verify(login))) {
       existing += 1;
       verified += 1;
       continue;
     }
 
-    await registrar.signUp(login);
-    if (!await registrar.verify(login)) {
+    await authRequest(() => registrar.signUp(login));
+    if (!await authRequest(() => registrar.verify(login))) {
       throw new Error(`Evaluator login verification failed for ${login.persona} at ${login.email}.`);
     }
     created += 1;
