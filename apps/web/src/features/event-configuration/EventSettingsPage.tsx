@@ -64,19 +64,19 @@ export function EventSettingsPage() {
         <section className="settings-section">
           <div className="section-head"><h2>Event details</h2><span>Required</span></div>
           <div className="form-grid">
-            <label className="wide">Event name<input {...register("name", { required: true, minLength: 3 })} />{errors.name ? <small>Enter at least three characters.</small> : null}</label>
-            <label>Starts on<input type="date" {...register("startsOn", { required: true })} /></label>
-            <label>Ends on<input type="date" {...register("endsOn", { required: true })} /></label>
-            <label className="wide">Location<input {...register("location", { required: true })} /></label>
-            <label>Timezone<input {...register("timezone", { required: true })} /></label>
-            <label>Primary color<input type="color" {...register("primaryColor", { required: true })} /></label>
+            <label className="wide" htmlFor="settings-name">Event name<input id="settings-name" {...validationAttributes(Boolean(errors.name), "settings-name")} {...register("name", { required: true, minLength: 3 })} />{errors.name ? <small id="settings-name-error">Enter at least three characters.</small> : null}</label>
+            <label htmlFor="settings-starts-on">Starts on<input id="settings-starts-on" {...validationAttributes(Boolean(errors.startsOn), "settings-starts-on")} type="date" {...register("startsOn", { required: true })} />{errors.startsOn ? <small id="settings-starts-on-error">Choose a start date.</small> : null}</label>
+            <label htmlFor="settings-ends-on">Ends on<input id="settings-ends-on" {...validationAttributes(Boolean(errors.endsOn), "settings-ends-on")} type="date" {...register("endsOn", { required: true })} />{errors.endsOn ? <small id="settings-ends-on-error">Choose an end date.</small> : null}</label>
+            <label className="wide" htmlFor="settings-location">Location<input id="settings-location" {...validationAttributes(Boolean(errors.location), "settings-location")} {...register("location", { required: true })} />{errors.location ? <small id="settings-location-error">Enter a venue or Online.</small> : null}</label>
+            <label htmlFor="settings-timezone">Timezone<input id="settings-timezone" {...validationAttributes(Boolean(errors.timezone), "settings-timezone")} {...register("timezone", { required: true })} />{errors.timezone ? <small id="settings-timezone-error">Enter an IANA timezone.</small> : null}</label>
+            <label htmlFor="settings-primary-color">Primary color<input id="settings-primary-color" {...validationAttributes(Boolean(errors.primaryColor), "settings-primary-color")} type="color" {...register("primaryColor", { required: true })} />{errors.primaryColor ? <small id="settings-primary-color-error">Choose a primary color.</small> : null}</label>
           </div>
         </section>
         <section className="settings-section">
           <div className="section-head"><h2>Program catalogs</h2><span>One per line</span></div>
-          <label>Tracks<textarea rows={5} {...register("tracks", { required: true })} /></label>
-          <label>Formats <small>Name | minutes</small><textarea rows={6} {...register("formats", { required: true })} /></label>
-          <label>Rooms<textarea rows={5} {...register("rooms", { required: true })} /></label>
+          <label htmlFor="settings-tracks">Tracks<textarea id="settings-tracks" {...validationAttributes(Boolean(errors.tracks), "settings-tracks")} rows={5} {...register("tracks", { required: true })} />{errors.tracks ? <small id="settings-tracks-error">Add at least one track.</small> : null}</label>
+          <label htmlFor="settings-formats">Formats <small>Name | minutes</small><textarea id="settings-formats" {...validationAttributes(Boolean(errors.formats), "settings-formats")} rows={6} {...register("formats", { required: true })} />{errors.formats ? <small id="settings-formats-error">Add at least one format and duration.</small> : null}</label>
+          <label htmlFor="settings-rooms">Rooms<textarea id="settings-rooms" {...validationAttributes(Boolean(errors.rooms), "settings-rooms")} rows={5} {...register("rooms", { required: true })} />{errors.rooms ? <small id="settings-rooms-error">Add at least one room.</small> : null}</label>
         </section>
       </form>
     </>
@@ -108,4 +108,8 @@ function toInput(values: EventFormValues): EventConfigurationInput {
     }),
     rooms: lines(values.rooms),
   };
+}
+
+function validationAttributes(invalid: boolean, id: string) {
+  return { "aria-invalid": invalid || undefined, "aria-describedby": invalid ? `${id}-error` : undefined } as const;
 }

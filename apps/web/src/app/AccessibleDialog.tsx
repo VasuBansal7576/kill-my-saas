@@ -55,7 +55,7 @@ export function AccessibleDialog({
       document.body.style.overflow = previousOverflow;
       root?.removeAttribute("inert");
       root?.removeAttribute("aria-hidden");
-      restoreFocusRef.current?.focus();
+      if (restoreFocusRef.current?.isConnected) restoreFocusRef.current.focus();
     };
   }, [initialFocus]);
 
@@ -89,10 +89,10 @@ export function AccessibleDialog({
   }
 
   const content = (
-    <div className={backdropClassName} onMouseDown={onBackdropMouseDown}>
+    <div className={["accessible-dialog-backdrop", backdropClassName].filter(Boolean).join(" ")} onMouseDown={onBackdropMouseDown}>
       <section
         ref={dialogRef}
-        className={dialogClassName}
+        className={["accessible-dialog-surface", dialogClassName].filter(Boolean).join(" ")}
         role="dialog"
         aria-modal="true"
         aria-label={label}

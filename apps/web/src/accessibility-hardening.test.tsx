@@ -23,6 +23,21 @@ describe("release accessibility hardening", () => {
     expect(markup).toContain('aria-label="Session details: Reliable systems"');
     expect(markup).toContain("data-dialog-initial-focus");
     expect(markup).toContain('tabindex="-1"');
+    expect(markup).toContain('class="accessible-dialog-backdrop backdrop"');
+    expect(markup).toContain('class="accessible-dialog-surface dialog"');
+  });
+
+  it("keeps shared keyboard focus, validation, tap-target, and reduced-motion rules", () => {
+    const globalCss = readFileSync(new URL("./styles/global.css", import.meta.url), "utf8");
+    const onboarding = readFileSync(new URL("./app/WorkspaceOnboardingPage.tsx", import.meta.url), "utf8");
+    const eventSettings = readFileSync(new URL("./features/event-configuration/EventSettingsPage.tsx", import.meta.url), "utf8");
+    expect(globalCss).toContain('--control-height: 44px');
+    expect(globalCss).toContain('[aria-invalid="true"]');
+    expect(globalCss).toContain(":focus-visible");
+    expect(globalCss).toContain("prefers-reduced-motion: reduce");
+    expect(globalCss).toContain(".accessible-dialog-surface");
+    expect(onboarding).toContain("validationAttributes(Boolean(errors.endsOn)");
+    expect(eventSettings).toContain("validationAttributes(Boolean(errors.formats)");
   });
 
   it("keeps all speaker portal destinations in persistent role navigation", () => {

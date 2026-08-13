@@ -92,21 +92,21 @@ export function WorkspaceOnboardingPage({ additionalEvent = false }: { additiona
         <form className="onboarding-form" onSubmit={submit}>
           {!additionalEvent ? <fieldset>
             <legend>Organization</legend>
-            <label>Organization name<input {...register("organizationName", { required: true, minLength: 2, onBlur: () => fillSlug("organizationName", "organizationSlug") })} />{errors.organizationName ? <small>Enter your organization name.</small> : null}</label>
-            <label>Organization URL<input placeholder="my-organization" {...register("organizationSlug", { required: true, pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ })} />{errors.organizationSlug ? <small>Use lowercase letters, numbers, and hyphens.</small> : null}</label>
+            <label htmlFor="organization-name">Organization name<input id="organization-name" {...validationAttributes(Boolean(errors.organizationName), "organization-name")} {...register("organizationName", { required: true, minLength: 2, onBlur: () => fillSlug("organizationName", "organizationSlug") })} />{errors.organizationName ? <small id="organization-name-error">Enter your organization name.</small> : null}</label>
+            <label htmlFor="organization-slug">Organization URL<input id="organization-slug" {...validationAttributes(Boolean(errors.organizationSlug), "organization-slug")} placeholder="my-organization" {...register("organizationSlug", { required: true, pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ })} />{errors.organizationSlug ? <small id="organization-slug-error">Use lowercase letters, numbers, and hyphens.</small> : null}</label>
           </fieldset> : null}
           <fieldset>
             <legend>First event</legend>
-            <label>Event name<input {...register("eventName", { required: true, minLength: 3, onBlur: () => fillSlug("eventName", "eventSlug") })} />{errors.eventName ? <small>Enter at least three characters.</small> : null}</label>
-            <label>Public event URL<input placeholder="my-event-2027" {...register("eventSlug", { required: true, pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ })} />{errors.eventSlug ? <small>Use lowercase letters, numbers, and hyphens.</small> : null}</label>
+            <label htmlFor="event-name">Event name<input id="event-name" {...validationAttributes(Boolean(errors.eventName), "event-name")} {...register("eventName", { required: true, minLength: 3, onBlur: () => fillSlug("eventName", "eventSlug") })} />{errors.eventName ? <small id="event-name-error">Enter at least three characters.</small> : null}</label>
+            <label htmlFor="event-slug">Public event URL<input id="event-slug" {...validationAttributes(Boolean(errors.eventSlug), "event-slug")} placeholder="my-event-2027" {...register("eventSlug", { required: true, pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ })} />{errors.eventSlug ? <small id="event-slug-error">Use lowercase letters, numbers, and hyphens.</small> : null}</label>
             <div className="onboarding-row">
-              <label>Starts on<input type="date" {...register("startsOn", { required: true })} /></label>
-              <label>Ends on<input type="date" {...register("endsOn", { required: true, validate: (value) => value >= getValues("startsOn") })} />{errors.endsOn ? <small>End date must follow the start date.</small> : null}</label>
+              <label htmlFor="event-starts-on">Starts on<input id="event-starts-on" {...validationAttributes(Boolean(errors.startsOn), "event-starts-on")} type="date" {...register("startsOn", { required: true })} />{errors.startsOn ? <small id="event-starts-on-error">Choose a start date.</small> : null}</label>
+              <label htmlFor="event-ends-on">Ends on<input id="event-ends-on" {...validationAttributes(Boolean(errors.endsOn), "event-ends-on")} type="date" {...register("endsOn", { required: true, validate: (value) => value >= getValues("startsOn") })} />{errors.endsOn ? <small id="event-ends-on-error">End date must follow the start date.</small> : null}</label>
             </div>
-            <label>Location<input placeholder="Venue or Online" {...register("location", { required: true, minLength: 2 })} /></label>
+            <label htmlFor="event-location">Location<input id="event-location" {...validationAttributes(Boolean(errors.location), "event-location")} placeholder="Venue or Online" {...register("location", { required: true, minLength: 2 })} />{errors.location ? <small id="event-location-error">Enter a venue or Online.</small> : null}</label>
             <div className="onboarding-row">
-              <label>Timezone<input {...register("timezone", { required: true })} /></label>
-              <label>Brand color<input type="color" {...register("primaryColor", { required: true })} /></label>
+              <label htmlFor="event-timezone">Timezone<input id="event-timezone" {...validationAttributes(Boolean(errors.timezone), "event-timezone")} {...register("timezone", { required: true })} />{errors.timezone ? <small id="event-timezone-error">Enter an IANA timezone.</small> : null}</label>
+              <label htmlFor="event-primary-color">Brand color<input id="event-primary-color" {...validationAttributes(Boolean(errors.primaryColor), "event-primary-color")} type="color" {...register("primaryColor", { required: true })} />{errors.primaryColor ? <small id="event-primary-color-error">Choose a brand color.</small> : null}</label>
             </div>
           </fieldset>
           {message ? <div className="form-error" role="alert">{message}</div> : null}
@@ -138,4 +138,8 @@ function defaultValues(): SetupFields {
 function slugify(value: string): string {
   return value.trim().normalize("NFKD").toLocaleLowerCase("en-US")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 63);
+}
+
+function validationAttributes(invalid: boolean, id: string) {
+  return { "aria-invalid": invalid || undefined, "aria-describedby": invalid ? `${id}-error` : undefined } as const;
 }
