@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { AccessibleDialog } from "../../app/AccessibleDialog";
 import { eventDateTimeInputValue, eventLocalDateTimeToIso } from "../../app/event-time";
 import "./forms-submissions.css";
 import { readApi, type FieldType, type FormField, type FormWorkspace } from "./model";
@@ -12,6 +13,7 @@ export function CfpBuilderPage() {
   const [form, setForm] = useState<BuilderForm>(() => emptyForm());
   const [state, setState] = useState<"loading" | "idle" | "saving" | "publishing" | "saved" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -80,6 +82,16 @@ export function CfpBuilderPage() {
     [next[index], next[target]] = [next[target]!, next[index]!];
     patch("fields", next.map((field, sortOrder) => ({ ...field, sortOrder })));
   };
+  const removeField = (index: number) => {
+    patch("fields", form.fields.filter((_, fieldIndex) => fieldIndex !== index).map((item, sortOrder) => ({ ...item, sortOrder })));
+    setRemoveTarget(null);
+  };
+  const requestFieldRemoval = (index: number) => {
+    const field = form.fields[index];
+    if (!field) return;
+    if (fieldRemovalImpact(field, form.fields, workspace?.form?.fields ?? [])) setRemoveTarget(index);
+    else removeField(index);
+  };
 
   return (
     <div className="cfp-workspace">
@@ -110,28 +122,21 @@ export function CfpBuilderPage() {
                     <button type="button" onClick={() => moveField(index, 1)} disabled={index === form.fields.length - 1} aria-label={`Move ${field.label} down`}>↓</button>
                   </div>
                   <div className="cfp-field-editor">
-                    <div className="cfp-inline-grid">
-                      <label>Label<input value={field.label} onChange={(event) => patchField(index, { label: event.target.value })} /></label>
-                      <label>Field key<input value={field.key} onChange={(event) => patchField(index, { key: slugKey(event.target.value) })} /></label>
-                      <label>Type<select value={field.type} onChange={(event) => patchField(index, { type: event.target.value as FieldType })}>{fieldTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                    <div className="cfp-field-summary">
+                      <label>Question label<input value={field.label} onChange={(event) => patchField(index, { label: event.target.value })} /></label>
+                      <label>Answer type<select value={field.type} onChange={(event) => patchField(index, { type: event.target.value as FieldType })}>{fieldTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                      <label className="cfp-check"><input type="checkbox" checked={field.required} onChange={(event) => patchField(index, { required: event.target.checked })} /> Required</label>
                     </div>
-                    {(field.type === "select" || field.type === "multi_select") ? (
-                      <label>Options <small>one per line, or choose an event catalog</small>
-                        <select aria-label={`${field.label} option source`} value={typeof field.settings.catalog === "string" ? field.settings.catalog : "custom"} onChange={(event) => patchField(index, { settings: event.target.value === "custom" ? { ...field.settings, catalog: undefined } : { ...field.settings, catalog: event.target.value as "track" | "format" } })}>
-                          <option value="custom">Custom options</option><option value="track">Event tracks</option><option value="format">Event formats</option>
-                        </select>
-                        {!field.settings.catalog ? <textarea aria-label={`${field.label} options, one per line`} rows={3} value={(field.settings.options ?? []).join("\n")} onChange={(event) => patchField(index, { settings: { ...field.settings, options: lines(event.target.value) } })} /> : null}
-                        <span>Routing rules <small>one per line: option = reviewer queue key</small></span>
-                        <textarea aria-label={`${field.label} routing rules`} rows={2} value={formatRouting(field.settings.routeByValue)} onChange={(event) => patchField(index, { settings: { ...field.settings, routeByValue: parseRouting(event.target.value) } })} />
-                      </label>
-                    ) : null}
-                    <div className="cfp-inline-grid">
-                      <label>Show when field<select value={field.condition?.fieldKey ?? ""} onChange={(event) => patchField(index, { condition: event.target.value ? { fieldKey: event.target.value, operator: "equals", value: "" } : null })}><option value="">Always visible</option>{form.fields.filter((_, candidate) => candidate !== index).map((candidate) => <option key={candidate.key} value={candidate.key}>{candidate.label}</option>)}</select></label>
-                      {field.condition ? <label>Equals<input value={String(field.condition.value ?? "")} onChange={(event) => patchField(index, { condition: { ...field.condition!, value: event.target.value } })} /></label> : null}
-                      <label className="cfp-check"><input type="checkbox" checked={field.required} onChange={(event) => patchField(index, { required: event.target.checked })} /> Required when visible</label>
-                    </div>
+                    {(field.type === "select" || field.type === "multi_select") ? <details className="cfp-field-disclosure"><summary>Answer choices</summary><label>Where choices come from <small>Use an event list, or enter one choice per line.</small><select aria-label={`${field.label} option source`} value={typeof field.settings.catalog === "string" ? field.settings.catalog : "custom"} onChange={(event) => patchField(index, { settings: event.target.value === "custom" ? { ...field.settings, catalog: undefined } : { ...field.settings, catalog: event.target.value as "track" | "format" } })}><option value="custom">Custom choices</option><option value="track">Event tracks</option><option value="format">Event formats</option></select>{!field.settings.catalog ? <textarea aria-label={`${field.label} options, one per line`} rows={3} value={(field.settings.options ?? []).join("\n")} onChange={(event) => patchField(index, { settings: { ...field.settings, options: lines(event.target.value) } })} /> : null}</label></details> : null}
+                    <details className="cfp-field-disclosure cfp-field-advanced">
+                      <summary>Advanced · display and reviewer routing</summary>
+                      <p>Use these controls only when an answer should reveal this question or send a proposal to a particular reviewer group.</p>
+                      <label>Internal question ID <small>Used by saved answers and conditions. Avoid changing it after proposals arrive.</small><input value={field.key} onChange={(event) => patchField(index, { key: slugKey(event.target.value) })} /></label>
+                      {(field.type === "select" || field.type === "multi_select") ? <label>Send answers to reviewer groups <small>Write one choice and reviewer group per line. Example: Platform = Platform reviewers.</small><textarea aria-label={`${field.label} routing rules`} rows={2} value={formatRouting(field.settings.routeByValue)} onChange={(event) => patchField(index, { settings: { ...field.settings, routeByValue: parseRouting(event.target.value) } })} /></label> : null}
+                      <div className="cfp-inline-grid"><label>Only show this question when<select value={field.condition?.fieldKey ?? ""} onChange={(event) => patchField(index, { condition: event.target.value ? { fieldKey: event.target.value, operator: "equals", value: "" } : null })}><option value="">Always show this question</option>{form.fields.filter((_, candidate) => candidate !== index).map((candidate) => <option key={candidate.key} value={candidate.key}>{candidate.label}</option>)}</select></label>{field.condition ? <label>Answer is<input value={String(field.condition.value ?? "")} onChange={(event) => patchField(index, { condition: { ...field.condition!, value: event.target.value } })} /></label> : null}</div>
+                    </details>
                   </div>
-                  <button type="button" className="cfp-remove" onClick={() => patch("fields", form.fields.filter((_, fieldIndex) => fieldIndex !== index).map((item, sortOrder) => ({ ...item, sortOrder })))}>Remove question<span className="visually-hidden">: {field.label}</span></button>
+                  <button type="button" className="cfp-remove" aria-label={`Remove question ${field.label}`} onClick={() => requestFieldRemoval(index)}>Remove question</button>
                 </article>
               ))}
             </div>
@@ -170,6 +175,7 @@ export function CfpBuilderPage() {
           </aside>
         </div>
       )}
+      {removeTarget !== null && form.fields[removeTarget] ? <AccessibleDialog close={() => setRemoveTarget(null)} titleId="remove-cfp-field-title" backdropClassName="submission-decision-backdrop" dialogClassName="submission-decision-dialog"><p className="eyebrow">Confirm question removal</p><h2 id="remove-cfp-field-title">Remove “{form.fields[removeTarget].label}”?</h2><p>{fieldRemovalImpact(form.fields[removeTarget], form.fields, workspace?.form?.fields ?? [])} Removing it can disconnect saved answers, display rules, or reviewer routing. This change is not persisted until you save the form.</p><footer><button data-dialog-initial-focus type="button" className="secondary-action" onClick={() => setRemoveTarget(null)}>Keep question</button><button type="button" className="primary-action danger" onClick={() => removeField(removeTarget)}>Remove question</button></footer></AccessibleDialog> : null}
     </div>
   );
 }
@@ -262,3 +268,10 @@ function parseRouting(value: string) {
   }));
 }
 function slugKey(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""); }
+function fieldRemovalImpact(field: FormField, fields: FormField[], persistedFields: FormField[]) {
+  const impacts: string[] = [];
+  if (persistedFields.some((candidate) => candidate.key === field.key)) impacts.push("This question is part of the saved form and may already have proposal answers.");
+  if (Object.keys(field.settings.routeByValue ?? {}).length) impacts.push("Its answers route proposals to reviewer groups.");
+  if (fields.some((candidate) => candidate.condition?.fieldKey === field.key)) impacts.push("Other questions depend on its answer.");
+  return impacts.join(" ");
+}

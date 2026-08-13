@@ -64,4 +64,21 @@ describe("public CFP participant experience", () => {
     expect(cfpAvailabilityLabel("open", null, null, "America/Los_Angeles", () => "unused")).toBe("Open-ended / no deadline set");
     expect(cfpAvailabilityLabel("open", null, "2027-01-30T20:00:00Z", "America/Los_Angeles", () => "Jan 30, noon PST")).toBe("Open until Jan 30, noon PST");
   });
+
+  it("keeps the builder scannable and explains destructive and disabled actions", () => {
+    const page = readFileSync(new URL("./PublicCfpPage.tsx", import.meta.url), "utf8");
+    const builder = readFileSync(new URL("./CfpBuilderPage.tsx", import.meta.url), "utf8");
+
+    expect(builder).toContain("Question label");
+    expect(builder).toContain("Answer type");
+    expect(builder).toContain("Advanced · display and reviewer routing");
+    expect(builder).toContain("Internal question ID");
+    expect(builder).toContain("Only show this question when");
+    expect(builder).toContain("Send answers to reviewer groups");
+    expect(builder).toContain("Confirm question removal");
+    expect(builder).toContain("Other questions depend on its answer.");
+    expect(builder).toContain("aria-label={`Remove question ${field.label}`}");
+    expect(page).toContain('aria-describedby={draftDisabledReason ? "save-draft-reason" : undefined}');
+    expect(page).toContain("Enter at least 3 characters in Proposal title to save a draft.");
+  });
 });

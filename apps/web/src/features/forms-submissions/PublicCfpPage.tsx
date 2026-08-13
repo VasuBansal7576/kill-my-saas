@@ -140,6 +140,11 @@ export function PublicCfpPage() {
 
   const { event, form } = publicForm;
   const isOpen = form.availability === "open";
+  const draftDisabledReason = state === "saving"
+    ? "Wait for the current save to finish."
+    : title.trim().length < 3
+      ? "Enter at least 3 characters in Proposal title to save a draft."
+      : null;
   return (
     <main id="main-content" className="public-cfp" style={{ "--cfp-brand": event.primaryColor } as CSSProperties}>
       <header className="public-cfp-header">
@@ -215,7 +220,7 @@ export function PublicCfpPage() {
               {message ? <div className={state === "error" ? "form-error" : "saved-notice"} role={state === "error" ? "alert" : "status"}>{message}</div> : null}
               <div className="cfp-submit-actions">
                 <div className="cfp-submit-feedback" aria-live="polite">{state === "saving" ? (pendingAction === "draft" ? "Saving your draft…" : "Submitting your proposal…") : "Drafts stay private until you submit."}</div>
-                {form.definition.allowDrafts && selected?.state !== "submitted" ? <button type="button" className="secondary-action" disabled={state === "saving" || title.trim().length < 3} onClick={() => void save(true)}>{state === "saving" && pendingAction === "draft" ? "Saving draft…" : "Save draft"}</button> : null}
+                {form.definition.allowDrafts && selected?.state !== "submitted" ? <><button type="button" className="secondary-action" aria-describedby={draftDisabledReason ? "save-draft-reason" : undefined} disabled={Boolean(draftDisabledReason)} onClick={() => void save(true)}>{state === "saving" && pendingAction === "draft" ? "Saving draft…" : "Save draft"}</button>{draftDisabledReason ? <span id="save-draft-reason" className="cfp-draft-reason" role="status">{draftDisabledReason}</span> : null}</> : null}
                 <button type="submit" className="primary-action" disabled={state === "saving"}>{state === "saving" && pendingAction === "submit" ? "Submitting proposal…" : selected?.state === "submitted" ? "Save proposal changes" : "Submit proposal"}</button>
               </div>
             </form>

@@ -92,6 +92,13 @@
   flex-wrap: wrap;
 }
 
+.cfp-draft-reason {
+  flex-basis: 100%;
+  color: #b5a170;
+  font-size: 11px;
+  text-align: right;
+}
+
 .secondary-action {
   display: inline-flex;
   align-items: center;
@@ -284,6 +291,33 @@
 .cfp-builder-field .cfp-inline-grid:first-child {
   grid-template-columns: 1.4fr 1fr .8fr;
 }
+
+.cfp-field-summary {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(140px, .8fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.cfp-field-disclosure {
+  border-top: 1px solid #2d332f;
+  padding-top: 10px;
+}
+
+.cfp-field-disclosure summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: #aeb7b1;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.cfp-field-disclosure[open] summary { margin-bottom: 10px; }
+.cfp-field-advanced > p { margin: 0 0 12px; color: #8f9993; font-size: 11px; line-height: 1.6; }
+.cfp-field-advanced > label + label,
+.cfp-field-advanced > label + .cfp-inline-grid { margin-top: 12px; }
 
 .cfp-check,
 .cfp-toggle,
@@ -977,6 +1011,7 @@
   .cfp-builder-field,
   .cfp-form-grid,
   .cfp-inline-grid,
+  .cfp-field-summary,
   .cfp-builder-field .cfp-inline-grid:first-child,
   .cfp-participant-fields,
   .speaker-proposal-grid {

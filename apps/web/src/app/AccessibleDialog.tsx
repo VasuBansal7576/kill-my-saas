@@ -57,7 +57,7 @@ export function AccessibleDialog({
     return () => {
       document.body.style.overflow = previousOverflow;
       const anotherDialogIsOpen = [...document.querySelectorAll<HTMLElement>("[data-dialog-id]")]
-        .some((candidate) => candidate !== dialogRef.current);
+        .some((candidate) => candidate !== dialog);
       if (!anotherDialogIsOpen) {
         root?.removeAttribute("inert");
         root?.removeAttribute("aria-hidden");
