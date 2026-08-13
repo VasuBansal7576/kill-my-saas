@@ -13,6 +13,9 @@ import { formatEventDateRange } from "./app/event-time";
 const LoginPage = lazy(async () => ({
   default: (await import("./app/LoginPage")).LoginPage,
 }));
+const AuthRecoveryPage = lazy(async () => ({
+  default: (await import("./app/AuthRecoveryPage")).AuthRecoveryPage,
+}));
 const EventSettingsPage = lazy(async () => ({
   default: (await import("./features/event-configuration/EventSettingsPage"))
     .EventSettingsPage,
@@ -154,6 +157,14 @@ export function App() {
             <LoginPage />
           </Suspense>
         }
+      />
+      <Route
+        path="/forgot-password"
+        element={<Suspense fallback={<div className="login-page">Loading account recovery…</div>}><AuthRecoveryPage /></Suspense>}
+      />
+      <Route
+        path="/reset-password"
+        element={<Suspense fallback={<div className="login-page">Loading password reset…</div>}><AuthRecoveryPage /></Suspense>}
       />
       <Route
         path="/onboarding"

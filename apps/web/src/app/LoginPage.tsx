@@ -1,6 +1,7 @@
 import { type FormEvent, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { authClient } from "./auth-client";
+import { PasswordInput } from "./PasswordInput";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -93,7 +94,8 @@ export function LoginPage() {
           <form onSubmit={submit}>
             {signingUp ? <label>Your name<input autoFocus autoComplete="name" required value={name} onChange={(event) => setName(event.target.value)} placeholder="Jordan Alvarez" /></label> : null}
             <label>Email address<input autoFocus={!signingUp} autoComplete="username" required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" /></label>
-            <label>Password<input autoComplete={signingUp ? "new-password" : "current-password"} minLength={8} required type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={signingUp ? "At least 8 characters" : "Enter your password"} /></label>
+            <PasswordInput label="Password" autoComplete={signingUp ? "new-password" : "current-password"} minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder={signingUp ? "Create a password" : "Enter your password"} help={signingUp ? "Use at least 8 characters." : undefined} />
+            {!signingUp ? <div className="login-recovery"><Link to="/forgot-password">Forgot password?</Link></div> : null}
             {error ? <div className="form-error" role="alert"><strong>We couldn’t continue</strong><span>{error}</span></div> : null}
             <button type="submit" disabled={submitting}>{submitting ? (signingUp ? "Creating your account…" : "Signing you in…") : (signingUp ? (accessContext === "organizer" ? "Create workspace" : "Create account & continue") : "Sign in")}</button>
           </form>
