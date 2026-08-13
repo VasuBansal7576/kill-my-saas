@@ -2,12 +2,24 @@ import type { CrmContact, CrmContactDetail, CrmDuplicateGroup, CrmEvent, CrmFilt
 
 function base(organizationId: string) { return `/api/v1/organizer/organizations/${organizationId}/speaker-crm`; }
 export async function requestCrmJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
-  if (!response.ok) {
-    const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
-    throw new Error(body?.error?.message ?? `Request failed with status ${response.status}.`);
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), 10_000);
+  const abortFromCaller = () => controller.abort();
+  init?.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+      throw new Error(body?.error?.message ?? `Request failed with status ${response.status}.`);
+    }
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (controller.signal.aborted && !init?.signal?.aborted) throw new Error("The Speaker CRM request took too long. Try again.", { cause: error });
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+    init?.signal?.removeEventListener("abort", abortFromCaller);
   }
-  return response.json() as Promise<T>;
 }
 function json(method: "POST" | "PATCH", body: unknown): RequestInit { return { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) }; }
 

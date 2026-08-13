@@ -23,6 +23,9 @@ import styles from "./speaker-crm.module.css";
 import type { CrmContact, CrmContactDetail, CrmDuplicateGroup, CrmEvent, CrmFilters, CrmMetrics, CrmPipeline, CrmSegment } from "./types";
 
 type Tab = "pipeline" | "directory" | "segments" | "analytics";
+type CrmResource = "directory" | "pipeline" | "segments" | "duplicates" | "metrics" | "events";
+type LoadStatus = "loading" | "ready" | "error";
+const initialResourceStatus: Record<CrmResource, LoadStatus> = { directory: "loading", pipeline: "loading", segments: "loading", duplicates: "loading", metrics: "loading", events: "loading" };
 const emptyFilters: CrmFilters = { search: "", companies: [], jobTitles: [], tags: [], metadata: {} };
 
 export function SpeakerCrmPage({ organizationId }: { organizationId: string }) {
@@ -41,22 +44,44 @@ export function SpeakerCrmPage({ organizationId }: { organizationId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [resourceStatus, setResourceStatus] = useState(initialResourceStatus);
+  const [resourceErrors, setResourceErrors] = useState<Partial<Record<CrmResource, string>>>({});
 
-  const loadAll = useCallback(async () => {
-    const [nextContacts, nextPipeline, nextSegments, nextDuplicates, nextMetrics, nextEvents] = await Promise.all([
-      getCrmDirectory(organizationId, filters), getCrmPipeline(organizationId), getCrmSegments(organizationId),
-      getCrmDuplicates(organizationId), getCrmMetrics(organizationId), getCrmEvents(organizationId),
-    ]);
-    setContacts(nextContacts); setPipeline(nextPipeline); setSegments(nextSegments); setDuplicates(nextDuplicates); setMetrics(nextMetrics); setEvents(nextEvents);
+  const loadCrmResource = useCallback(async <T,>(resource: CrmResource, request: () => Promise<T>, apply: (value: T) => void) => {
+    setResourceStatus((current) => ({ ...current, [resource]: "loading" }));
+    setResourceErrors((current) => { const next = { ...current }; delete next[resource]; return next; });
+    try {
+      const value = await request();
+      apply(value);
+      setResourceStatus((current) => ({ ...current, [resource]: "ready" }));
+    } catch (reason) {
+      setResourceErrors((current) => ({ ...current, [resource]: reason instanceof Error ? reason.message : "This Speaker CRM section could not be loaded." }));
+      setResourceStatus((current) => ({ ...current, [resource]: "error" }));
+    }
+  }, []);
+
+  const loadDirectory = useCallback(() => loadCrmResource("directory", () => getCrmDirectory(organizationId, filters), (nextContacts) => {
+    setContacts(nextContacts);
     setSelectedIds((current) => new Set([...current].filter((id) => nextContacts.some((contact) => contact.contactId === id))));
-  }, [organizationId, filters]);
+  }), [filters, loadCrmResource, organizationId]);
+  const loadPipeline = useCallback(() => loadCrmResource("pipeline", () => getCrmPipeline(organizationId), setPipeline), [loadCrmResource, organizationId]);
+  const loadSegments = useCallback(() => loadCrmResource("segments", () => getCrmSegments(organizationId), setSegments), [loadCrmResource, organizationId]);
+  const loadDuplicates = useCallback(() => loadCrmResource("duplicates", () => getCrmDuplicates(organizationId), setDuplicates), [loadCrmResource, organizationId]);
+  const loadMetrics = useCallback(() => loadCrmResource("metrics", () => getCrmMetrics(organizationId), setMetrics), [loadCrmResource, organizationId]);
+  const loadEvents = useCallback(() => loadCrmResource("events", () => getCrmEvents(organizationId), setEvents), [loadCrmResource, organizationId]);
+  const loadSupportingResources = useCallback(async () => {
+    await Promise.all([loadPipeline(), loadSegments(), loadDuplicates(), loadMetrics(), loadEvents()]);
+  }, [loadDuplicates, loadEvents, loadMetrics, loadPipeline, loadSegments]);
+  const loadAll = useCallback(async () => { await Promise.all([loadDirectory(), loadSupportingResources()]); }, [loadDirectory, loadSupportingResources]);
 
-  useEffect(() => { let active = true; void Promise.all([
-    getCrmDirectory(organizationId, filters), getCrmPipeline(organizationId), getCrmSegments(organizationId),
-    getCrmDuplicates(organizationId), getCrmMetrics(organizationId), getCrmEvents(organizationId),
-  ]).then(([nextContacts, nextPipeline, nextSegments, nextDuplicates, nextMetrics, nextEvents]) => {
-    if (!active) return; setContacts(nextContacts); setPipeline(nextPipeline); setSegments(nextSegments); setDuplicates(nextDuplicates); setMetrics(nextMetrics); setEvents(nextEvents);
-  }).catch((reason: Error) => { if (active) setError(reason.message); }); return () => { active = false; }; }, [organizationId, filters]);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => void loadDirectory());
+    return () => cancelAnimationFrame(frame);
+  }, [loadDirectory]);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => void loadSupportingResources());
+    return () => cancelAnimationFrame(frame);
+  }, [loadSupportingResources]);
 
   async function run(action: () => Promise<void>, fallback: string) {
     setBusy(true); setError(null); setNotice(null);
@@ -77,23 +102,31 @@ export function SpeakerCrmPage({ organizationId }: { organizationId: string }) {
   async function merge(primaryContactId: string, duplicateContactId: string) { await run(async () => { setDetail(await mergeCrmContacts(organizationId, primaryContactId, duplicateContactId)); setNotice("Contacts merged into the chosen primary profile; alternate emails and history were kept."); await loadAll(); }, "Could not merge the contacts."); }
 
   const selected = contacts.filter((contact) => selectedIds.has(contact.contactId));
+  const supportingIssues = (["duplicates", "events"] as const).filter((resource) => resourceStatus[resource] === "error");
   return <div className={styles.workspace}>
     <header className={styles.pageHead}>
       <div><p className={styles.eyebrow}>Optional extra credit · Organization level</p><h1>Speaker CRM</h1><p>A focused cross-event speaker database—not a generic sales CRM.</p></div>
       <div className={styles.actions}><label className={styles.secondary}>Import CSV<input aria-label="Import organization speaker contacts from a CSV file" hidden type="file" accept=".csv,text/csv" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); }} /></label><button className={styles.primary} type="button" onClick={() => setShowAdd((value) => !value)}>Add contact</button></div>
     </header>
     {notice ? <div className={styles.notice} role="status">{notice}</div> : null}{error ? <div className={styles.error} role="alert">{error}</div> : null}
+    {supportingIssues.length ? <div className={styles.supportingWarning} role="status"><span><strong>Some supporting CRM data is unavailable.</strong> {supportingIssues.map((resource) => resource === "duplicates" ? "duplicate suggestions" : "event choices").join(" and ")} did not load, but available CRM sections remain usable.</span><button type="button" onClick={() => void Promise.all([loadDuplicates(), loadEvents()])}>Retry supporting data</button></div> : null}
     {showAdd ? <form className={styles.addPanel} onSubmit={(event) => void createContact(event)}><div className={styles.sectionHead}><div><span>Canonical person</span><h2>Add organization contact</h2></div><button type="button" onClick={() => setShowAdd(false)}>Cancel</button></div><div className={styles.formGrid}><label>Name<input required name="displayName" /></label><label>Email<input required type="email" name="email" /></label><label>Company<input name="company" /></label><label>Job title<input name="jobTitle" /></label><label>Tags<input name="tags" placeholder="AI, Platform" /></label><label>Custom metadata<input name="metadata" placeholder="Topic=Agents, Region=APAC" /></label><label className={styles.wide}>Biography<textarea name="biography" rows={3} /></label><label className={styles.wide}>Internal notes<textarea name="internalNotes" rows={3} /></label></div><button className={styles.primary} disabled={busy}>Save contact</button></form> : null}
     <nav className={styles.tabs} aria-label="Speaker CRM sections">{(["pipeline", "directory", "segments", "analytics"] as Tab[]).map((value) => <button type="button" className={tab === value ? styles.activeTab : ""} onClick={() => setTab(value)} key={value}>{value}<small>{value === "directory" ? contacts.length : value === "segments" ? segments.length : value === "pipeline" ? pipeline?.stages.reduce((sum, stage) => sum + stage.contacts.length, 0) ?? 0 : ""}</small></button>)}</nav>
 
-    {tab === "pipeline" ? <PipelineView pipeline={pipeline} busy={busy} onOpen={openContact} onMove={(contactId, stageId) => void run(async () => { await moveCrmContact(organizationId, contactId, stageId, "Moved from CRM Kanban"); await loadAll(); }, "Could not move the contact.")} /> : null}
-    {tab === "directory" ? <DirectoryView contacts={contacts} filters={filters} selected={selectedIds} duplicates={duplicates} onFilters={setFilters} onSelect={setSelectedIds} onOpen={openContact} onSaveSegment={saveSegment} onMerge={merge} onCompose={() => setShowOutreach(true)} /> : null}
-    {tab === "segments" ? <SegmentsView segments={segments} onOpen={chooseSegment} /> : null}
-    {tab === "analytics" ? <AnalyticsView metrics={metrics} /> : null}
+    {tab === "pipeline" ? <CrmResourceView label="sourcing pipeline" status={resourceStatus.pipeline} error={resourceErrors.pipeline} onRetry={() => void loadPipeline()}><PipelineView pipeline={pipeline} busy={busy} onOpen={openContact} onMove={(contactId, stageId) => void run(async () => { await moveCrmContact(organizationId, contactId, stageId, "Moved from CRM Kanban"); await loadAll(); }, "Could not move the contact.")} /></CrmResourceView> : null}
+    {tab === "directory" ? <CrmResourceView label="speaker directory" status={resourceStatus.directory} error={resourceErrors.directory} onRetry={() => void loadDirectory()}><DirectoryView contacts={contacts} filters={filters} selected={selectedIds} duplicates={duplicates} onFilters={setFilters} onSelect={setSelectedIds} onOpen={openContact} onSaveSegment={saveSegment} onMerge={merge} onCompose={() => setShowOutreach(true)} /></CrmResourceView> : null}
+    {tab === "segments" ? <CrmResourceView label="saved segments" status={resourceStatus.segments} error={resourceErrors.segments} onRetry={() => void loadSegments()}><SegmentsView segments={segments} onOpen={chooseSegment} /></CrmResourceView> : null}
+    {tab === "analytics" ? <CrmResourceView label="organization metrics" status={resourceStatus.metrics} error={resourceErrors.metrics} onRetry={() => void loadMetrics()}><AnalyticsView metrics={metrics} /></CrmResourceView> : null}
 
     {detail ? <ContactDrawer organizationId={organizationId} contact={detail} events={events} pipeline={pipeline} busy={busy} onClose={() => setDetail(null)} onChanged={async (next, message) => { setDetail(next); setNotice(message); await loadAll(); }} onRun={run} /> : null}
     {showOutreach ? <OutreachDialog organizationId={organizationId} contacts={selected} events={events} busy={busy} onClose={() => setShowOutreach(false)} onRun={run} onQueued={async (count) => { setShowOutreach(false); setSelectedIds(new Set()); setNotice(`Persisted a Communications handoff for ${count} selected contacts. Delivery is not claimed until Communications consumes it.`); await loadAll(); }} /> : null}
   </div>;
+}
+
+function CrmResourceView({ label, status, error, onRetry, children }: { label: string; status: LoadStatus; error: string | undefined; onRetry: () => void; children: React.ReactNode }) {
+  if (status === "loading") return <div className={styles.loadingState} aria-busy="true" aria-label={`Loading ${label}`}><span /><span /><span /></div>;
+  if (status === "error") return <div className={styles.loadError} role="alert"><strong>Could not load {label}.</strong><p>{error ?? "This Speaker CRM section is unavailable."}</p><button className={styles.primary} type="button" onClick={onRetry}>Retry {label}</button></div>;
+  return children;
 }
 
 function PipelineView({ pipeline, busy, onOpen, onMove }: { pipeline: CrmPipeline | null; busy: boolean; onOpen: (id: string) => Promise<void>; onMove: (contactId: string, stageId: string) => void }) {
