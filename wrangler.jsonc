@@ -35,7 +35,7 @@
         "FILES_BUCKET": "programflow-files",
         "FILES_ENDPOINT_URL": "https://br-delicate-hall-aywwqjp5.storage.c-5.us-east-2.aws.neon.tech",
         "FILES_REGION": "us-east-2",
-        "NEON_AUTH_BASE_URL": "https://ep-twilight-dream-ayz0fzm7.neonauth.c-5.us-east-2.aws.neon.tech/neondb/auth"
+        "NEON_AUTH_BASE_URL": "https://ep-hidden-night-axu8hcwx.neonauth.c-4.us-east-2.aws.neon.tech/neondb/auth"
       },
       "ai": { "binding": "AI", "remote": true },
       "queues": {
