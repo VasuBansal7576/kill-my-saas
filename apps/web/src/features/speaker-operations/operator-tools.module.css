@@ -1,0 +1,17 @@
+.importReview { margin-top: 18px; padding: 18px; border: 1px solid #34302b; border-radius: 8px; background: #151412; }
+.importTable { overflow-x: auto; border-top: 1px solid #292929; }
+.importHeader, .importRow { min-width: 1050px; display: grid; grid-template-columns: 55px 40px 1fr 1.2fr 1fr 1fr 1.2fr; align-items: center; gap: 9px; min-height: 52px; padding: 7px 5px; border-bottom: 1px solid #282828; }
+.importHeader { min-height: 34px; color:#8f8f8f; font-size:13px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
+.importRow[data-invalid="true"] { background: rgba(227, 97, 108, .035); }
+.importRow > input[type="checkbox"] { width: 15px; }
+.importRow input:not([type="checkbox"]) { box-sizing: border-box; width: 100%; padding: 7px 8px; border: 1px solid #333; border-radius: 5px; background: #101010; color: #d8d8d8; font-size:13px; }
+.importRow label { display: grid; gap: 4px; }
+.importRow small, .importRow > span { color:#979797; font-size:13px; }
+.importActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.valid { color: #72c79a !important; }
+.headshotAction { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 18px; padding: 12px; border: 1px solid #2d2d2d; border-radius: 7px; background: #181818; }
+.headshotAction strong, .headshotAction small { display: block; }
+.headshotAction strong { font-size:12px; }
+.headshotAction small { margin-top: 4px; color:#979797; font-size:13px; }
+
+@media (max-width: 700px) { .importActions, .headshotAction { align-items: stretch; flex-direction: column; } }

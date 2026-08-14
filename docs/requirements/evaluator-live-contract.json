@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "effective_date": "2026-08-13",
+  "totals": {
+    "items": 98,
+    "scenarios": 20,
+    "required_items": 86,
+    "required_weighted_points": 183,
+    "crm_items": 12,
+    "crm_weighted_points": 19,
+    "public_widgets_weighted_points": 35
+  },
+  "head_changes": {
+    "CFP-17": {
+      "weight": 2,
+      "type": "exists",
+      "scenario": "CFP-S1",
+      "criterion": "The organizer can create a second event and reach both events through an events list or event switcher."
+    },
+    "CFP-18": {
+      "weight": 2,
+      "type": "scoping",
+      "scenario": "CFP-S1",
+      "criterion": "Submissions, sessions, and speakers from one event are absent from another event."
+    },
+    "EMB-15": {
+      "weight": 3,
+      "type": "handoff",
+      "scenario": "EMB-S3",
+      "criterion": "Organizer embed/share administration generates configured snippets or share URLs per widget; full proof includes multiple output formats and a live interactive different-origin embed."
+    }
+  },
+  "ordered_start": {
+    "event": "DevFlow Conf 2027",
+    "workflow_rows": {
+      "cfp_forms": 0,
+      "submissions": 0,
+      "decisions": 0,
+      "sessions": 0,
+      "review_plans": 0,
+      "review_assignments": 0,
+      "event_speakers": 0,
+      "speaker_tasks": 0,
+      "schedule_revisions": 0,
+      "placements": 0,
+      "publications": 0,
+      "widget_configurations": 0
+    },
+    "scenario_owned_decisions": [
+      {
+        "title": "Taming 40-Minute CI: Incremental Builds at Monorepo Scale",
+        "scenario": "CFP-S4",
+        "outcome": "accepted"
+      },
+      {
+        "title": "Your AI Pair Programmer Is Lying to You: Verification Patterns That Scale",
+        "scenario": "CFP-S4",
+        "outcome": "rejected"
+      }
+    ],
+    "precreated_contradictory_public_sessions": 0
+  }
+}

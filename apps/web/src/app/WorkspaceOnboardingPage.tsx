@@ -1,0 +1,179 @@
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
+import { brandColorChoices, canonicalTimezone, friendlyTimezoneLabel } from "./onboarding-options";
+
+type SessionResponse = {
+  organizationMemberships: Array<{ id: string; name: string; slug: string; roles: string[] }>;
+  eventMemberships: Array<{ id: string; organizationId: string; name: string; slug: string; roles: string[] }>;
+  recommendedPath: string;
+};
+
+type SetupFields = {
+  organizationName: string;
+  organizationSlug: string;
+  eventName: string;
+  eventSlug: string;
+  startsOn: string;
+  endsOn: string;
+  timezone: string;
+  location: string;
+  primaryColor: string;
+};
+
+export function WorkspaceOnboardingPage({ additionalEvent = false }: { additionalEvent?: boolean }) {
+  const navigate = useNavigate();
+  const [session, setSession] = useState<SessionResponse | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const { control, register, handleSubmit, getValues, setValue, formState: { errors, isSubmitting } } = useForm<SetupFields>({ defaultValues: defaultValues() });
+  const primaryColor = useWatch({ control, name: "primaryColor" });
+  const timezone = useWatch({ control, name: "timezone" });
+  const timezoneOptions = useMemo(() => timezoneChoices(timezone), [timezone]);
+
+  useEffect(() => {
+    void fetch("/api/v1/session").then(async (response) => {
+      if (response.status === 401) {
+        navigate(additionalEvent ? "/login" : "/signup", { replace: true });
+        return;
+      }
+      if (!response.ok) throw new Error("Your account could not be loaded.");
+      const current = await response.json() as SessionResponse;
+      if (!additionalEvent && current.organizationMemberships.length) {
+        navigate(current.recommendedPath, { replace: true });
+        return;
+      }
+      setSession(current);
+    }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Your account could not be loaded."));
+  }, [additionalEvent, navigate]);
+
+  const submit = handleSubmit(async (values) => {
+    setMessage(null);
+    const organization = session?.organizationMemberships[0];
+    if (additionalEvent && !organization) {
+      setMessage("Create an organization before adding another event.");
+      return;
+    }
+    const event = {
+      name: values.eventName,
+      slug: values.eventSlug,
+      startsOn: values.startsOn,
+      endsOn: values.endsOn,
+      timezone: values.timezone,
+      location: values.location,
+      primaryColor: values.primaryColor,
+    };
+    const endpoint = additionalEvent
+      ? `/api/v1/organizer/organizations/${organization!.id}/events`
+      : "/api/v1/onboarding";
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(additionalEvent ? event : {
+        organization: { name: values.organizationName, slug: values.organizationSlug },
+        event,
+      }),
+    });
+    const result = await response.json() as { recommendedPath?: string; error?: { message?: string } };
+    if (!response.ok || !result.recommendedPath) {
+      setMessage(result.error?.message ?? "The workspace could not be created.");
+      return;
+    }
+    navigate(result.recommendedPath, { replace: true });
+  });
+
+  const fillSlug = (source: keyof SetupFields, target: keyof SetupFields) => {
+    if (!getValues(target)) setValue(target, slugify(getValues(source)), { shouldValidate: true });
+  };
+  const Landmark = additionalEvent ? "section" : "main";
+
+  return (
+    <Landmark id={additionalEvent ? undefined : "main-content"} className="login-page onboarding-page">
+      <section className="login-card onboarding-card">
+        <div className="brand login-brand"><span>PF</span>ProgramFlow</div>
+        <p className="eyebrow">{additionalEvent ? "New event" : "First-run setup"}</p>
+        <h1>{additionalEvent ? "Create another program." : "Create your workspace."}</h1>
+        <p>{additionalEvent ? `Add an event to ${session?.organizationMemberships[0]?.name ?? "your organization"}.` : "Start with an organization and one real event. You can change every program setting afterward."}</p>
+        <form className="onboarding-form" onSubmit={submit}>
+          {!additionalEvent ? <fieldset>
+            <legend>Organization</legend>
+            <label htmlFor="organization-name">Organization name<input id="organization-name" {...validationAttributes(Boolean(errors.organizationName), "organization-name")} {...register("organizationName", { required: true, minLength: 2, onBlur: () => fillSlug("organizationName", "organizationSlug") })} />{errors.organizationName ? <small id="organization-name-error">Enter your organization name.</small> : null}</label>
+            <label htmlFor="organization-slug">Organization URL<input id="organization-slug" {...validationAttributes(Boolean(errors.organizationSlug), "organization-slug")} placeholder="my-organization" {...register("organizationSlug", { required: true, pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ })} />{errors.organizationSlug ? <small id="organization-slug-error">Use lowercase letters, numbers, and hyphens.</small> : null}</label>
+          </fieldset> : null}
+          <fieldset>
+            <legend>{additionalEvent ? "Event details" : "First event details"}</legend>
+            <label htmlFor="event-name">Event name<input id="event-name" {...validationAttributes(Boolean(errors.eventName), "event-name")} {...register("eventName", { required: true, minLength: 3, onBlur: () => fillSlug("eventName", "eventSlug") })} />{errors.eventName ? <small id="event-name-error">Enter at least three characters.</small> : null}</label>
+            <label htmlFor="event-slug">Public event URL<input id="event-slug" {...validationAttributes(Boolean(errors.eventSlug), "event-slug")} placeholder="my-event-2027" {...register("eventSlug", { required: true, pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ })} />{errors.eventSlug ? <small id="event-slug-error">Use lowercase letters, numbers, and hyphens.</small> : null}</label>
+            <div className="onboarding-row">
+              <label htmlFor="event-starts-on">Starts on<input id="event-starts-on" {...validationAttributes(Boolean(errors.startsOn), "event-starts-on")} type="date" {...register("startsOn", { required: true })} />{errors.startsOn ? <small id="event-starts-on-error">Choose a start date.</small> : null}</label>
+              <label htmlFor="event-ends-on">Ends on<input id="event-ends-on" {...validationAttributes(Boolean(errors.endsOn), "event-ends-on")} type="date" {...register("endsOn", { required: true, validate: (value) => value >= getValues("startsOn") })} />{errors.endsOn ? <small id="event-ends-on-error">End date must follow the start date.</small> : null}</label>
+            </div>
+            <label htmlFor="event-location">Location<input id="event-location" {...validationAttributes(Boolean(errors.location), "event-location")} placeholder="Venue or Online" {...register("location", { required: true, minLength: 2 })} />{errors.location ? <small id="event-location-error">Enter a venue or Online.</small> : null}</label>
+            <div className="event-preferences">
+              <label htmlFor="event-timezone">Event timezone
+                <select id="event-timezone" {...validationAttributes(Boolean(errors.timezone), "event-timezone")} {...register("timezone", { required: true })}>
+                  {timezoneOptions.map((value) => <option key={value} value={value}>{friendlyTimezoneLabel(value)}</option>)}
+                </select>
+                <small className="field-help">Used for deadlines, agenda times, and calendar exports.</small>
+                {errors.timezone ? <small id="event-timezone-error">Choose an event timezone.</small> : null}
+              </label>
+              <div className="brand-color-field" role="group" aria-labelledby="brand-color-label">
+                <span id="brand-color-label">Brand color</span>
+                <div className="brand-color-control">
+                  <input id="event-primary-color" {...validationAttributes(Boolean(errors.primaryColor), "event-primary-color")} aria-label="Choose a custom brand color" type="color" {...register("primaryColor", { required: true })} />
+                  <output aria-live="polite">{primaryColor.toLocaleUpperCase("en-US")}</output>
+                </div>
+                <div className="brand-color-swatches" aria-label="Suggested brand colors">
+                  {brandColorChoices.map((choice) => <button key={choice.value} type="button" aria-label={`Use ${choice.label} brand color`} aria-pressed={primaryColor.toLocaleLowerCase("en-US") === choice.value} style={{ "--swatch-color": choice.value } as CSSProperties} onClick={() => setValue("primaryColor", choice.value, { shouldDirty: true, shouldValidate: true })}><span aria-hidden="true" /></button>)}
+                </div>
+                {errors.primaryColor ? <small id="event-primary-color-error">Choose a brand color.</small> : null}
+              </div>
+            </div>
+          </fieldset>
+          {message ? <div className="form-error" role="alert">{message}</div> : null}
+          <button type="submit" disabled={isSubmitting || session === null}>{isSubmitting ? "Creating…" : additionalEvent ? "Create event" : "Create workspace"}</button>
+        </form>
+      </section>
+    </Landmark>
+  );
+}
+
+function defaultValues(): SetupFields {
+  const starts = new Date();
+  starts.setUTCDate(starts.getUTCDate() + 30);
+  const ends = new Date(starts);
+  ends.setUTCDate(ends.getUTCDate() + 1);
+  return {
+    organizationName: "",
+    organizationSlug: "",
+    eventName: "",
+    eventSlug: "",
+    startsOn: starts.toISOString().slice(0, 10),
+    endsOn: ends.toISOString().slice(0, 10),
+    timezone: canonicalTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"),
+    location: "",
+    primaryColor: "#7c5cff",
+  };
+}
+
+function slugify(value: string): string {
+  return value.trim().normalize("NFKD").toLocaleLowerCase("en-US")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 63);
+}
+
+function validationAttributes(invalid: boolean, id: string) {
+  return { "aria-invalid": invalid || undefined, "aria-describedby": invalid ? `${id}-error` : undefined } as const;
+}
+
+function timezoneChoices(selected: string): string[] {
+  return Array.from(new Set([
+    canonicalTimezone(selected),
+    "UTC",
+    "America/Los_Angeles",
+    "America/New_York",
+    "Europe/London",
+    "Europe/Paris",
+    "Asia/Kolkata",
+    "Asia/Singapore",
+    "Australia/Sydney",
+  ].filter(Boolean)));
+}
