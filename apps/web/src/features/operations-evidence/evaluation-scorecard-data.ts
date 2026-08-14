@@ -18,10 +18,10 @@ export const evaluationScorecard = {
     href: "/artifacts/programflow-judge-walkthrough.mp4",
     durationSeconds: 76.1,
     durationLabel: "1:16",
-    sizeBytes: 26_594_685,
-    sizeLabel: "25.4 MiB",
+    sizeBytes: 23_326_740,
+    sizeLabel: "22.2 MiB",
     sha256:
-      "7350809c913cf280127affc6b59424b16dc8430a4e9fbece443729a07dbe3c8f",
+      "9827a70d0c0aadd730dfa373269cd64930057a27e4a7acc36efda0700b3d85f6",
   },
 } as const;
 

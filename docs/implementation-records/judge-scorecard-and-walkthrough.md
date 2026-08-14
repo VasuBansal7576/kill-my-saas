@@ -20,11 +20,12 @@ The public root and evaluator help page link to the scorecard. The scorecard lin
 ## Walkthrough artifact
 
 - Public path: `/artifacts/programflow-judge-walkthrough.mp4`
-- Adopted unchanged from the existing author revision; no video edit or regeneration was performed.
+- Content-preserving two-pass deployment transcode of the existing author revision; the edit, runtime, frame size, frame rate, and AAC audio are unchanged. The original source remains untouched outside the repository.
 - Format: 1920×1080, 30 fps, H.264 video with AAC audio.
 - Duration: 76.100 seconds.
-- Size: 26,594,685 bytes.
-- SHA-256: `7350809c913cf280127affc6b59424b16dc8430a4e9fbece443729a07dbe3c8f`
+- Size: 23,326,740 bytes (22.2 MiB), below Cloudflare Workers' 25 MiB static-asset limit.
+- SHA-256: `9827a70d0c0aadd730dfa373269cd64930057a27e4a7acc36efda0700b3d85f6`
+- Visual equivalence: three early/middle/late frame pairs were inspected and the full-video SSIM against the source is 0.999249.
 
 ## Evidence
 
