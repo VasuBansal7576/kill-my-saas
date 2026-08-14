@@ -16,6 +16,8 @@ describe("evaluation route discoverability", () => {
     expect(markup).toContain("Provider success is shown only when a real provider returns it.");
     expect(markup).toContain("Privately supplied credentials");
     expect(markup).toContain('href="/help"');
+    expect(markup).toContain('href="/evaluation-scorecard"');
+    expect(markup).toContain("View the current contract and 1:16 walkthrough");
     expect(markup.toLowerCase()).not.toContain("password=");
     expect(markup).not.toContain("Live public program");
     expect(markup).not.toMatch(/100\s*\/\s*100/);
@@ -33,5 +35,7 @@ describe("evaluation route discoverability", () => {
     expect(markup).toContain("Reload after changes");
     expect(markup).toContain("Use the Evidence Center");
     expect(markup).toContain("There is no anonymous reset action");
+    expect(markup).toContain("98 items · 202 weighted points");
+    expect(markup).toContain('href="/evaluation-scorecard"');
   });
 });

@@ -7,7 +7,7 @@ export function EvaluationEntryPage() {
   return <main id="main-content" className={styles.entryPage}>
     <header className={styles.entryNav}>
       <div className={styles.brand}><span>PF</span>ProgramFlow</div>
-      <nav aria-label="Evaluation entry shortcuts"><Link to="/help">How to evaluate</Link><Link className={styles.navDemo} to={`/events/${eventSlug}/sessions`}>Open public demo →</Link></nav>
+      <nav aria-label="Evaluation entry shortcuts"><Link to="/help">How to evaluate</Link><Link to="/evaluation-scorecard">98-item scorecard</Link><Link className={styles.navDemo} to={`/events/${eventSlug}/sessions`}>Open public demo →</Link></nav>
     </header>
 
     <section className={styles.entryHero}>
@@ -49,7 +49,7 @@ export function EvaluationEntryPage() {
     </section>
 
     <section className={styles.proofSection} aria-labelledby="proof-title">
-      <div><p className={styles.eyebrow}>Production behavior, not a stage set</p><h2 id="proof-title">A green toast is not delivery.</h2><p>ProgramFlow keeps the receipt through every handoff. Organizer actions persist to PostgreSQL, while required side effects retain recipient, provider, file, calendar, integration, retry, and failure evidence. Provider success is shown only when a real provider returns it.</p><Link to="/help">Read the evaluator guide →</Link></div>
+      <div><p className={styles.eyebrow}>Production behavior, not a stage set</p><h2 id="proof-title">A green toast is not delivery.</h2><p>ProgramFlow keeps the receipt through every handoff. Organizer actions persist to PostgreSQL, while required side effects retain recipient, provider, file, calendar, integration, retry, and failure evidence. Provider success is shown only when a real provider returns it.</p><Link to="/evaluation-scorecard">View the current contract and 1:16 walkthrough →</Link></div>
       <dl><div><dt>Role boundaries</dt><dd>Organizer, reviewer, speaker, and anonymous routes are independently scoped.</dd></div><div><dt>Persisted handoffs</dt><dd>Acceptance creates a distinct linked Session; publication exposes approved scheduled records.</dd></div><div><dt>Truthful outcomes</dt><dd>Queued, delivered, blocked, partial, and failed states remain visible instead of collapsing into a success toast.</dd></div></dl>
     </section>
 
@@ -94,6 +94,7 @@ export function HelpPage() {
       <HelpStep number="05" title="Use the Evidence Center">After organizer sign-in, open <strong>Evaluation evidence</strong> in navigation. It maps all 20 scenarios to routes, state transitions, handoffs, evidence records, provider receipts, and the downloadable release manifest.</HelpStep>
       <HelpStep number="06" title="Keep reset operator-only">There is no anonymous reset action. In an authorized evaluation environment, the organizer-only Evidence Center shows the controlled snapshot-restore runbook and readiness checks.</HelpStep>
     </section>
+    <section className={styles.helpScorecard}><div><p className={styles.eyebrow}>Current contract</p><h2>98 items · 202 weighted points</h2><p>See implementation coverage and fresh release verification as separate states, then watch the concise judge walkthrough.</p></div><Link to="/evaluation-scorecard">Open the public scorecard →</Link></section>
     <section className={styles.helpGlossary}><h2>Words that matter</h2><dl><div><dt>Submission</dt><dd>A draft or submitted proposal.</dd></div><div><dt>Decision</dt><dd>The sole accepted or rejected outcome.</dd></div><div><dt>Session</dt><dd>Accepted or manually entered program content, distinct from a Submission.</dd></div><div><dt>Publication</dt><dd>The sole event-level state exposing eligible program records publicly.</dd></div><div><dt>Evidence record</dt><dd>An inspectable link between a requirement, the exercised operation, and its artifact or test.</dd></div></dl></section>
   </main>;
 }

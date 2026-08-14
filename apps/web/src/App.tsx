@@ -106,6 +106,10 @@ const EvaluationEntryPage = lazy(async () => ({
 const HelpPage = lazy(async () => ({
   default: (await import("./features/operations-evidence")).HelpPage,
 }));
+const EvaluationScorecardPage = lazy(async () => ({
+  default: (await import("./features/operations-evidence"))
+    .EvaluationScorecardPage,
+}));
 const EvaluationEvidencePage = lazy(async () => ({
   default: (await import("./features/operations-evidence")).EvaluationEvidencePage,
 }));
@@ -138,6 +142,7 @@ export function App() {
       <Routes>
       <Route path="/" element={<StandalonePage><EvaluationEntryPage /></StandalonePage>} />
       <Route path="/help" element={<StandalonePage><HelpPage /></StandalonePage>} />
+      <Route path="/evaluation-scorecard" element={<StandalonePage><EvaluationScorecardPage /></StandalonePage>} />
       <Route
         path="/login"
         element={
