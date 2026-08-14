@@ -9,7 +9,13 @@ import {
   rowsFromExecuteResult,
   type Database,
 } from "@programflow/database";
-import { handleAuthProxyRequest } from "@neondatabase/auth/server";
+import {
+  extractNeonAuthCookies,
+  NEON_AUTH_HEADER_MIDDLEWARE_NAME,
+  NEON_AUTH_SESSION_DATA_COOKIE_NAME,
+  parseCookieValue,
+  validateSessionData,
+} from "@neondatabase/auth/server";
 import { and, eq, sql } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
@@ -33,7 +39,13 @@ const SessionActorSchema = SessionUserSchema.extend({
   })),
 });
 const actorCache = new Map<string, { actor: Actor; expiresAt: number }>();
+const authenticatedUserCache = new Map<string, {
+  user: z.infer<typeof SessionUserSchema>;
+  expiresAt: number;
+}>();
 const actorCacheTtlMs = 15_000;
+const authenticatedUserCacheTtlMs = 5 * 60_000;
+const authColdPathTimeoutMs = 3_500;
 
 export const resolveActor = createMiddleware<{ Bindings: Env } & ActorContext>(async (context, next) => {
   if (!context.env.NEON_AUTH_BASE_URL || !context.env.DATABASE_URL) {
@@ -55,7 +67,7 @@ export const resolveActor = createMiddleware<{ Bindings: Env } & ActorContext>(a
     return;
   }
   actorCache.delete(sessionToken);
-  const authenticatedUser = await sessionUserFromAuthProxy(
+  const authenticatedUser = await sessionUserFromAuth(
     context.req.raw,
     context.env.NEON_AUTH_BASE_URL,
     context.env.NEON_AUTH_COOKIE_SECRET,
@@ -137,37 +149,70 @@ async function activeIdentityActor(database: Database, user: z.infer<typeof Sess
   return SessionActorSchema.safeParse(rowsFromExecuteResult(result)[0]).data ?? null;
 }
 
-type AuthProxy = typeof handleAuthProxyRequest;
+type AuthFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
-export async function sessionUserFromAuthProxy(
+export async function sessionUserFromAuth(
   request: Request,
   baseUrl: string,
   cookieSecret: string | undefined,
-  proxy: AuthProxy = handleAuthProxyRequest,
+  authFetch: AuthFetch = fetch,
 ): Promise<z.infer<typeof SessionUserSchema> | null> {
-  if (!cookieSecret || !sessionTokenFromCookie(request.headers.get("cookie") ?? undefined)) return null;
-  const response = await proxy({
-    request: new Request(request.url, {
-      method: "GET",
-      headers: {
-        cookie: request.headers.get("cookie") ?? "",
-        origin: new URL(request.url).origin,
-      },
-    }),
-    path: "get-session",
-    baseUrl,
-    cookieSecret,
-    sameSite: "lax",
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  const sessionToken = sessionTokenFromCookie(cookieHeader);
+  if (!cookieSecret || !sessionToken) return null;
+
+  const cached = authenticatedUserCache.get(sessionToken);
+  if (cached && cached.expiresAt > Date.now()) return cached.user;
+  authenticatedUserCache.delete(sessionToken);
+
+  const sessionDataCookie = parseCookieValue(cookieHeader, NEON_AUTH_SESSION_DATA_COOKIE_NAME);
+  if (sessionDataCookie) {
+    const validation = await validateSessionData(sessionDataCookie, cookieSecret);
+    const parsed = AuthSessionSchema.safeParse(validation.payload);
+    if (validation.valid && parsed.success && parsed.data.session.expiresAt > new Date()) {
+      cacheAuthenticatedUser(sessionToken, parsed.data.user, parsed.data.session.expiresAt);
+      return parsed.data.user;
+    }
+  }
+
+  const authUrl = new URL(`${baseUrl.replace(/\/$/, "")}/get-session`);
+  const response = await authFetch(authUrl, {
+    method: "GET",
+    headers: {
+      cookie: extractNeonAuthCookies(cookieHeader),
+      origin: new URL(request.url).origin,
+      [NEON_AUTH_HEADER_MIDDLEWARE_NAME]: "true",
+    },
+    signal: AbortSignal.timeout(authColdPathTimeoutMs),
   });
   if (!response.ok) return null;
   const parsed = AuthSessionSchema.safeParse(await response.json().catch(() => null));
   if (!parsed.success || parsed.data.session.expiresAt <= new Date()) return null;
+  cacheAuthenticatedUser(sessionToken, parsed.data.user, parsed.data.session.expiresAt);
   return parsed.data.user;
 }
 
 export function invalidateActorCache(cookieHeader: string | undefined) {
   const token = sessionTokenFromCookie(cookieHeader);
-  if (token) actorCache.delete(token);
+  if (token) {
+    actorCache.delete(token);
+    authenticatedUserCache.delete(token);
+  }
+}
+
+function cacheAuthenticatedUser(
+  sessionToken: string,
+  user: z.infer<typeof SessionUserSchema>,
+  sessionExpiresAt: Date,
+) {
+  authenticatedUserCache.set(sessionToken, {
+    user,
+    expiresAt: Math.min(sessionExpiresAt.getTime(), Date.now() + authenticatedUserCacheTtlMs),
+  });
+  if (authenticatedUserCache.size > 500) {
+    const oldest = authenticatedUserCache.keys().next().value as string | undefined;
+    if (oldest) authenticatedUserCache.delete(oldest);
+  }
 }
 
 export function sessionTokenFromCookie(cookieHeader: string | undefined): string | null {

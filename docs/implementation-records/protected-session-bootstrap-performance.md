@@ -1,0 +1,11 @@
+# Protected session bootstrap performance
+
+- Requirement: HUM-18 usability and performance; Slice 0 identity/access; Slice 15 release hardening.
+- Roles: organizer, reviewer, and speaker. Authorization remains server-enforced from current organization/event memberships.
+- Persisted transition: none. The read-only `/api/v1/session` bootstrap resolves the authenticated `Identity` and current role grants without changing canonical records.
+- Downstream handoff: the returned memberships and recommended path unlock the protected organizer, reviewer, or speaker workspace.
+- Failure behavior: a missing or invalid session remains `401`; an upstream auth lookup is bounded at 3.5 seconds and never retries serially inside the request. Auth transport failures surface through the existing server error boundary instead of being misclassified as a signed-out user.
+- Root cause: the generic Neon Auth proxy helper performs two sequential upstream `/get-session` calls when the durable session token exists but its short-lived signed session-data cookie is absent. Two 2.9-second auth round trips followed by the observed 2.3-second cold database bootstrap reproduce the client failure at 8.1 seconds.
+- Fix: validate a present signed session-data cookie locally with the official Neon Auth validator; otherwise make one bounded real Neon Auth `/get-session` request and cache only the authenticated user for at most five minutes or the session expiry, whichever comes first. The existing 15-second actor cache and database role lookup continue to refresh authorization grants independently.
+- Automated evidence: `apps/worker/src/modules/identity-access/session-bootstrap.performance.test.ts` covers organizer, reviewer, and speaker. It fails at 8.1 seconds with the former doubled auth lookup and passes at 5.2 seconds with one auth lookup, below the unchanged 8-second recovery boundary. `resolve-actor.integration.test.ts` covers request forwarding, cache reuse, invalid/expired sessions, first-login provisioning, and cache invalidation.
+- Observability/security impact: no bodies, cookies, tokens, or secrets are logged. No client timeout, role rule, evaluation seed, schema, provider adapter, or persisted data changes.

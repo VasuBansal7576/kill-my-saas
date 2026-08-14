@@ -11,7 +11,7 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createToolingDatabase } from "../../../../../packages/database/src/tooling-client";
-import { provisionFirstLogin, sessionTokenFromCookie, sessionUserFromAuthProxy } from "./resolve-actor";
+import { invalidateActorCache, provisionFirstLogin, sessionTokenFromCookie, sessionUserFromAuth } from "./resolve-actor";
 
 const databaseUrl = process.env.DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -114,32 +114,101 @@ describe("session cookie parsing", () => {
       },
     }));
 
-    await expect(sessionUserFromAuthProxy(request, "https://auth.example.com", "x".repeat(32), proxy))
+    await expect(sessionUserFromAuth(request, "https://auth.example.com", "x".repeat(32), proxy))
       .resolves.toEqual({ id: "auth-user-1", email: "organizer@example.com", name: "Jordan Alvarez" });
-    expect(proxy).toHaveBeenCalledWith(expect.objectContaining({
-      path: "get-session",
-      baseUrl: "https://auth.example.com",
-      cookieSecret: "x".repeat(32),
+    await expect(sessionUserFromAuth(request, "https://auth.example.com", "x".repeat(32), proxy))
+      .resolves.toEqual({ id: "auth-user-1", email: "organizer@example.com", name: "Jordan Alvarez" });
+    expect(proxy).toHaveBeenCalledTimes(1);
+    expect(proxy).toHaveBeenCalledWith(expect.objectContaining({ href: "https://auth.example.com/get-session" }), expect.objectContaining({
+      method: "GET",
+      headers: expect.objectContaining({
+        cookie: "__Secure-neon-auth.session_token=bearer-token-value-12345.signature",
+        origin: "https://programflow.example",
+      }),
     }));
+    expect(proxy.mock.calls[0]?.[1]?.signal).toBeDefined();
+    invalidateActorCache(request.headers.get("cookie") ?? undefined);
+  });
+
+  it("validates Neon Auth session data locally without an upstream round trip", async () => {
+    const secret = "x".repeat(32);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 60_000);
+    const sessionData = await signSessionData(secret, {
+      session: {
+        id: "session-local",
+        token: "local-session-token-value",
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+      },
+      user: {
+        id: "auth-user-local",
+        email: "reviewer@example.com",
+        name: "Sam Whitfield",
+        emailVerified: true,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+    }, expiresAt);
+    const cookie = `__Secure-neon-auth.session_token=local-session-token-value.signature; __Secure-neon-auth.local.session_data=${sessionData}`;
+    const request = new Request("https://programflow.example/api/v1/session", { headers: { cookie } });
+    const upstream = vi.fn();
+
+    await expect(sessionUserFromAuth(request, "https://auth.example.com", secret, upstream))
+      .resolves.toEqual({ id: "auth-user-local", email: "reviewer@example.com", name: "Sam Whitfield" });
+    expect(upstream).not.toHaveBeenCalled();
+    invalidateActorCache(cookie);
   });
 
   it("rejects missing, expired, and malformed auth sessions", async () => {
     const noCookie = new Request("https://programflow.example/api/v1/session");
     const proxy = vi.fn();
-    await expect(sessionUserFromAuthProxy(noCookie, "https://auth.example.com", "x".repeat(32), proxy))
+    await expect(sessionUserFromAuth(noCookie, "https://auth.example.com", "x".repeat(32), proxy))
       .resolves.toBeNull();
     expect(proxy).not.toHaveBeenCalled();
 
     const request = new Request("https://programflow.example/api/v1/session", {
-      headers: { cookie: "__Secure-neon-auth.session_token=bearer-token-value-12345.signature" },
+      headers: { cookie: "__Secure-neon-auth.session_token=expired-session-token-67890.signature" },
     });
     proxy.mockResolvedValueOnce(Response.json({
       session: { expiresAt: new Date(Date.now() - 60_000).toISOString() },
       user: { id: "auth-user-1", email: "organizer@example.com", name: "Jordan Alvarez" },
     })).mockResolvedValueOnce(Response.json({ nope: true }));
-    await expect(sessionUserFromAuthProxy(request, "https://auth.example.com", "x".repeat(32), proxy))
+    await expect(sessionUserFromAuth(request, "https://auth.example.com", "x".repeat(32), proxy))
       .resolves.toBeNull();
-    await expect(sessionUserFromAuthProxy(request, "https://auth.example.com", "x".repeat(32), proxy))
+    await expect(sessionUserFromAuth(request, "https://auth.example.com", "x".repeat(32), proxy))
       .resolves.toBeNull();
   });
+
+  it("surfaces an unavailable auth service instead of misclassifying the session as signed out", async () => {
+    const request = new Request("https://programflow.example/api/v1/session", {
+      headers: { cookie: "__Secure-neon-auth.session_token=unavailable-session-token.signature" },
+    });
+    const unavailable = vi.fn().mockRejectedValue(new DOMException("Timed out", "TimeoutError"));
+
+    await expect(sessionUserFromAuth(request, "https://auth.example.com", "x".repeat(32), unavailable))
+      .rejects.toThrow("Timed out");
+  });
 });
+
+async function signSessionData(secret: string, data: Record<string, unknown>, expiresAt: Date) {
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const header = encode({ alg: "HS256", typ: "JWT" });
+  const payload = encode({
+    ...data,
+    iat: Math.floor(Date.now() / 1_000),
+    exp: Math.floor(expiresAt.getTime() / 1_000),
+    sub: "auth-user-local",
+  });
+  const unsigned = `${header}.${payload}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(unsigned));
+  return `${unsigned}.${Buffer.from(signature).toString("base64url")}`;
+}
